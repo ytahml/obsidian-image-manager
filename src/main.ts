@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, MarkdownView, SuggestModal } from 'obsidian';
+import { Notice, Plugin, TFile, TFolder, MarkdownView, SuggestModal } from 'obsidian';
 import { ImageManagerSettings, DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { ImageManagerSettingTab } from './settings';
 import { ImageBrowserModal } from './modals/image-browser';
@@ -9,9 +9,11 @@ import { RefConverter } from './utils/ref-converter';
 import { ImageOptimizer } from './utils/image-optimizer';
 import { ImageScanner } from './utils/image-scanner';
 import { BatchRename } from './utils/batch-rename';
+import { ImageReorganizer } from './utils/image-reorganizer';
 import { createUploader } from './uploaders/uploader-factory';
 import { UploadQueue } from './uploaders/upload-queue';
 import { setLocale, t } from './i18n';
+import { getDateTemplateVars, getFileNameWithoutExt } from './utils/path-utils';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -103,6 +105,17 @@ export default class ImageManagerPlugin extends Plugin {
             },
         });
 
+        this.addCommand({
+            id: 'reorganize-images',
+            name: t('command.reorganizeImages'),
+            checkCallback: (checking) => {
+                const file = this.app.workspace.getActiveFile();
+                if (!file || file.extension !== 'md') return false;
+                if (!checking) this.reorganizeNote(file);
+                return true;
+            },
+        });
+
         // Settings tab
         this.addSettingTab(new ImageManagerSettingTab(this.app, this));
 
@@ -115,6 +128,25 @@ export default class ImageManagerPlugin extends Plugin {
         this.registerEvent(
             this.app.workspace.on('editor-drop', (evt, editor, info) => {
                 this.handleImageDrop(evt, editor, info.file);
+            })
+        );
+
+        // Right-click menu: reorganize images
+        this.registerEvent(
+            this.app.workspace.on('file-menu', (menu, file) => {
+                if (file instanceof TFolder) {
+                    menu.addItem((item) => {
+                        item.setTitle(t('command.reorganizeImages'))
+                            .setIcon('folder-input')
+                            .onClick(() => this.reorganizeFolder(file.path));
+                    });
+                } else if (file instanceof TFile && file.extension === 'md') {
+                    menu.addItem((item) => {
+                        item.setTitle(t('command.reorganizeImages'))
+                            .setIcon('image-file')
+                            .onClick(() => this.reorganizeNote(file));
+                    });
+                }
             })
         );
     }
@@ -351,6 +383,38 @@ export default class ImageManagerPlugin extends Plugin {
         }).open();
     }
 
+    private async reorganizeNote(file: TFile) {
+        const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
+        try {
+            const result = await reorganizer.reorganizeNote(file);
+            new Notice(
+                t('notice.reorganizeDone', {
+                    note: '1',
+                    moved: String(result.moved),
+                    skipped: String(result.skipped),
+                })
+            );
+        } catch (e) {
+            new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+        }
+    }
+
+    private async reorganizeFolder(folderPath: string) {
+        const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
+        try {
+            const result = await reorganizer.reorganizeFolder(folderPath);
+            new Notice(
+                t('notice.reorganizeDone', {
+                    note: String(result.notes),
+                    moved: String(result.moved),
+                    skipped: String(result.skipped),
+                })
+            );
+        } catch (e) {
+            new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+        }
+    }
+
     private handleImagePaste(evt: ClipboardEvent, editor: import('obsidian').Editor, file: TFile | null) {
         if (evt.defaultPrevented) return;
         const files = evt.clipboardData?.files;
@@ -361,7 +425,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         evt.preventDefault();
 
-        this.processImageFiles(imageFiles, editor);
+        this.processImageFiles(imageFiles, editor, file);
     }
 
     private handleImageDrop(evt: DragEvent, editor: import('obsidian').Editor, file: TFile | null) {
@@ -374,10 +438,10 @@ export default class ImageManagerPlugin extends Plugin {
 
         evt.preventDefault();
 
-        this.processImageFiles(imageFiles, editor);
+        this.processImageFiles(imageFiles, editor, file);
     }
 
-    private processImageFiles(files: File[], editor: import('obsidian').Editor) {
+    private processImageFiles(files: File[], editor: import('obsidian').Editor, currentFile: TFile | null) {
         for (const imgFile of files) {
             const ext = this.mimeToExt(imgFile.type);
             const defaultName = this.generateFileName(ext);
@@ -386,12 +450,12 @@ export default class ImageManagerPlugin extends Plugin {
                 new ImageNamePromptModal(this.app, defaultName, (userNamed) => {
                     const safeName = this.sanitizeFileName(userNamed, ext);
                     imgFile.arrayBuffer().then((buffer) => {
-                        this.savePastedImage(new Uint8Array(buffer), imgFile.type, safeName, editor);
+                        this.savePastedImage(new Uint8Array(buffer), imgFile.type, safeName, editor, currentFile);
                     });
                 }).open();
             } else {
                 imgFile.arrayBuffer().then((buffer) => {
-                    this.savePastedImage(new Uint8Array(buffer), imgFile.type, defaultName, editor);
+                    this.savePastedImage(new Uint8Array(buffer), imgFile.type, defaultName, editor, currentFile);
                 });
             }
         }
@@ -450,21 +514,61 @@ export default class ImageManagerPlugin extends Plugin {
         return filePath;
     }
 
+    resolveImagePath(template: string, currentFile: TFile | null, filename: string): string {
+        const noteName = currentFile ? getFileNameWithoutExt(currentFile.path) : '';
+        const notePath = currentFile ? (currentFile.parent?.path ?? '') : '';
+        const dateVars = getDateTemplateVars();
+
+        const vars: Record<string, string> = {
+            noteName,
+            notePath,
+            filename,
+            ...dateVars,
+        };
+
+        let result = template;
+        for (const [key, value] of Object.entries(vars)) {
+            result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+        }
+
+        // Clean up empty segments and leading/trailing slashes
+        result = result
+            .replace(/\/+/g, '/')
+            .replace(/^\/|\/$/g, '')
+            .replace(/\/\//g, '/');
+
+        // Remove trailing slash that could result from empty {noteName}
+        if (result.endsWith('/')) result = result.slice(0, -1);
+
+        const resolved = result || 'attachments';
+
+        // If base is 'note', prepend the note's parent directory
+        if (this.settings.imagePathBase === 'note' && notePath) {
+            return `${notePath}/${resolved}`;
+        }
+
+        return resolved;
+    }
+
     private async savePastedImage(
         data: Uint8Array,
         mimeType: string,
         filename: string,
-        editor: import('obsidian').Editor
+        editor: import('obsidian').Editor,
+        currentFile: TFile | null
     ) {
         const ext = this.mimeToExt(mimeType);
-        const dir = this.settings.imageDirectory || 'attachments';
+        const dir = this.resolveImagePath(this.settings.imagePathTemplate || 'attachments', currentFile, filename);
 
-        // Ensure directory exists
-        const dirPath = dir === '.' ? '' : dir;
-        if (dirPath) {
-            const existing = this.app.vault.getAbstractFileByPath(dirPath);
-            if (!existing) {
-                await this.app.vault.createFolder(dirPath).catch(() => {});
+        // Ensure directory exists (create intermediate folders)
+        if (dir) {
+            const parts = dir.split('/');
+            let current = '';
+            for (const part of parts) {
+                current = current ? `${current}/${part}` : part;
+                if (!this.app.vault.getAbstractFileByPath(current)) {
+                    await this.app.vault.createFolder(current).catch(() => {});
+                }
             }
         }
 

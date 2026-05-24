@@ -4,8 +4,13 @@ export const en: Record<string, string> = {
     'settings.language': 'Language',
     'settings.languageDesc': 'Display language for the plugin',
     'settings.general': 'General',
-    'settings.imageDirectory': 'Image directory',
-    'settings.imageDirectoryDesc': 'Default directory for storing images (relative to vault root)',
+    'settings.imagePathTemplate': 'Image path template',
+    'settings.imagePathBase': 'Path base',
+    'settings.imagePathBaseDesc': 'Resolve the path template relative to the vault root or the current note\'s location',
+    'settings.imagePathBase.vault': 'Relative to vault root',
+    'settings.imagePathBase.note': 'Relative to current note',
+    'settings.imagePathTemplateDesc':
+        'Template for storing pasted images. Variables: {noteName}, {notePath}, {year}, {month}, {day}, {filename}',
     'settings.referenceFormat': 'Reference format',
     'settings.referenceFormatDesc': 'Default format for inserting image references',
     'settings.referenceFormat.wiki': 'Obsidian Wiki: ![[image.png]]',
@@ -42,6 +47,7 @@ export const en: Record<string, string> = {
     'command.findOrphans': 'Find orphan images',
     'command.renameImage': 'Rename image (update references)',
     'command.migrateImages': 'Migrate images to hosting',
+    'command.reorganizeImages': 'Reorganize images',
 
     // Ribbon
     'ribbon.tooltip': 'Image Manager',
@@ -66,6 +72,8 @@ export const en: Record<string, string> = {
     'notice.batchUploadDone': 'Batch upload complete: {success}/{total} succeeded.',
     'notice.renameSuccess': 'Renamed "{old}" to "{new}", updated {notes} note(s).',
     'notice.renameFailed': 'Rename failed: {error}',
+    'notice.reorganizeDone': 'Reorganized {note} note(s), moved {moved} image(s), skipped {skipped}',
+    'notice.reorganizeFailed': 'Reorganize failed: {error}',
 
     // Image Browser Modal
     'modal.imageBrowser.title': 'Image Browser',

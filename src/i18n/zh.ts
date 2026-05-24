@@ -4,8 +4,13 @@ export const zh: Record<string, string> = {
     'settings.language': '语言',
     'settings.languageDesc': '插件显示语言',
     'settings.general': '通用',
-    'settings.imageDirectory': '图片目录',
-    'settings.imageDirectoryDesc': '存储图片的默认目录（相对于仓库根目录）',
+    'settings.imagePathTemplate': '图片存储路径模板',
+    'settings.imagePathBase': '路径基准',
+    'settings.imagePathBaseDesc': '路径模板相对于库根目录还是当前文章所在目录解析',
+    'settings.imagePathBase.vault': '相对于库根目录',
+    'settings.imagePathBase.note': '相对于文章所在目录',
+    'settings.imagePathTemplateDesc':
+        '粘贴图片的存储路径模板。变量：{noteName}, {notePath}, {year}, {month}, {day}, {filename}',
     'settings.referenceFormat': '引用格式',
     'settings.referenceFormatDesc': '插入图片引用时的默认格式',
     'settings.referenceFormat.wiki': 'Obsidian Wiki: ![[image.png]]',
@@ -41,6 +46,7 @@ export const zh: Record<string, string> = {
     'command.findOrphans': '查找孤立图片',
     'command.renameImage': '重命名图片（同步更新引用）',
     'command.migrateImages': '迁移图片到图床',
+    'command.reorganizeImages': '整理图片资源',
 
     // 侧边栏
     'ribbon.tooltip': '图片管理',
@@ -65,6 +71,8 @@ export const zh: Record<string, string> = {
     'notice.batchUploadDone': '批量上传完成：{success}/{total} 成功。',
     'notice.renameSuccess': '已将 "{old}" 重命名为 "{new}"，更新了 {notes} 个笔记。',
     'notice.renameFailed': '重命名失败：{error}',
+    'notice.reorganizeDone': '已整理 {note} 篇笔记，移动 {moved} 张图片，跳过 {skipped} 张',
+    'notice.reorganizeFailed': '整理失败：{error}',
 
     // 图片浏览器
     'modal.imageBrowser.title': '图片浏览器',

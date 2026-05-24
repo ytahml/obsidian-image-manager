@@ -122,7 +122,8 @@ export interface ImageFilter {
 /** 插件设置 */
 export interface ImageManagerSettings {
     locale: 'en' | 'zh';
-    imageDirectory: string;
+    imagePathTemplate: string;
+    imagePathBase: 'vault' | 'note';
     supportedExtensions: string[];
     referenceFormat: ReferenceFormat;
     autoCompress: boolean;
@@ -138,7 +139,8 @@ export interface ImageManagerSettings {
 
 export const DEFAULT_SETTINGS: ImageManagerSettings = {
     locale: 'en',
-    imageDirectory: 'attachments',
+    imagePathTemplate: 'attachments',
+    imagePathBase: 'note',
     supportedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'avif'],
     referenceFormat: 'wiki',
     autoCompress: false,

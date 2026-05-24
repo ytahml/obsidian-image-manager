@@ -42,14 +42,28 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         containerEl.createEl('h3', { text: t('settings.general') });
 
         new Setting(containerEl)
-            .setName(t('settings.imageDirectory'))
-            .setDesc(t('settings.imageDirectoryDesc'))
+            .setName(t('settings.imagePathTemplate'))
+            .setDesc(t('settings.imagePathTemplateDesc'))
             .addText((text) =>
                 text
-                    .setPlaceholder(DEFAULT_SETTINGS.imageDirectory)
-                    .setValue(this.plugin.settings.imageDirectory)
+                    .setPlaceholder(DEFAULT_SETTINGS.imagePathTemplate)
+                    .setValue(this.plugin.settings.imagePathTemplate)
                     .onChange(async (value) => {
-                        this.plugin.settings.imageDirectory = value || DEFAULT_SETTINGS.imageDirectory;
+                        this.plugin.settings.imagePathTemplate = value || DEFAULT_SETTINGS.imagePathTemplate;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.imagePathBase'))
+            .setDesc(t('settings.imagePathBaseDesc'))
+            .addDropdown((dropdown) =>
+                dropdown
+                    .addOption('vault', t('settings.imagePathBase.vault'))
+                    .addOption('note', t('settings.imagePathBase.note'))
+                    .setValue(this.plugin.settings.imagePathBase)
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.imagePathBase = value as 'vault' | 'note';
                         await this.plugin.saveSettings();
                     })
             );
