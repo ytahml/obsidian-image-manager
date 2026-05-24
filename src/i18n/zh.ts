@@ -136,7 +136,6 @@ export const zh: Record<string, string> = {
     'modal.hosting.urlPrefixDesc': '自定义域名，如 https://img.example.com',
     'modal.hosting.providerConfig': '服务商配置',
     'modal.hosting.save': '保存',
-    'modal.hosting.smmsTokenDesc': '可选。从 sm.ms/home/profile/apitoken 获取',
     'modal.hosting.forcePathStyleDesc': '使用 path-style URL（如 MinIO）',
     'modal.hosting.jsonPathDesc': '响应 JSON 中 URL 的路径，如 data.url',
 

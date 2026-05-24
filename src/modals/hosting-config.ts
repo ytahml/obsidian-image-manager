@@ -1,5 +1,5 @@
 import { App, Modal, Setting } from 'obsidian';
-import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, SmmsConfig, CustomConfig } from '../types';
+import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, CustomConfig } from '../types';
 import { t } from '../i18n';
 
 export class HostingConfigModal extends Modal {
@@ -45,7 +45,6 @@ export class HostingConfigModal extends Modal {
             .setName(t('modal.hosting.type'))
             .addDropdown((dropdown) =>
                 dropdown
-                    .addOption('smms', 'SM.MS')
                     .addOption('aliyun-oss', 'Aliyun OSS')
                     .addOption('qiniu', 'Qiniu')
                     .addOption('s3', 'S3 Compatible')
@@ -115,9 +114,6 @@ export class HostingConfigModal extends Modal {
 
     private renderProviderFields(container: HTMLElement) {
         switch (this.config.type) {
-            case 'smms':
-                this.renderSmmsFields(container);
-                break;
             case 'aliyun-oss':
                 this.renderAliyunFields(container);
                 break;
@@ -131,18 +127,6 @@ export class HostingConfigModal extends Modal {
                 this.renderCustomFields(container);
                 break;
         }
-    }
-
-    private renderSmmsFields(container: HTMLElement) {
-        const cfg = this.config.config as SmmsConfig;
-        new Setting(container)
-            .setName('Token')
-            .setDesc(t('modal.hosting.smmsTokenDesc'))
-            .addText((text) =>
-                text.setValue(cfg.token ?? '').onChange((v) => {
-                    cfg.token = v;
-                })
-            );
     }
 
     private renderAliyunFields(container: HTMLElement) {
@@ -314,10 +298,8 @@ export class HostingConfigModal extends Modal {
             });
     }
 
-    private getDefaultProviderConfig(type: HostingType): AliyunOSSConfig | QiniuConfig | S3Config | SmmsConfig | CustomConfig {
+    private getDefaultProviderConfig(type: HostingType): AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig {
         switch (type) {
-            case 'smms':
-                return {} as SmmsConfig;
             case 'aliyun-oss':
                 return { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' } as AliyunOSSConfig;
             case 'qiniu':

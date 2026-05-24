@@ -26,7 +26,7 @@ export interface ImageReference {
 }
 
 /** 图床类型 */
-export type HostingType = 'aliyun-oss' | 'qiniu' | 's3' | 'smms' | 'custom';
+export type HostingType = 'aliyun-oss' | 'qiniu' | 's3' | 'custom';
 
 /** 图床配置 */
 export interface ImageHostingConfig {
@@ -34,7 +34,7 @@ export interface ImageHostingConfig {
     name: string;
     type: HostingType;
     enabled: boolean;
-    config: AliyunOSSConfig | QiniuConfig | S3Config | SmmsConfig | CustomConfig;
+    config: AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig;
     uploadPath: string;
     urlPrefix: string;
 }
@@ -63,11 +63,6 @@ export interface S3Config {
     secretAccessKey: string;
     bucket: string;
     forcePathStyle?: boolean;
-}
-
-/** SM.MS 配置（无需额外配置） */
-export interface SmmsConfig {
-    token?: string;
 }
 
 /** 自定义图床配置 */

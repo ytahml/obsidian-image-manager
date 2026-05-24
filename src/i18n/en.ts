@@ -137,7 +137,6 @@ export const en: Record<string, string> = {
     'modal.hosting.urlPrefixDesc': 'Custom domain for public URL, e.g. https://img.example.com',
     'modal.hosting.providerConfig': 'Provider Configuration',
     'modal.hosting.save': 'Save',
-    'modal.hosting.smmsTokenDesc': 'Optional. Get token from sm.ms/home/profile/apitoken',
     'modal.hosting.forcePathStyleDesc': 'Use path-style URLs (e.g. for MinIO)',
     'modal.hosting.jsonPathDesc': 'Dot-separated path to URL in response JSON, e.g. data.url',
 

@@ -188,9 +188,9 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     const newConfig: ImageHostingConfig = {
                         id: `hosting-${Date.now()}`,
                         name: '',
-                        type: 'smms',
+                        type: 'aliyun-oss',
                         enabled: true,
-                        config: {},
+                        config: { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' },
                         uploadPath: '',
                         urlPrefix: '',
                     };
