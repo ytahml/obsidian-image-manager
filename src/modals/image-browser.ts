@@ -1,6 +1,7 @@
 import { App, Modal, Notice, TFile } from 'obsidian';
 import type ImageManagerPlugin from '../main';
 import { ImageScanner } from '../utils/image-scanner';
+import { OrphanFinder } from '../utils/orphan-finder';
 import { formatFileSize } from '../utils/path-utils';
 import { t } from '../i18n';
 import { ImagePreviewModal } from './image-preview-modal';
@@ -10,10 +11,13 @@ export class ImageBrowserModal extends Modal {
     private scanner: ImageScanner;
     private allImages: TFile[] = [];
     private filteredImages: TFile[] = [];
+    private orphanPaths: Set<string> | null = null;
     private gridEl: HTMLDivElement | null = null;
     private countEl: HTMLSpanElement | null = null;
     private searchInput: HTMLInputElement | null = null;
     private sortSelect: HTMLSelectElement | null = null;
+    private orphanBtn: HTMLButtonElement | null = null;
+    private showOrphansOnly = false;
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(app: App, plugin: ImageManagerPlugin) {
@@ -56,6 +60,13 @@ export class ImageBrowserModal extends Modal {
         }
         this.sortSelect.addEventListener('change', () => this.onSortChange());
 
+        // Orphan filter
+        this.orphanBtn = controls.createEl('button', {
+            cls: 'image-browser-orphan-btn',
+            text: t('modal.imageBrowser.orphanFilter'),
+        });
+        this.orphanBtn.addEventListener('click', () => this.toggleOrphanFilter());
+
         // Count
         this.countEl = controls.createEl('span', { cls: 'image-browser-count' });
 
@@ -85,15 +96,39 @@ export class ImageBrowserModal extends Modal {
         this.applyFilterAndSort();
     }
 
+    private async toggleOrphanFilter() {
+        this.showOrphansOnly = !this.showOrphansOnly;
+
+        if (this.orphanBtn) {
+            this.orphanBtn.toggleClass('is-active', this.showOrphansOnly);
+        }
+
+        if (this.showOrphansOnly) {
+            new Notice(t('modal.imageBrowser.orphanScanning'));
+            const finder = new OrphanFinder(this.app, this.plugin.settings.supportedExtensions);
+            const result = await finder.findOrphans();
+            this.orphanPaths = new Set(result.orphans.map((f) => f.path));
+        } else {
+            this.orphanPaths = null;
+        }
+
+        this.applyFilterAndSort();
+    }
+
     private applyFilterAndSort() {
         const keyword = this.searchInput?.value ?? '';
 
         // Filter
-        this.filteredImages = this.scanner.filterImages(this.allImages, { keyword });
+        let images = this.scanner.filterImages(this.allImages, { keyword });
+
+        // Orphan filter
+        if (this.showOrphansOnly && this.orphanPaths) {
+            images = images.filter((f) => this.orphanPaths!.has(f.path));
+        }
 
         // Sort
         const sortBy = (this.sortSelect?.value ?? 'name') as 'name' | 'size' | 'modified' | 'created';
-        this.filteredImages = this.scanner.sortImages(this.filteredImages, sortBy, 'asc');
+        this.filteredImages = this.scanner.sortImages(images, sortBy, 'asc');
 
         this.renderGrid();
     }

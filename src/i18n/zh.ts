@@ -89,6 +89,8 @@ export const zh: Record<string, string> = {
     'modal.imageBrowser.showing': '显示 {count} / {total} 张图片',
     'modal.imageBrowser.noImages': '仓库中未找到图片',
     'modal.imageBrowser.insertTooltip': '点击预览',
+    'modal.imageBrowser.orphanFilter': '孤立图片',
+    'modal.imageBrowser.orphanScanning': '正在扫描孤立图片...',
 
     // 图片预览
     'modal.preview.path': '路径：',

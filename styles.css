@@ -30,6 +30,16 @@
     white-space: nowrap;
 }
 
+.image-browser-orphan-btn {
+    flex-shrink: 0;
+    font-size: 0.8em;
+}
+
+.image-browser-orphan-btn.is-active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
 .image-browser-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

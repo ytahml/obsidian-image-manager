@@ -90,6 +90,8 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.showing': 'Showing {count} of {total} images',
     'modal.imageBrowser.noImages': 'No images found in vault',
     'modal.imageBrowser.insertTooltip': 'Click to preview',
+    'modal.imageBrowser.orphanFilter': 'Orphan',
+    'modal.imageBrowser.orphanScanning': 'Scanning for orphan images...',
 
     // Image Preview Modal
     'modal.preview.path': 'Path: ',
