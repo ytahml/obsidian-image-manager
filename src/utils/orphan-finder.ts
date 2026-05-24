@@ -1,4 +1,4 @@
-import { App, TFile } from 'obsidian';
+import { App, TFile, normalizePath } from 'obsidian';
 import { ImageScanner } from './image-scanner';
 import { MD_IMAGE_REGEX, WIKI_IMAGE_REGEX } from '../constants';
 
@@ -45,51 +45,78 @@ export class OrphanFinder {
 
         for (const file of mdFiles) {
             const content = await this.app.vault.cachedRead(file);
-            this.extractReferences(content, referenced);
+            const noteDir = file.path.substring(0, file.path.lastIndexOf('/'));
+            this.extractReferences(content, referenced, noteDir);
         }
 
         return referenced;
     }
 
     /**
-     * 获取引用指定图片的笔记路径列表
+     * 获取引用指定图片的笔记路径和行号列表
      */
-    async getReferencingNotes(file: TFile): Promise<string[]> {
-        const notes: string[] = [];
+    async getReferencingNotes(file: TFile): Promise<Array<{ path: string; line: number }>> {
+        const notes: Array<{ path: string; line: number }> = [];
         const mdFiles = this.app.vault.getMarkdownFiles();
 
         for (const mdFile of mdFiles) {
             const content = await this.app.vault.cachedRead(mdFile);
-            if (this.isFileReferencedIn(content, file)) {
-                notes.push(mdFile.path);
+            const line = this.findReferenceLine(content, file, mdFile.path);
+            if (line >= 0) {
+                notes.push({ path: mdFile.path, line });
             }
         }
 
         return notes;
     }
 
-    private isFileReferencedIn(text: string, file: TFile): boolean {
+    private findReferenceLine(text: string, file: TFile, notePath: string): number {
+        const noteDir = notePath.substring(0, notePath.lastIndexOf('/'));
+
+        // Check markdown references
         let match: RegExpExecArray | null;
-
         MD_IMAGE_REGEX.lastIndex = 0;
-        WIKI_IMAGE_REGEX.lastIndex = 0;
-
         while ((match = MD_IMAGE_REGEX.exec(text)) !== null) {
             const path = match[2]?.trim();
             if (path && !path.startsWith('http://') && !path.startsWith('https://')) {
                 const decoded = this.tryDecode(path);
-                if (decoded === file.path || decoded === file.name) return true;
+                if (decoded === file.path || decoded === file.name) {
+                    return text.substring(0, match.index).split('\n').length - 1;
+                }
+                if (decoded.startsWith('../') || decoded.startsWith('./') || (!decoded.startsWith('/') && decoded.includes('/'))) {
+                    if (this.resolveRelative(noteDir, decoded) === file.path) {
+                        return text.substring(0, match.index).split('\n').length - 1;
+                    }
+                }
             }
         }
 
+        // Check wiki references
+        WIKI_IMAGE_REGEX.lastIndex = 0;
         while ((match = WIKI_IMAGE_REGEX.exec(text)) !== null) {
             const path = match[1]?.trim();
             if (path && !path.startsWith('http://') && !path.startsWith('https://')) {
-                if (path === file.path || path === file.name) return true;
+                if (path === file.path || path === file.name) {
+                    return text.substring(0, match.index).split('\n').length - 1;
+                }
             }
         }
 
-        return false;
+        return -1;
+    }
+
+    private resolveRelative(baseDir: string, relativePath: string): string {
+        const baseParts = baseDir.split('/').filter(Boolean);
+        const relParts = relativePath.split('/').filter(Boolean);
+        const parts = [...baseParts];
+        for (const part of relParts) {
+            if (part === '..') {
+                parts.pop();
+            } else if (part !== '.') {
+                parts.push(part);
+            }
+        }
+        return normalizePath(parts.join('/'));
     }
 
     private tryDecode(path: string): string {
@@ -99,7 +126,7 @@ export class OrphanFinder {
     /**
      * 从文本中提取所有图片引用路径
      */
-    private extractReferences(text: string, result: Set<string>): void {
+    private extractReferences(text: string, result: Set<string>, noteDir: string): void {
         let match: RegExpExecArray | null;
 
         // Reset lastIndex
@@ -112,9 +139,14 @@ export class OrphanFinder {
             if (path) {
                 // Skip external URLs
                 if (!path.startsWith('http://') && !path.startsWith('https://')) {
-                    result.add(path);
+                    const decoded = this.tryDecode(path);
+                    result.add(decoded);
+                    // Resolve relative paths to absolute vault paths
+                    if (decoded.startsWith('../') || decoded.startsWith('./') || (!decoded.startsWith('/') && decoded.includes('/'))) {
+                        result.add(this.resolveRelative(noteDir, decoded));
+                    }
                     // Also add just the filename for matching
-                    const filename = path.split('/').pop();
+                    const filename = decoded.split('/').pop();
                     if (filename) result.add(filename);
                 }
             }

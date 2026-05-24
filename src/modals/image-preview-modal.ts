@@ -1,4 +1,4 @@
-import { App, Modal, Notice, TFile, SuggestModal } from 'obsidian';
+import { App, Modal, Notice, TFile, SuggestModal, MarkdownView } from 'obsidian';
 import type ImageManagerPlugin from '../main';
 import type { ImageHostingConfig } from '../types';
 import { OrphanFinder } from '../utils/orphan-finder';
@@ -8,11 +8,13 @@ import { t } from '../i18n';
 export class ImagePreviewModal extends Modal {
     private file: TFile;
     private plugin: ImageManagerPlugin;
+    private browserModal?: Modal;
 
-    constructor(app: App, plugin: ImageManagerPlugin, file: TFile) {
+    constructor(app: App, plugin: ImageManagerPlugin, file: TFile, browserModal?: Modal) {
         super(app);
         this.plugin = plugin;
         this.file = file;
+        this.browserModal = browserModal;
     }
 
     async onOpen() {
@@ -59,12 +61,18 @@ export class ImagePreviewModal extends Modal {
         // Show referencing notes list
         if (notes.length > 0) {
             const notesList = infoEl.createDiv({ cls: 'image-preview-notes' });
-            for (const notePath of notes.slice(0, 10)) {
+            for (const note of notes.slice(0, 10)) {
                 const noteRow = notesList.createDiv({ cls: 'image-preview-note-item image-preview-note-link' });
-                noteRow.createSpan({ text: notePath });
-                noteRow.addEventListener('click', () => {
+                noteRow.createSpan({ text: note.path });
+                noteRow.addEventListener('click', async () => {
                     this.close();
-                    this.app.workspace.openLinkText(notePath, notePath, true);
+                    this.browserModal?.close();
+                    await this.app.workspace.openLinkText(note.path, note.path, true);
+                    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+                    if (activeView) {
+                        activeView.editor.setCursor(note.line);
+                        activeView.editor.scrollIntoView({ from: { line: note.line, ch: 0 }, to: { line: note.line, ch: 0 } }, true);
+                    }
                 });
             }
             if (notes.length > 10) {

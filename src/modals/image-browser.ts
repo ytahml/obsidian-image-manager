@@ -140,7 +140,7 @@ export class ImageBrowserModal extends Modal {
             });
 
             card.addEventListener('click', () => {
-                new ImagePreviewModal(this.app, this.plugin, file).open();
+                new ImagePreviewModal(this.app, this.plugin, file, this).open();
             });
         }
     }
