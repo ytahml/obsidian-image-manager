@@ -116,6 +116,28 @@ export default class ImageManagerPlugin extends Plugin {
             },
         });
 
+        this.addCommand({
+            id: 'convert-to-wiki',
+            name: t('command.convertToWiki'),
+            checkCallback: (checking) => {
+                const file = this.app.workspace.getActiveFile();
+                if (!file || file.extension !== 'md') return false;
+                if (!checking) this.convertNoteToFormat(file, 'wiki');
+                return true;
+            },
+        });
+
+        this.addCommand({
+            id: 'convert-to-md',
+            name: t('command.convertToMd'),
+            checkCallback: (checking) => {
+                const file = this.app.workspace.getActiveFile();
+                if (!file || file.extension !== 'md') return false;
+                if (!checking) this.convertNoteToFormat(file, 'markdown');
+                return true;
+            },
+        });
+
         // Settings tab
         this.addSettingTab(new ImageManagerSettingTab(this.app, this));
 
@@ -131,7 +153,7 @@ export default class ImageManagerPlugin extends Plugin {
             })
         );
 
-        // Right-click menu: reorganize images
+        // Right-click menu: image management
         this.registerEvent(
             this.app.workspace.on('file-menu', (menu, file) => {
                 if (file instanceof TFolder) {
@@ -145,6 +167,17 @@ export default class ImageManagerPlugin extends Plugin {
                         item.setTitle(t('command.reorganizeImages'))
                             .setIcon('image-file')
                             .onClick(() => this.reorganizeNote(file));
+                    });
+                    menu.addSeparator();
+                    menu.addItem((item) => {
+                        item.setTitle(t('command.convertToWiki'))
+                            .setIcon('file-text')
+                            .onClick(() => this.convertNoteToFormat(file, 'wiki'));
+                    });
+                    menu.addItem((item) => {
+                        item.setTitle(t('command.convertToMd'))
+                            .setIcon('file-text')
+                            .onClick(() => this.convertNoteToFormat(file, 'markdown'));
                     });
                 }
             })
@@ -386,7 +419,7 @@ export default class ImageManagerPlugin extends Plugin {
     private async reorganizeNote(file: TFile) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
         try {
-            const result = await reorganizer.reorganizeNote(file);
+            const result = await reorganizer.reorganizeNote(file, this.settings.reorganizeConvertFormat ? this.settings.referenceFormat : undefined);
             new Notice(
                 t('notice.reorganizeDone', {
                     note: '1',
@@ -402,7 +435,7 @@ export default class ImageManagerPlugin extends Plugin {
     private async reorganizeFolder(folderPath: string) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
         try {
-            const result = await reorganizer.reorganizeFolder(folderPath);
+            const result = await reorganizer.reorganizeFolder(folderPath, this.settings.reorganizeConvertFormat ? this.settings.referenceFormat : undefined);
             new Notice(
                 t('notice.reorganizeDone', {
                     note: String(result.notes),
@@ -413,6 +446,26 @@ export default class ImageManagerPlugin extends Plugin {
         } catch (e) {
             new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
         }
+    }
+
+    private async convertNoteToFormat(file: TFile, targetFormat: 'wiki' | 'markdown') {
+        const content = await this.app.vault.cachedRead(file);
+        const counts = this.refConverter.countReferences(content);
+        const totalCount = counts.markdown + counts.wiki;
+
+        if (totalCount === 0) {
+            new Notice(t('notice.noRefsToConvert'));
+            return;
+        }
+
+        const converted = this.refConverter.convertAllReferences(content, targetFormat);
+        if (converted === content) {
+            new Notice(t('notice.noRefsToConvert'));
+            return;
+        }
+
+        await this.app.vault.process(file, () => converted);
+        new Notice(t('notice.convertSuccess', { count: String(totalCount) }));
     }
 
     private handleImagePaste(evt: ClipboardEvent, editor: import('obsidian').Editor, file: TFile | null) {

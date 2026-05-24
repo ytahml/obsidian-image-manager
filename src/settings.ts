@@ -82,6 +82,16 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     })
             );
 
+        new Setting(containerEl)
+            .setName(t('settings.reorganizeConvertFormat'))
+            .setDesc(t('settings.reorganizeConvertFormatDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.reorganizeConvertFormat).onChange(async (value) => {
+                    this.plugin.settings.reorganizeConvertFormat = value;
+                    await this.plugin.saveSettings();
+                })
+            );
+
         // --- Image Naming ---
         containerEl.createEl('h3', { text: t('settings.imageNaming') });
 

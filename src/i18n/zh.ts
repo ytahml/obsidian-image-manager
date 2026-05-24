@@ -47,6 +47,8 @@ export const zh: Record<string, string> = {
     'command.renameImage': '重命名图片（同步更新引用）',
     'command.migrateImages': '迁移图片到图床',
     'command.reorganizeImages': '整理图片资源',
+    'command.convertToWiki': '转换图片链接为 Wiki 格式',
+    'command.convertToMd': '转换图片链接为 Markdown 格式',
 
     // 侧边栏
     'ribbon.tooltip': '图片管理',
@@ -73,6 +75,8 @@ export const zh: Record<string, string> = {
     'notice.renameFailed': '重命名失败：{error}',
     'notice.reorganizeDone': '已整理 {note} 篇笔记，移动 {moved} 张图片，跳过 {skipped} 张',
     'notice.reorganizeFailed': '整理失败：{error}',
+    'settings.reorganizeConvertFormat': '自动转换引用格式',
+    'settings.reorganizeConvertFormatDesc': '整理图片时，同时将引用格式转换为配置的格式（Wiki/Markdown）',
 
     // 图片浏览器
     'modal.imageBrowser.title': '图片浏览器',

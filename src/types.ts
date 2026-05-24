@@ -135,6 +135,7 @@ export interface ImageManagerSettings {
     defaultHostingId: string;
     uploadPathTemplate: string;
     autoReplaceAfterUpload: boolean;
+    reorganizeConvertFormat: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImageManagerSettings = {
@@ -152,4 +153,5 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     defaultHostingId: '',
     uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',
     autoReplaceAfterUpload: true,
+    reorganizeConvertFormat: true,
 };

@@ -48,6 +48,8 @@ export const en: Record<string, string> = {
     'command.renameImage': 'Rename image (update references)',
     'command.migrateImages': 'Migrate images to hosting',
     'command.reorganizeImages': 'Reorganize images',
+    'command.convertToWiki': 'Convert image refs to Wiki format',
+    'command.convertToMd': 'Convert image refs to Markdown format',
 
     // Ribbon
     'ribbon.tooltip': 'Image Manager',
@@ -74,6 +76,8 @@ export const en: Record<string, string> = {
     'notice.renameFailed': 'Rename failed: {error}',
     'notice.reorganizeDone': 'Reorganized {note} note(s), moved {moved} image(s), skipped {skipped}',
     'notice.reorganizeFailed': 'Reorganize failed: {error}',
+    'settings.reorganizeConvertFormat': 'Auto convert reference format',
+    'settings.reorganizeConvertFormatDesc': 'When reorganizing images, also convert references to the configured format (Wiki/Markdown)',
 
     // Image Browser Modal
     'modal.imageBrowser.title': 'Image Browser',

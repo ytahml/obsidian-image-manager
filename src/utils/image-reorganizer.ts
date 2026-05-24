@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { RefConverter } from './ref-converter';
-import type { ImageManagerSettings } from '../types';
+import type { ImageManagerSettings, ReferenceFormat } from '../types';
 import { joinPath } from './path-utils';
 
 export interface ReorganizeResult {
@@ -26,13 +26,14 @@ export class ImageReorganizer {
     }
 
     /** 整理单篇笔记引用的图片 */
-    async reorganizeNote(noteFile: TFile): Promise<ReorganizeResult> {
+    async reorganizeNote(noteFile: TFile, convertFormat?: ReferenceFormat): Promise<ReorganizeResult> {
         const content = await this.app.vault.cachedRead(noteFile);
         const refs = this.refConverter.parseReferences(content);
 
         let newContent = content;
         let moved = 0;
         let skipped = 0;
+        let converted = 0;
 
         // Process in reverse order to preserve indices
         for (let i = refs.length - 1; i >= 0; i--) {
@@ -56,49 +57,57 @@ export class ImageReorganizer {
             );
             const targetPath = joinPath(targetDir, imageFile.name);
 
-            // Already in the right place
-            if (imageFile.path === targetPath) {
+            // Determine the output format: use convertFormat if provided, otherwise keep original
+            const outputFormat: ReferenceFormat = convertFormat ?? ref.format;
+            const needsMove = imageFile.path !== targetPath;
+            const needsFormatChange = convertFormat !== undefined && ref.format !== convertFormat;
+
+            // Skip if nothing needs to change
+            if (!needsMove && !needsFormatChange) {
                 skipped++;
                 continue;
             }
 
-            // Ensure target directory exists
-            await this.ensureDirectory(targetDir);
+            // Move file if needed
+            let finalPath = imageFile.path;
+            if (needsMove) {
+                await this.ensureDirectory(targetDir);
+                finalPath = await this.ensureUniquePath(targetPath);
+                await this.app.vault.rename(imageFile, finalPath);
+                moved++;
+            }
 
-            // Handle filename collision at target
-            const finalPath = await this.ensureUniquePath(targetPath);
-
-            // Move the file
-            await this.app.vault.rename(imageFile, finalPath);
-            moved++;
-
-            // Update the reference in this note
-            const newPathForRef = this.buildRefPath(finalPath, ref.format);
+            // Build new reference with the output format
             let newRef: string;
-            if (ref.format === 'wiki') {
+            if (outputFormat === 'wiki') {
                 const fileName = finalPath.split('/').pop() ?? finalPath;
                 newRef = ref.altText ? `![[${fileName}|${ref.altText}]]` : `![[${fileName}]]`;
             } else {
-                newRef = `![${ref.altText}](${newPathForRef})`;
+                const encodedPath = finalPath.split('/').map(encodeURIComponent).join('/');
+                newRef = `![${ref.altText}](${encodedPath})`;
             }
 
-            newContent =
-                newContent.substring(0, ref.col) +
-                newRef +
-                newContent.substring(ref.col + ref.fullMatch.length);
+            if (newRef !== ref.fullMatch) {
+                newContent =
+                    newContent.substring(0, ref.col) +
+                    newRef +
+                    newContent.substring(ref.col + ref.fullMatch.length);
+                if (needsFormatChange) converted++;
+            }
         }
 
-        if (moved > 0) {
+        if (moved > 0 || converted > 0) {
             await this.app.vault.process(noteFile, () => newContent);
-            // Update references in other notes that point to moved files
-            await this.updateOtherNotes(noteFile);
+            if (moved > 0) {
+                await this.updateOtherNotes(noteFile);
+            }
         }
 
         return { moved, skipped };
     }
 
     /** 整理文件夹内所有笔记引用的图片 */
-    async reorganizeFolder(folderPath: string): Promise<ReorganizeResult & { notes: number }> {
+    async reorganizeFolder(folderPath: string, convertFormat?: ReferenceFormat): Promise<ReorganizeResult & { notes: number }> {
         const mdFiles = this.app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(folderPath + '/') || f.path.startsWith(folderPath));
 
         let totalMoved = 0;
@@ -106,7 +115,7 @@ export class ImageReorganizer {
         let notesProcessed = 0;
 
         for (const mdFile of mdFiles) {
-            const result = await this.reorganizeNote(mdFile);
+            const result = await this.reorganizeNote(mdFile, convertFormat);
             totalMoved += result.moved;
             totalSkipped += result.skipped;
             if (result.moved > 0 || result.skipped > 0) {
