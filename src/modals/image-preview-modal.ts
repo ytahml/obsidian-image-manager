@@ -120,7 +120,8 @@ export class ImagePreviewModal extends Modal {
 
     private async copyReference() {
         const ref = this.buildReference();
-        await navigator.clipboard.writeText(ref);
+        const { clipboard } = require('electron');
+        clipboard.writeText(ref);
         new Notice(t('notice.refCopied'));
     }
 

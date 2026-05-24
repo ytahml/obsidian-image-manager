@@ -363,7 +363,8 @@ export default class ImageManagerPlugin extends Plugin {
 
             if (result.success && result.url) {
                 new Notice(t('notice.uploadSuccess', { url: result.url }));
-                await navigator.clipboard.writeText(result.url);
+                const { clipboard } = require('electron');
+                clipboard.writeText(result.url);
 
                 if (this.settings.autoReplaceAfterUpload) {
                     await this.replaceReferenceInNote(file, result.url);

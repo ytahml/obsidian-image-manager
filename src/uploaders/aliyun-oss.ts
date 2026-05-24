@@ -13,16 +13,16 @@ export class AliyunOSSUploader extends UploaderBase {
         const ossConfig = this.config.config as AliyunOSSConfig;
         const targetPath = this.resolveUploadPath(filename);
         const contentType = this.guessMimeType(filename);
+        const region = this.parseRegion(ossConfig.region);
+        const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;
+        const url = `https://${host}/${targetPath}`;
         const date = new Date().toUTCString();
-
         const resourcePath = `/${ossConfig.bucket}/${targetPath}`;
         const stringToSign = `PUT\n\n${contentType}\n${date}\n${resourcePath}`;
-        const signature = await this.sign(stringToSign, ossConfig.accessKeySecret);
-
-        const url = `https://${ossConfig.bucket}.${ossConfig.region}.aliyuncs.com/${targetPath}`;
+        const signature = await this.hmacSha1Base64(stringToSign, ossConfig.accessKeySecret);
 
         try {
-            await requestUrl({
+            const resp = await requestUrl({
                 url,
                 method: 'PUT',
                 headers: {
@@ -31,42 +31,43 @@ export class AliyunOSSUploader extends UploaderBase {
                     'Content-Type': contentType,
                 },
                 body: data,
+                throw: false,
             });
 
-            // Construct public URL
+            if (resp.status >= 400) {
+                // console.error(`[AliyunOSS] Upload failed: HTTP ${resp.status}`, resp.text);
+                return { success: false, error: `HTTP ${resp.status}: ${resp.text}`, originalPath: filename };
+            }
+
             const publicUrl = this.config.urlPrefix
                 ? `${this.config.urlPrefix}/${targetPath}`
                 : url;
 
-            return {
-                success: true,
-                url: publicUrl,
-                originalPath: filename,
-            };
+            return { success: true, url: publicUrl, originalPath: filename };
         } catch (e) {
-            return {
-                success: false,
-                error: e instanceof Error ? e.message : 'Upload failed',
-                originalPath: filename,
-            };
+            const msg = e instanceof Error ? e.message : 'Upload failed';
+            return { success: false, error: msg, originalPath: filename };
         }
     }
 
     async testConnection(): Promise<boolean> {
         const ossConfig = this.config.config as AliyunOSSConfig;
+        const region = this.parseRegion(ossConfig.region);
+        const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;
         const date = new Date().toUTCString();
         const resourcePath = `/${ossConfig.bucket}/`;
         const stringToSign = `GET\n\n\n${date}\n${resourcePath}`;
-        const signature = await this.sign(stringToSign, ossConfig.accessKeySecret);
+        const signature = await this.hmacSha1Base64(stringToSign, ossConfig.accessKeySecret);
 
         try {
             const resp = await requestUrl({
-                url: `https://${ossConfig.bucket}.${ossConfig.region}.aliyuncs.com/`,
+                url: `https://${host}/`,
                 method: 'GET',
                 headers: {
                     Authorization: `OSS ${ossConfig.accessKeyId}:${signature}`,
                     Date: date,
                 },
+                throw: false,
             });
             return resp.status === 200;
         } catch {
@@ -74,14 +75,21 @@ export class AliyunOSSUploader extends UploaderBase {
         }
     }
 
-    private async sign(stringToSign: string, secret: string): Promise<string> {
+    private parseRegion(region: string): string {
+        let r = region.trim();
+        if (r.includes('.aliyuncs.com')) r = r.replace('.aliyuncs.com', '');
+        if (r.startsWith('oss-')) r = r.substring(4);
+        return r;
+    }
+
+    private async hmacSha1Base64(stringToSign: string, secret: string): Promise<string> {
         const encoder = new TextEncoder();
         const key = await crypto.subtle.importKey(
             'raw',
             encoder.encode(secret),
             { name: 'HMAC', hash: 'SHA-1' },
             false,
-            ['sign']
+            ['sign'],
         );
         const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(stringToSign));
         return btoa(String.fromCharCode(...new Uint8Array(sig)));
@@ -99,10 +107,14 @@ export class AliyunOSSUploader extends UploaderBase {
         };
 
         let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';
+        // Ensure filename is always included
+        if (!template.includes('{filename}')) {
+            template = template.replace(/\/?$/, '/{filename}.{ext}');
+        }
         for (const [key, value] of Object.entries(vars)) {
             template = template.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
         }
-        return template;
+        return template.replace(/^\/+/, '').replace(/\/+/g, '/');
     }
 
     private guessMimeType(filename: string): string {
