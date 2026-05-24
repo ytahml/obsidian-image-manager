@@ -149,4 +149,6 @@ export const zh: Record<string, string> = {
         '粘贴/拖放图片时的命名模板。变量：{date}, {time}, {timestamp}, {random}, {counter}, {year}, {month}, {day}',
     'settings.promptImageName': '提示输入图片名称',
     'settings.promptImageNameDesc': '粘贴/拖放图片时弹出名称输入框',
+    'settings.enableImageBrowser': '启用图片浏览器',
+    'settings.enableImageBrowserDesc': '在侧边栏和命令面板中显示图片浏览器（修改后需重新加载插件生效）',
 };

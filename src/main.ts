@@ -30,16 +30,20 @@ export default class ImageManagerPlugin extends Plugin {
         this.batchRename = new BatchRename(this.app);
 
         // Ribbon icon
-        this.addRibbonIcon('image', t('ribbon.tooltip'), () => {
-            new ImageBrowserModal(this.app, this).open();
-        });
+        if (this.settings.enableImageBrowser) {
+            this.addRibbonIcon('image', t('ribbon.tooltip'), () => {
+                new ImageBrowserModal(this.app, this).open();
+            });
+        }
 
         // Commands
         this.addCommand({
             id: 'browse-images',
             name: t('command.browseImages'),
-            callback: () => {
-                new ImageBrowserModal(this.app, this).open();
+            checkCallback: (checking) => {
+                if (!this.settings.enableImageBrowser) return false;
+                if (!checking) new ImageBrowserModal(this.app, this).open();
+                return true;
             },
         });
 

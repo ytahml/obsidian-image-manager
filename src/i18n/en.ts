@@ -152,4 +152,6 @@ export const en: Record<string, string> = {
         'Template for pasted/dropped image names. Variables: {date}, {time}, {timestamp}, {random}, {counter}, {year}, {month}, {day}',
     'settings.promptImageName': 'Prompt for image name',
     'settings.promptImageNameDesc': 'Show a name input dialog when pasting/dropping images',
+    'settings.enableImageBrowser': 'Enable image browser',
+    'settings.enableImageBrowserDesc': 'Show image browser in the ribbon and command palette (reload plugin to apply ribbon change)',
 };

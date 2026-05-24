@@ -136,6 +136,7 @@ export interface ImageManagerSettings {
     uploadPathTemplate: string;
     autoReplaceAfterUpload: boolean;
     reorganizeConvertFormat: boolean;
+    enableImageBrowser: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImageManagerSettings = {
@@ -154,4 +155,5 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',
     autoReplaceAfterUpload: true,
     reorganizeConvertFormat: true,
+    enableImageBrowser: true,
 };

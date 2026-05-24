@@ -145,8 +145,18 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     })
             );
 
-        // --- Thumbnail ---
+        // --- Gallery ---
         containerEl.createEl('h3', { text: t('settings.gallery') });
+
+        new Setting(containerEl)
+            .setName(t('settings.enableImageBrowser'))
+            .setDesc(t('settings.enableImageBrowserDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.enableImageBrowser).onChange(async (value) => {
+                    this.plugin.settings.enableImageBrowser = value;
+                    await this.plugin.saveSettings();
+                })
+            );
 
         new Setting(containerEl)
             .setName(t('settings.thumbnailSize'))
