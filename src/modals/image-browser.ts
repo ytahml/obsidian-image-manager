@@ -1,0 +1,165 @@
+import { App, Modal, Notice, TFile } from 'obsidian';
+import type ImageManagerPlugin from '../main';
+import { ImageScanner } from '../utils/image-scanner';
+import { formatFileSize } from '../utils/path-utils';
+import { t } from '../i18n';
+
+export class ImageBrowserModal extends Modal {
+    private plugin: ImageManagerPlugin;
+    private scanner: ImageScanner;
+    private allImages: TFile[] = [];
+    private filteredImages: TFile[] = [];
+    private gridEl: HTMLDivElement | null = null;
+    private countEl: HTMLSpanElement | null = null;
+    private searchInput: HTMLInputElement | null = null;
+    private sortSelect: HTMLSelectElement | null = null;
+    private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    constructor(app: App, plugin: ImageManagerPlugin) {
+        super(app);
+        this.plugin = plugin;
+        this.scanner = new ImageScanner(app, plugin.settings.supportedExtensions);
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.addClass('image-browser');
+
+        // Header
+        const header = contentEl.createDiv({ cls: 'image-browser-header' });
+        header.createEl('h2', { text: t('modal.imageBrowser.title'), cls: 'image-browser-title' });
+
+        // Controls row
+        const controls = contentEl.createDiv({ cls: 'image-browser-controls' });
+
+        // Search
+        this.searchInput = controls.createEl('input', {
+            cls: 'image-browser-search',
+            attr: {
+                type: 'text',
+                placeholder: t('modal.imageBrowser.searchPlaceholder'),
+            },
+        });
+        this.searchInput.addEventListener('input', () => this.onSearchInput());
+
+        // Sort
+        this.sortSelect = controls.createEl('select', { cls: 'image-browser-sort' });
+        const sortOptions: Array<{ value: string; labelKey: string }> = [
+            { value: 'name', labelKey: 'modal.imageBrowser.sortName' },
+            { value: 'modified', labelKey: 'modal.imageBrowser.sortModified' },
+            { value: 'size', labelKey: 'modal.imageBrowser.sortSize' },
+            { value: 'created', labelKey: 'modal.imageBrowser.sortCreated' },
+        ];
+        for (const opt of sortOptions) {
+            this.sortSelect.createEl('option', { value: opt.value, text: t(opt.labelKey) });
+        }
+        this.sortSelect.addEventListener('change', () => this.onSortChange());
+
+        // Count
+        this.countEl = controls.createEl('span', { cls: 'image-browser-count' });
+
+        // Grid
+        this.gridEl = contentEl.createDiv({ cls: 'image-browser-grid' });
+
+        // Load and render
+        this.loadImages();
+    }
+
+    onClose() {
+        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        this.contentEl.empty();
+    }
+
+    private loadImages() {
+        this.allImages = this.scanner.getAllImages();
+        this.applyFilterAndSort();
+    }
+
+    private onSearchInput() {
+        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(() => this.applyFilterAndSort(), 300);
+    }
+
+    private onSortChange() {
+        this.applyFilterAndSort();
+    }
+
+    private applyFilterAndSort() {
+        const keyword = this.searchInput?.value ?? '';
+
+        // Filter
+        this.filteredImages = this.scanner.filterImages(this.allImages, { keyword });
+
+        // Sort
+        const sortBy = (this.sortSelect?.value ?? 'name') as 'name' | 'size' | 'modified' | 'created';
+        this.filteredImages = this.scanner.sortImages(this.filteredImages, sortBy, 'asc');
+
+        this.renderGrid();
+    }
+
+    private renderGrid() {
+        if (!this.gridEl) return;
+        this.gridEl.empty();
+
+        // Update count
+        if (this.countEl) {
+            this.countEl.textContent = t('modal.imageBrowser.showing', {
+                count: String(this.filteredImages.length),
+                total: String(this.allImages.length),
+            });
+        }
+
+        if (this.filteredImages.length === 0) {
+            this.gridEl.createDiv({
+                cls: 'image-browser-empty',
+                text: t('modal.imageBrowser.noImages'),
+            });
+            return;
+        }
+
+        const thumbSize = this.plugin.settings.thumbnailSize;
+
+        for (const file of this.filteredImages) {
+            const card = this.gridEl.createDiv({ cls: 'image-browser-card' });
+            card.setAttribute('title', `${file.path}\n${t('modal.imageBrowser.insertTooltip')}`);
+
+            const imgContainer = card.createDiv({ cls: 'image-browser-card-img' });
+            const img = imgContainer.createEl('img', {
+                attr: { src: this.app.vault.getResourcePath(file) },
+            });
+            img.style.width = `${thumbSize}px`;
+            img.style.height = `${thumbSize}px`;
+
+            const nameEl = card.createDiv({ cls: 'image-browser-card-name', text: file.name });
+            nameEl.setAttribute('title', file.name);
+
+            card.createDiv({
+                cls: 'image-browser-card-meta',
+                text: formatFileSize(file.stat.size),
+            });
+
+            card.addEventListener('click', () => this.insertImage(file));
+        }
+    }
+
+    private insertImage(file: TFile) {
+        const editor = this.app.workspace.activeEditor?.editor;
+
+        if (!editor) {
+            new Notice(t('notice.noActiveEditor'));
+            return;
+        }
+
+        const format = this.plugin.settings.referenceFormat;
+        let ref: string;
+        if (format === 'wiki') {
+            ref = `![[${file.name}]]`;
+        } else {
+            ref = `![${file.name}](${file.path})`;
+        }
+
+        editor.replaceSelection(ref);
+        new Notice(t('notice.imageInserted'));
+        this.close();
+    }
+}

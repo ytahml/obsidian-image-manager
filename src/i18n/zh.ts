@@ -1,0 +1,96 @@
+export const zh: Record<string, string> = {
+    // 设置
+    'settings.title': '图片管理设置',
+    'settings.language': '语言',
+    'settings.languageDesc': '插件显示语言',
+    'settings.general': '通用',
+    'settings.imageDirectory': '图片目录',
+    'settings.imageDirectoryDesc': '存储图片的默认目录（相对于仓库根目录）',
+    'settings.referenceFormat': '引用格式',
+    'settings.referenceFormatDesc': '插入图片引用时的默认格式',
+    'settings.referenceFormat.wiki': 'Obsidian Wiki: ![[image.png]]',
+    'settings.referenceFormat.markdown': '标准 Markdown: ![alt](image.png)',
+    'settings.compression': '压缩',
+    'settings.autoCompress': '自动压缩',
+    'settings.autoCompressDesc': '插入图片时自动压缩',
+    'settings.compressQuality': '压缩质量',
+    'settings.compressQualityDesc': '压缩质量 (1-100)',
+    'settings.gallery': '画廊',
+    'settings.thumbnailSize': '缩略图大小',
+    'settings.thumbnailSizeDesc': '缩略图大小（像素）',
+    'settings.imageHosting': '图床',
+    'settings.uploadPathTemplate': '上传路径模板',
+    'settings.uploadPathTemplateDesc':
+        '上传路径模板。变量：{year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}',
+    'settings.autoReplaceAfterUpload': '上传后自动替换',
+    'settings.autoReplaceAfterUploadDesc': '上传后自动将本地引用替换为图床 URL',
+
+    // 命令
+    'command.browseImages': '浏览图片',
+    'command.compressImage': '压缩当前图片',
+    'command.convertReference': '转换引用格式（当前笔记）',
+    'command.convertReferenceVault': '转换引用格式（整个仓库）',
+    'command.uploadToHosting': '上传图片到图床',
+    'command.batchUpload': '批量上传所有图片',
+    'command.findOrphans': '查找孤立图片',
+    'command.renameImage': '重命名图片（同步更新引用）',
+    'command.migrateImages': '迁移图片到图床',
+
+    // 侧边栏
+    'ribbon.tooltip': '图片管理',
+
+    // 提示
+    'notice.notImplemented': '尚未实现',
+    'notice.noActiveEditor': '没有活动编辑器，请先打开一个笔记。',
+    'notice.imageInserted': '图片已插入',
+    'notice.compressSuccess': '图片已压缩，节省 {saved}%',
+    'notice.compressNoGain': '图片已经足够小，未做更改',
+    'notice.compressFailed': '图片压缩失败',
+    'notice.noRefsToConvert': '未找到可转换的图片引用',
+    'notice.convertSuccess': '当前笔记已转换 {count} 处引用',
+    'notice.convertVaultSuccess': '已在 {files} 个文件中转换 {count} 处引用',
+    'notice.noHostingConfig': '未配置图床，请在设置中添加图床配置。',
+    'notice.uploading': '正在上传图片...',
+    'notice.uploadSuccess': '上传成功！URL 已复制到剪贴板。',
+    'notice.uploadFailed': '上传失败：{error}',
+    'notice.noImagesToUpload': '未找到可上传的图片。',
+    'notice.batchUploadStart': '开始批量上传 {count} 张图片...',
+    'notice.batchUploadProgress': '上传中：{done}/{total} - {current}',
+    'notice.batchUploadDone': '批量上传完成：{success}/{total} 成功。',
+    'notice.renameSuccess': '已将 "{old}" 重命名为 "{new}"，更新了 {notes} 个笔记。',
+    'notice.renameFailed': '重命名失败：{error}',
+
+    // 图片浏览器
+    'modal.imageBrowser.title': '图片浏览器',
+    'modal.imageBrowser.searchPlaceholder': '搜索图片...',
+    'modal.imageBrowser.sortName': '名称',
+    'modal.imageBrowser.sortSize': '大小',
+    'modal.imageBrowser.sortModified': '修改时间',
+    'modal.imageBrowser.sortCreated': '创建时间',
+    'modal.imageBrowser.showing': '显示 {count} / {total} 张图片',
+    'modal.imageBrowser.noImages': '仓库中未找到图片',
+    'modal.imageBrowser.insertTooltip': '点击插入',
+
+    // 确认对话框
+    'modal.confirm.ok': '确认',
+    'modal.confirm.cancel': '取消',
+
+    // 孤立图片
+    'modal.orphan.title': '孤立图片',
+    'modal.orphan.scanning': '正在扫描孤立图片...',
+    'modal.orphan.status': '找到 {orphan} 个孤立图片（共 {total} 张图片，{referenced} 张被引用）',
+    'modal.orphan.noOrphans': '未找到孤立图片，所有图片均被引用。',
+    'modal.orphan.selectAll': '全选',
+    'modal.orphan.selectNone': '取消全选',
+    'modal.orphan.totalSize': '总计：{size}',
+    'modal.orphan.deleteSelected': '删除选中',
+    'modal.orphan.noSelection': '未选择任何图片。',
+    'modal.orphan.deleteConfirmTitle': '删除孤立图片',
+    'modal.orphan.deleteConfirmMsg': '确定要删除 {count} 个孤立图片吗？此操作不可撤销。',
+    'modal.orphan.deleted': '已删除 {count} 个孤立图片。',
+
+    // 重命名
+    'modal.rename.title': '重命名图片',
+    'modal.rename.desc': '重命名 "{name}" 并同步更新所有引用。',
+    'modal.rename.confirm': '重命名',
+};

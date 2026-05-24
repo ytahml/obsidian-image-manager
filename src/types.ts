@@ -1,0 +1,149 @@
+import { TFile } from 'obsidian';
+
+/** 图片文件信息 */
+export interface ImageFile {
+    file: TFile;
+    name: string;
+    path: string;
+    extension: string;
+    size: number;
+    created: number;
+    modified: number;
+    referencedBy: string[]; // 引用此图片的笔记路径
+}
+
+/** 图片引用格式 */
+export type ReferenceFormat = 'markdown' | 'wiki';
+
+/** 图片引用信息 */
+export interface ImageReference {
+    fullMatch: string;
+    altText: string;
+    path: string;
+    format: ReferenceFormat;
+    line: number;
+    col: number;
+}
+
+/** 图床类型 */
+export type HostingType = 'aliyun-oss' | 'qiniu' | 's3' | 'smms' | 'custom';
+
+/** 图床配置 */
+export interface ImageHostingConfig {
+    id: string;
+    name: string;
+    type: HostingType;
+    enabled: boolean;
+    config: AliyunOSSConfig | QiniuConfig | S3Config | SmmsConfig | CustomConfig;
+    uploadPath: string;
+    urlPrefix: string;
+}
+
+/** 阿里云 OSS 配置 */
+export interface AliyunOSSConfig {
+    region: string;
+    accessKeyId: string;
+    accessKeySecret: string;
+    bucket: string;
+}
+
+/** 七牛云配置 */
+export interface QiniuConfig {
+    accessKey: string;
+    secretKey: string;
+    bucket: string;
+    domain: string;
+}
+
+/** S3 兼容存储配置 */
+export interface S3Config {
+    endpoint: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    bucket: string;
+    forcePathStyle?: boolean;
+}
+
+/** SM.MS 配置（无需额外配置） */
+export interface SmmsConfig {
+    token?: string;
+}
+
+/** 自定义图床配置 */
+export interface CustomConfig {
+    uploadUrl: string;
+    method: 'POST' | 'PUT';
+    headers: Record<string, string>;
+    fileFieldName: string;
+    jsonPath: string;
+    extraBody: Record<string, string>;
+}
+
+/** 上传结果 */
+export interface UploadResult {
+    success: boolean;
+    url?: string;
+    error?: string;
+    originalPath: string;
+}
+
+/** 迁移记录 */
+export interface MigrationRecord {
+    timestamp: number;
+    sourceHosting: string;
+    targetHosting: string;
+    imageCount: number;
+    affectedNotes: string[];
+    changes: MigrationChange[];
+}
+
+/** 迁移变更 */
+export interface MigrationChange {
+    notePath: string;
+    oldRef: string;
+    newRef: string;
+}
+
+/** 排序方式 */
+export type SortBy = 'name' | 'size' | 'modified' | 'created' | 'reference-count';
+export type SortOrder = 'asc' | 'desc';
+
+/** 图片筛选条件 */
+export interface ImageFilter {
+    keyword?: string;
+    extensions?: string[];
+    minSize?: number;
+    maxSize?: number;
+    directory?: string;
+    onlyOrphans?: boolean;
+}
+
+/** 插件设置 */
+export interface ImageManagerSettings {
+    locale: 'en' | 'zh';
+    imageDirectory: string;
+    supportedExtensions: string[];
+    referenceFormat: ReferenceFormat;
+    autoCompress: boolean;
+    compressQuality: number;
+    thumbnailSize: number;
+    hostingConfigs: ImageHostingConfig[];
+    defaultHostingId: string;
+    uploadPathTemplate: string;
+    autoReplaceAfterUpload: boolean;
+}
+
+export const DEFAULT_SETTINGS: ImageManagerSettings = {
+    locale: 'en',
+    imageDirectory: 'attachments',
+    supportedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'avif'],
+    referenceFormat: 'wiki',
+    autoCompress: false,
+    compressQuality: 80,
+    thumbnailSize: 200,
+    hostingConfigs: [],
+    defaultHostingId: '',
+    uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',
+    autoReplaceAfterUpload: true,
+};

@@ -1,0 +1,199 @@
+import { requestUrl } from 'obsidian';
+import { UploaderBase } from './uploader-base';
+import type { UploadResult, ImageHostingConfig, S3Config } from '../types';
+
+export class S3Uploader extends UploaderBase {
+    readonly name = 'S3 Compatible';
+
+    constructor(config: ImageHostingConfig) {
+        super(config);
+    }
+
+    async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
+        const s3Config = this.config.config as S3Config;
+        const targetPath = this.resolveUploadPath(filename);
+        const contentType = this.guessMimeType(filename);
+
+        try {
+            const url = this.buildUrl(s3Config, targetPath);
+            const headers = await this.signRequest(s3Config, 'PUT', targetPath, data, contentType);
+
+            await requestUrl({
+                url,
+                method: 'PUT',
+                headers: {
+                    ...headers,
+                    'Content-Type': contentType,
+                },
+                body: data,
+            });
+
+            const publicUrl = this.config.urlPrefix
+                ? `${this.config.urlPrefix}/${targetPath}`
+                : url;
+
+            return {
+                success: true,
+                url: publicUrl,
+                originalPath: filename,
+            };
+        } catch (e) {
+            return {
+                success: false,
+                error: e instanceof Error ? e.message : 'Upload failed',
+                originalPath: filename,
+            };
+        }
+    }
+
+    async testConnection(): Promise<boolean> {
+        const s3Config = this.config.config as S3Config;
+
+        try {
+            const headers = await this.signRequest(s3Config, 'GET', '', new ArrayBuffer(0));
+            const url = this.buildUrl(s3Config, '');
+            const resp = await requestUrl({
+                url,
+                method: 'GET',
+                headers,
+            });
+            return resp.status === 200;
+        } catch {
+            return false;
+        }
+    }
+
+    private buildUrl(s3Config: S3Config, key: string): string {
+        const endpoint = s3Config.endpoint.replace(/\/$/, '');
+        if (s3Config.forcePathStyle) {
+            return `${endpoint}/${s3Config.bucket}/${key}`;
+        }
+        // Virtual-hosted style
+        return `https://${s3Config.bucket}.${endpoint.replace(/^https?:\/\//, '')}/${key}`;
+    }
+
+    private async signRequest(
+        s3Config: S3Config,
+        method: string,
+        key: string,
+        body: ArrayBuffer,
+        contentType = 'application/octet-stream'
+    ): Promise<Record<string, string>> {
+        const now = new Date();
+        const amzDate = this.formatAmzDate(now);
+        const dateStamp = this.formatDateStamp(now);
+        const payloadHash = await this.sha256Hex(body);
+
+        const host = s3Config.endpoint.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        const canonicalHeaders = `content-type:${contentType}\nhost:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+        const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+
+        const canonicalRequest = [
+            method,
+            `/${key}`,
+            '', // query string
+            canonicalHeaders,
+            signedHeaders,
+            payloadHash,
+        ].join('\n');
+
+        const credentialScope = `${dateStamp}/${s3Config.region}/s3/aws4_request`;
+        const stringToSign = [
+            'AWS4-HMAC-SHA256',
+            amzDate,
+            credentialScope,
+            await this.sha256Hex(new TextEncoder().encode(canonicalRequest)),
+        ].join('\n');
+
+        const signingKey = await this.getSignatureKey(s3Config.secretAccessKey, dateStamp, s3Config.region, 's3');
+        const signature = await this.hmacSha256Hex(signingKey, stringToSign);
+
+        const authorization = `AWS4-HMAC-SHA256 Credential=${s3Config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+        return {
+            'x-amz-date': amzDate,
+            'x-amz-content-sha256': payloadHash,
+            Authorization: authorization,
+        };
+    }
+
+    private async sha256Hex(data: ArrayBuffer | Uint8Array): Promise<string> {
+        const hash = await crypto.subtle.digest('SHA-256', data);
+        return this.hexEncode(new Uint8Array(hash));
+    }
+
+    private async hmacSha256(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
+        const cryptoKey = await crypto.subtle.importKey(
+            'raw',
+            key,
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+        );
+        return crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(data));
+    }
+
+    private async hmacSha256Hex(key: ArrayBuffer | Uint8Array, data: string): Promise<string> {
+        const sig = await this.hmacSha256(key, data);
+        return this.hexEncode(new Uint8Array(sig));
+    }
+
+    private async getSignatureKey(
+        secret: string,
+        dateStamp: string,
+        region: string,
+        service: string
+    ): Promise<ArrayBuffer> {
+        const kDate = await this.hmacSha256(new TextEncoder().encode(`AWS4${secret}`), dateStamp);
+        const kRegion = await this.hmacSha256(new Uint8Array(kDate), region);
+        const kService = await this.hmacSha256(new Uint8Array(kRegion), service);
+        const kSigning = await this.hmacSha256(new Uint8Array(kService), 'aws4_request');
+        return kSigning;
+    }
+
+    private hexEncode(bytes: Uint8Array): string {
+        return Array.from(bytes)
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    private formatAmzDate(date: Date): string {
+        return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    }
+
+    private formatDateStamp(date: Date): string {
+        return date.toISOString().slice(0, 10).replace(/-/g, '');
+    }
+
+    private resolveUploadPath(filename: string): string {
+        const now = new Date();
+        const vars: Record<string, string> = {
+            year: now.getFullYear().toString(),
+            month: String(now.getMonth() + 1).padStart(2, '0'),
+            day: String(now.getDate()).padStart(2, '0'),
+            filename: filename.replace(/\.[^.]+$/, ''),
+            ext: filename.split('.').pop() ?? '',
+            timestamp: Math.floor(now.getTime() / 1000).toString(),
+        };
+
+        let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';
+        for (const [key, value] of Object.entries(vars)) {
+            template = template.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+        }
+        return template;
+    }
+
+    private guessMimeType(filename: string): string {
+        const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+        const map: Record<string, string> = {
+            png: 'image/png',
+            jpg: 'image/jpeg',
+            jpeg: 'image/jpeg',
+            gif: 'image/gif',
+            webp: 'image/webp',
+            svg: 'image/svg+xml',
+            bmp: 'image/bmp',
+        };
+        return map[ext] ?? 'application/octet-stream';
+    }
+}

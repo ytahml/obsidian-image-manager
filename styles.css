@@ -1,0 +1,205 @@
+/* Image Browser Modal */
+.image-browser-header {
+    margin-bottom: 12px;
+}
+
+.image-browser-title {
+    margin: 0 0 12px 0;
+}
+
+.image-browser-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.image-browser-search {
+    flex: 1;
+    min-width: 0;
+}
+
+.image-browser-sort {
+    flex-shrink: 0;
+}
+
+.image-browser-count {
+    flex-shrink: 0;
+    font-size: 0.85em;
+    opacity: 0.7;
+    white-space: nowrap;
+}
+
+.image-browser-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.image-browser-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.image-browser-card:hover {
+    background-color: var(--background-modifier-hover);
+    border-color: var(--interactive-accent);
+}
+
+.image-browser-card-img {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 4px;
+    background-color: var(--background-secondary);
+    margin-bottom: 6px;
+}
+
+.image-browser-card-img img {
+    object-fit: contain;
+    max-width: 100%;
+    display: block;
+}
+
+.image-browser-card-name {
+    font-size: 0.8em;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.image-browser-card-meta {
+    font-size: 0.7em;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.image-browser-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 0;
+    color: var(--text-muted);
+    font-size: 0.95em;
+}
+
+/* Confirm Dialog */
+.confirm-dialog-message {
+    padding: 8px 0 16px;
+    line-height: 1.5;
+}
+
+.confirm-dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Orphan Images Modal */
+.orphan-images-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.orphan-images-btn {
+    font-size: 0.85em;
+}
+
+.orphan-images-size {
+    margin-left: auto;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.orphan-images-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+}
+
+.orphan-images-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.orphan-images-item:last-child {
+    border-bottom: none;
+}
+
+.orphan-images-item input[type="checkbox"] {
+    flex-shrink: 0;
+}
+
+.orphan-images-item-name {
+    font-weight: 500;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.orphan-images-item-path {
+    flex: 1;
+    font-size: 0.8em;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.orphan-images-item-size {
+    flex-shrink: 0;
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+.orphan-images-empty {
+    text-align: center;
+    padding: 32px 0;
+    color: var(--text-muted);
+}
+
+.orphan-images-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+/* Rename Image Modal */
+.rename-image-desc {
+    margin-bottom: 16px;
+    color: var(--text-muted);
+}
+
+.rename-image-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.rename-image-input {
+    width: 100%;
+}
+
+.rename-image-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
