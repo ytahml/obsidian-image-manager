@@ -35,6 +35,21 @@ export function resolveUploadPath(template: string, vars: Record<string, string>
     return normalizePath(result);
 }
 
+/** URL 编码路径的每一段，仅编码 Markdown 语法冲突字符（空格、括号等），保留 + 等正常字符 */
+export function encodePathSegments(path: string): string {
+    return path
+        .split('/')
+        .map((seg) =>
+            seg
+                .replace(/ /g, '%20')
+                .replace(/\(/g, '%28')
+                .replace(/\)/g, '%29')
+                .replace(/\[/g, '%5B')
+                .replace(/\]/g, '%5D')
+        )
+        .join('/');
+}
+
 /** 获取当前日期的模板变量 */
 export function getDateTemplateVars(): Record<string, string> {
     const now = new Date();

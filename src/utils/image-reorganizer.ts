@@ -1,7 +1,7 @@
 import { App, TFile } from 'obsidian';
 import { RefConverter } from './ref-converter';
 import type { ImageManagerSettings, ReferenceFormat } from '../types';
-import { joinPath } from './path-utils';
+import { joinPath, encodePathSegments } from './path-utils';
 
 export interface ReorganizeResult {
     moved: number;
@@ -83,7 +83,7 @@ export class ImageReorganizer {
                 const fileName = finalPath.split('/').pop() ?? finalPath;
                 newRef = ref.altText ? `![[${fileName}|${ref.altText}]]` : `![[${fileName}]]`;
             } else {
-                const encodedPath = finalPath.split('/').map(encodeURIComponent).join('/');
+                const encodedPath = encodePathSegments(finalPath);
                 newRef = `![${ref.altText}](${encodedPath})`;
             }
 
@@ -158,7 +158,7 @@ export class ImageReorganizer {
             return vaultPath.split('/').pop() ?? vaultPath;
         }
         // Markdown: URL-encode each path segment
-        return vaultPath.split('/').map(encodeURIComponent).join('/');
+        return encodePathSegments(vaultPath);
     }
 
     private async ensureDirectory(dirPath: string): Promise<void> {

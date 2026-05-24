@@ -13,7 +13,7 @@ import { ImageReorganizer } from './utils/image-reorganizer';
 import { createUploader } from './uploaders/uploader-factory';
 import { UploadQueue } from './uploaders/upload-queue';
 import { setLocale, t } from './i18n';
-import { getDateTemplateVars, getFileNameWithoutExt } from './utils/path-utils';
+import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -238,7 +238,7 @@ export default class ImageManagerPlugin extends Plugin {
             return;
         }
 
-        const converted = this.refConverter.convertAllReferences(content, targetFormat);
+        const converted = this.refConverter.convertAllReferences(content, targetFormat, file);
         await this.app.vault.process(file, () => converted);
         new Notice(t('notice.convertSuccess', { count: String(refCount) }));
     }
@@ -257,7 +257,7 @@ export default class ImageManagerPlugin extends Plugin {
 
             if (refCount === 0) continue;
 
-            const converted = this.refConverter.convertAllReferences(content, targetFormat);
+            const converted = this.refConverter.convertAllReferences(content, targetFormat, file);
             await this.app.vault.process(file, () => converted);
             totalConverted += refCount;
             filesChanged++;
@@ -458,7 +458,7 @@ export default class ImageManagerPlugin extends Plugin {
             return;
         }
 
-        const converted = this.refConverter.convertAllReferences(content, targetFormat);
+        const converted = this.refConverter.convertAllReferences(content, targetFormat, file);
         if (converted === content) {
             new Notice(t('notice.noRefsToConvert'));
             return;
@@ -665,7 +665,9 @@ export default class ImageManagerPlugin extends Plugin {
         if (format === 'wiki') {
             ref = `![[${savedFile.name}]]`;
         } else {
-            const encodedPath = savedFile.path.split('/').map(encodeURIComponent).join('/');
+            const noteDir = currentFile?.parent?.path ?? '';
+            const relativePath = noteDir ? this.computeRelativePath(noteDir, savedFile.path) : savedFile.path;
+            const encodedPath = encodePathSegments(relativePath);
             ref = `![${savedFile.name}](${encodedPath})`;
         }
         editor.replaceSelection(ref);
@@ -694,6 +696,20 @@ export default class ImageManagerPlugin extends Plugin {
             'image/avif': 'avif',
         };
         return map[mimeType] ?? 'png';
+    }
+
+    private computeRelativePath(fromDir: string, toPath: string): string {
+        const fromParts = fromDir.split('/').filter(Boolean);
+        const toParts = toPath.split('/').filter(Boolean);
+        let commonLen = 0;
+        while (commonLen < fromParts.length && commonLen < toParts.length && fromParts[commonLen] === toParts[commonLen]) {
+            commonLen++;
+        }
+        const upCount = fromParts.length - commonLen;
+        const ups = Array(upCount).fill('..');
+        const downs = toParts.slice(commonLen);
+        const result = [...ups, ...downs].join('/');
+        return result || toPath;
     }
 }
 

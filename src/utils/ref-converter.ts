@@ -1,6 +1,7 @@
-import { App } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import type { ImageReference, ReferenceFormat } from '../types';
 import { MD_IMAGE_REGEX, WIKI_IMAGE_REGEX } from '../constants';
+import { encodePathSegments } from './path-utils';
 
 export class RefConverter {
     private app: App;
@@ -50,33 +51,78 @@ export class RefConverter {
     }
 
     /** 将单个引用转换为目标格式 */
-    convertReference(ref: ImageReference, targetFormat: ReferenceFormat): string {
+    convertReference(ref: ImageReference, targetFormat: ReferenceFormat, noteFile?: TFile): string {
         if (ref.format === targetFormat) return ref.fullMatch;
 
         if (targetFormat === 'wiki') {
-            // Markdown → Wiki
+            // Markdown → Wiki: just use filename
             const filename = ref.path.split('/').pop() ?? ref.path;
-            if (ref.altText && ref.altText !== filename.replace(/\.[^.]+$/, '')) {
+            const baseName = filename.replace(/\.[^.]+$/, '');
+            if (ref.altText && ref.altText !== baseName) {
                 return `![[${filename}|${ref.altText}]]`;
             }
             return `![[${filename}]]`;
         } else {
-            // Wiki → Markdown
-            const fallback = ref.path.split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
-            const altText = ref.altText || fallback;
-            return `![${altText}](${ref.path})`;
+            // Wiki → Markdown: resolve full path, then make relative to note
+            let resolvedPath = ref.path;
+            if (!ref.path.includes('/')) {
+                const resolved = this.resolveImagePath(ref.path);
+                if (resolved) {
+                    resolvedPath = resolved;
+                }
+            }
+            // Make path relative to the note's directory
+            if (noteFile) {
+                const noteDir = noteFile.parent?.path ?? '';
+                if (noteDir) {
+                    resolvedPath = this.computeRelativePath(noteDir, resolvedPath);
+                }
+            }
+            const encodedPath = encodePathSegments(resolvedPath);
+            const filename = resolvedPath.split('/').pop() ?? resolvedPath;
+            const baseName = filename.replace(/\.[^.]+$/, '');
+            const altText = ref.altText && ref.altText !== baseName ? ref.altText : baseName;
+            return `![${altText}](${encodedPath})`;
         }
     }
 
+    /** 计算从 fromDir 到 toPath 的相对路径 */
+    private computeRelativePath(fromDir: string, toPath: string): string {
+        const fromParts = fromDir.split('/').filter(Boolean);
+        const toParts = toPath.split('/').filter(Boolean);
+
+        // Find common prefix length
+        let commonLen = 0;
+        while (commonLen < fromParts.length && commonLen < toParts.length && fromParts[commonLen] === toParts[commonLen]) {
+            commonLen++;
+        }
+
+        // Go up from fromDir to the common ancestor
+        const upCount = fromParts.length - commonLen;
+        const ups = Array(upCount).fill('..');
+        // Then go down to the target
+        const downs = toParts.slice(commonLen);
+
+        const result = [...ups, ...downs].join('/');
+        return result || toPath;
+    }
+
+    /** 通过文件名在库中查找图片文件的完整路径 */
+    private resolveImagePath(filename: string): string | null {
+        const files = this.app.vault.getFiles();
+        const match = files.find((f) => f.name === filename);
+        return match?.path ?? null;
+    }
+
     /** 转换整个文本中的所有引用 */
-    convertAllReferences(text: string, targetFormat: ReferenceFormat): string {
+    convertAllReferences(text: string, targetFormat: ReferenceFormat, noteFile?: TFile): string {
         const refs = this.parseReferences(text);
         let result = text;
 
         // Reverse order to preserve indices
         for (let i = refs.length - 1; i >= 0; i--) {
             const ref = refs[i]!;
-            const converted = this.convertReference(ref, targetFormat);
+            const converted = this.convertReference(ref, targetFormat, noteFile);
             result = result.substring(0, ref.col) + converted + result.substring(ref.col + ref.fullMatch.length);
         }
 
