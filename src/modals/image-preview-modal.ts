@@ -137,15 +137,20 @@ export class ImagePreviewModal extends Modal {
         this.close();
     }
 
-    private uploadImage(configs: ImageHostingConfig[]) {
+    private async uploadImage(configs: ImageHostingConfig[]) {
+        const doUpload = async (config: ImageHostingConfig) => {
+            this.close();
+            this.browserModal?.close();
+            await this.plugin.doUpload(this.file, config);
+        };
+
         if (configs.length === 1) {
-            this.plugin.doUpload(this.file, configs[0]!);
+            await doUpload(configs[0]!);
         } else {
             new HostingPickModal(this.app, configs, (config) => {
-                this.plugin.doUpload(this.file, config);
+                doUpload(config);
             }).open();
         }
-        this.close();
     }
 
     private getImageDimensions(file: TFile): Promise<{ width: number; height: number } | null> {

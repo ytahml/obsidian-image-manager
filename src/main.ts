@@ -362,9 +362,10 @@ export default class ImageManagerPlugin extends Plugin {
             const result = await uploader.upload(data, file.name);
 
             if (result.success && result.url) {
-                new Notice(t('notice.uploadSuccess', { url: result.url }));
+                const ref = this.buildUploadedReference(file.name, result.url);
+                new Notice(`${t('notice.uploadSuccess')}\n${result.url}`, 5000);
                 const { clipboard } = require('electron');
-                clipboard.writeText(result.url);
+                clipboard.writeText(ref);
 
                 if (this.settings.autoReplaceAfterUpload) {
                     await this.replaceReferenceInNote(file, result.url);
@@ -377,30 +378,42 @@ export default class ImageManagerPlugin extends Plugin {
         }
     }
 
+    private buildUploadedReference(filename: string, url: string): string {
+        const baseName = filename.replace(/\.[^.]+$/, '');
+        return `![${baseName}](${url})`;
+    }
+
     private async replaceReferenceInNote(imageFile: TFile, newUrl: string) {
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!activeView?.file) return;
+        const mdFiles = this.app.vault.getMarkdownFiles();
+        let totalReplaced = 0;
 
-        const content = await this.app.vault.cachedRead(activeView.file);
-        const refs = this.refConverter.parseReferences(content);
+        for (const mdFile of mdFiles) {
+            const content = await this.app.vault.cachedRead(mdFile);
+            const refs = this.refConverter.parseReferences(content);
 
-        const imageName = imageFile.name;
-        const imagePath = imageFile.path;
-        let replaced = false;
-        let newContent = content;
+            const imageName = imageFile.name;
+            const imagePath = imageFile.path;
+            let newContent = content;
+            let replaced = false;
 
-        for (let i = refs.length - 1; i >= 0; i--) {
-            const ref = refs[i]!;
-            const refName = ref.path.split('/').pop() ?? ref.path;
-            if (refName === imageName || ref.path === imagePath) {
-                const newRef = `![${ref.altText || imageName}](${newUrl})`;
-                newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
-                replaced = true;
+            for (let i = refs.length - 1; i >= 0; i--) {
+                const ref = refs[i]!;
+                const refName = ref.path.split('/').pop() ?? ref.path;
+                if (refName === imageName || ref.path === imagePath) {
+                    const newRef = `![${ref.altText || imageName}](${newUrl})`;
+                    newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
+                    replaced = true;
+                    totalReplaced++;
+                }
+            }
+
+            if (replaced) {
+                await this.app.vault.process(mdFile, () => newContent);
             }
         }
 
-        if (replaced) {
-            await this.app.vault.process(activeView.file, () => newContent);
+        if (totalReplaced > 0) {
+            new Notice(t('notice.replaceSuccess', { count: String(totalReplaced) }));
         }
     }
 
