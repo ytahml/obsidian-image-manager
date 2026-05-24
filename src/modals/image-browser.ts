@@ -3,6 +3,7 @@ import type ImageManagerPlugin from '../main';
 import { ImageScanner } from '../utils/image-scanner';
 import { formatFileSize } from '../utils/path-utils';
 import { t } from '../i18n';
+import { ImagePreviewModal } from './image-preview-modal';
 
 export class ImageBrowserModal extends Modal {
     private plugin: ImageManagerPlugin;
@@ -138,28 +139,9 @@ export class ImageBrowserModal extends Modal {
                 text: formatFileSize(file.stat.size),
             });
 
-            card.addEventListener('click', () => this.insertImage(file));
+            card.addEventListener('click', () => {
+                new ImagePreviewModal(this.app, this.plugin, file).open();
+            });
         }
-    }
-
-    private insertImage(file: TFile) {
-        const editor = this.app.workspace.activeEditor?.editor;
-
-        if (!editor) {
-            new Notice(t('notice.noActiveEditor'));
-            return;
-        }
-
-        const format = this.plugin.settings.referenceFormat;
-        let ref: string;
-        if (format === 'wiki') {
-            ref = `![[${file.name}]]`;
-        } else {
-            ref = `![${file.name}](${file.path})`;
-        }
-
-        editor.replaceSelection(ref);
-        new Notice(t('notice.imageInserted'));
-        this.close();
     }
 }

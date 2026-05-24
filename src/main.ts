@@ -343,7 +343,7 @@ export default class ImageManagerPlugin extends Plugin {
         }
     }
 
-    private async doUpload(file: TFile, hostingConfig: ImageHostingConfig) {
+    async doUpload(file: TFile, hostingConfig: ImageHostingConfig) {
         new Notice(t('notice.uploading'));
 
         try {

@@ -94,6 +94,84 @@
     font-size: 0.95em;
 }
 
+/* Image Preview Modal */
+.image-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.image-preview-img {
+    max-height: 60vh;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    background-color: var(--background-secondary);
+    display: block;
+    margin: 0 auto;
+}
+
+.image-preview-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+.image-preview-path {
+    word-break: break-all;
+}
+
+.image-preview-meta {
+    color: var(--text-muted);
+}
+
+.image-preview-label {
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.image-preview-orphan {
+    color: var(--text-warning);
+    font-style: italic;
+}
+
+.image-preview-notes {
+    margin-top: 4px;
+    padding: 6px 10px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.image-preview-note-item {
+    font-size: 0.85em;
+    padding: 2px 0;
+    color: var(--text-muted);
+}
+
+.image-preview-note-link {
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.image-preview-note-link:hover {
+    color: var(--text-accent);
+    text-decoration: underline;
+}
+
+.image-preview-note-more {
+    font-style: italic;
+}
+
+.image-preview-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 /* Confirm Dialog */
 .confirm-dialog-message {
     padding: 8px 0 16px;

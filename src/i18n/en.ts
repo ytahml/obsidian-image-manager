@@ -88,7 +88,19 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.sortCreated': 'Created',
     'modal.imageBrowser.showing': 'Showing {count} of {total} images',
     'modal.imageBrowser.noImages': 'No images found in vault',
-    'modal.imageBrowser.insertTooltip': 'Click to insert',
+    'modal.imageBrowser.insertTooltip': 'Click to preview',
+
+    // Image Preview Modal
+    'modal.preview.path': 'Path: ',
+    'modal.preview.size': 'Size: ',
+    'modal.preview.references': 'References: ',
+    'modal.preview.orphan': 'No references (orphan)',
+    'modal.preview.refCount': '{count} note(s)',
+    'modal.preview.copyRef': 'Copy Reference',
+    'modal.preview.insert': 'Insert into Editor',
+    'modal.preview.upload': 'Upload to Hosting',
+    'modal.preview.close': 'Close',
+    'notice.refCopied': 'Reference copied to clipboard',
 
     // Confirm Dialog
     'modal.confirm.ok': 'Confirm',

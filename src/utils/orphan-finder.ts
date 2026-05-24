@@ -52,6 +52,51 @@ export class OrphanFinder {
     }
 
     /**
+     * 获取引用指定图片的笔记路径列表
+     */
+    async getReferencingNotes(file: TFile): Promise<string[]> {
+        const notes: string[] = [];
+        const mdFiles = this.app.vault.getMarkdownFiles();
+
+        for (const mdFile of mdFiles) {
+            const content = await this.app.vault.cachedRead(mdFile);
+            if (this.isFileReferencedIn(content, file)) {
+                notes.push(mdFile.path);
+            }
+        }
+
+        return notes;
+    }
+
+    private isFileReferencedIn(text: string, file: TFile): boolean {
+        let match: RegExpExecArray | null;
+
+        MD_IMAGE_REGEX.lastIndex = 0;
+        WIKI_IMAGE_REGEX.lastIndex = 0;
+
+        while ((match = MD_IMAGE_REGEX.exec(text)) !== null) {
+            const path = match[2]?.trim();
+            if (path && !path.startsWith('http://') && !path.startsWith('https://')) {
+                const decoded = this.tryDecode(path);
+                if (decoded === file.path || decoded === file.name) return true;
+            }
+        }
+
+        while ((match = WIKI_IMAGE_REGEX.exec(text)) !== null) {
+            const path = match[1]?.trim();
+            if (path && !path.startsWith('http://') && !path.startsWith('https://')) {
+                if (path === file.path || path === file.name) return true;
+            }
+        }
+
+        return false;
+    }
+
+    private tryDecode(path: string): string {
+        try { return decodeURIComponent(path); } catch { return path; }
+    }
+
+    /**
      * 从文本中提取所有图片引用路径
      */
     private extractReferences(text: string, result: Set<string>): void {

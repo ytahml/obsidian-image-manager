@@ -87,7 +87,19 @@ export const zh: Record<string, string> = {
     'modal.imageBrowser.sortCreated': '创建时间',
     'modal.imageBrowser.showing': '显示 {count} / {total} 张图片',
     'modal.imageBrowser.noImages': '仓库中未找到图片',
-    'modal.imageBrowser.insertTooltip': '点击插入',
+    'modal.imageBrowser.insertTooltip': '点击预览',
+
+    // 图片预览
+    'modal.preview.path': '路径：',
+    'modal.preview.size': '大小：',
+    'modal.preview.references': '引用：',
+    'modal.preview.orphan': '无引用（孤立图片）',
+    'modal.preview.refCount': '{count} 个笔记引用',
+    'modal.preview.copyRef': '复制引用',
+    'modal.preview.insert': '插入编辑器',
+    'modal.preview.upload': '上传到图床',
+    'modal.preview.close': '关闭',
+    'notice.refCopied': '引用已复制到剪贴板',
 
     // 确认对话框
     'modal.confirm.ok': '确认',

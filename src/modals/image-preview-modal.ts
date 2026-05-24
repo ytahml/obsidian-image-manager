@@ -1,0 +1,183 @@
+import { App, Modal, Notice, TFile, SuggestModal } from 'obsidian';
+import type ImageManagerPlugin from '../main';
+import type { ImageHostingConfig } from '../types';
+import { OrphanFinder } from '../utils/orphan-finder';
+import { formatFileSize } from '../utils/path-utils';
+import { t } from '../i18n';
+
+export class ImagePreviewModal extends Modal {
+    private file: TFile;
+    private plugin: ImageManagerPlugin;
+
+    constructor(app: App, plugin: ImageManagerPlugin, file: TFile) {
+        super(app);
+        this.plugin = plugin;
+        this.file = file;
+    }
+
+    async onOpen() {
+        const { contentEl } = this;
+        contentEl.addClass('image-preview');
+
+        // Image preview
+        const imgEl = contentEl.createEl('img', {
+            cls: 'image-preview-img',
+            attr: { src: this.app.vault.getResourcePath(this.file) },
+        });
+
+        // File info section
+        const infoEl = contentEl.createDiv({ cls: 'image-preview-info' });
+
+        // Path
+        const pathRow = infoEl.createDiv({ cls: 'image-preview-path' });
+        pathRow.createSpan({ cls: 'image-preview-label', text: t('modal.preview.path') });
+        pathRow.createSpan({ text: this.file.path });
+
+        // Size
+        const sizeRow = infoEl.createDiv({ cls: 'image-preview-meta' });
+        sizeRow.createSpan({ cls: 'image-preview-label', text: t('modal.preview.size') });
+        sizeRow.createSpan({ text: formatFileSize(this.file.stat.size) });
+
+        // Image dimensions (load to get size)
+        const dimensions = await this.getImageDimensions(this.file);
+        if (dimensions) {
+            sizeRow.createSpan({ text: ` | ${dimensions.width}×${dimensions.height}` });
+        }
+
+        // Referencing notes
+        const finder = new OrphanFinder(this.app, this.plugin.settings.supportedExtensions);
+        const notes = await finder.getReferencingNotes(this.file);
+
+        const refRow = infoEl.createDiv({ cls: 'image-preview-meta' });
+        refRow.createSpan({ cls: 'image-preview-label', text: t('modal.preview.references') });
+        if (notes.length === 0) {
+            refRow.createSpan({ cls: 'image-preview-orphan', text: t('modal.preview.orphan') });
+        } else {
+            refRow.createSpan({ text: t('modal.preview.refCount', { count: String(notes.length) }) });
+        }
+
+        // Show referencing notes list
+        if (notes.length > 0) {
+            const notesList = infoEl.createDiv({ cls: 'image-preview-notes' });
+            for (const notePath of notes.slice(0, 10)) {
+                const noteRow = notesList.createDiv({ cls: 'image-preview-note-item image-preview-note-link' });
+                noteRow.createSpan({ text: notePath });
+                noteRow.addEventListener('click', () => {
+                    this.close();
+                    this.app.workspace.openLinkText(notePath, notePath, true);
+                });
+            }
+            if (notes.length > 10) {
+                notesList.createDiv({
+                    cls: 'image-preview-note-item image-preview-note-more',
+                    text: `+${notes.length - 10} more...`,
+                });
+            }
+        }
+
+        // Action buttons
+        const btnsEl = contentEl.createDiv({ cls: 'image-preview-buttons' });
+
+        // Copy reference
+        const copyBtn = btnsEl.createEl('button', { text: t('modal.preview.copyRef'), cls: 'mod-cta' });
+        copyBtn.addEventListener('click', () => this.copyReference());
+
+        // Insert into editor
+        const insertBtn = btnsEl.createEl('button', { text: t('modal.preview.insert') });
+        insertBtn.addEventListener('click', () => this.insertImage());
+
+        // Upload to hosting
+        const configs = this.plugin.settings.hostingConfigs.filter((c) => c.enabled);
+        if (configs.length > 0) {
+            const uploadBtn = btnsEl.createEl('button', { text: t('modal.preview.upload') });
+            uploadBtn.addEventListener('click', () => this.uploadImage(configs));
+        }
+
+        // Close
+        const closeBtn = btnsEl.createEl('button', { text: t('modal.preview.close') });
+        closeBtn.addEventListener('click', () => this.close());
+    }
+
+    onClose() {
+        this.contentEl.empty();
+    }
+
+    private buildReference(): string {
+        const format = this.plugin.settings.referenceFormat;
+        if (format === 'wiki') {
+            return `![[${this.file.name}]]`;
+        }
+        return `![${this.file.name}](${this.file.path})`;
+    }
+
+    private async copyReference() {
+        const ref = this.buildReference();
+        await navigator.clipboard.writeText(ref);
+        new Notice(t('notice.refCopied'));
+    }
+
+    private insertImage() {
+        const editor = this.app.workspace.activeEditor?.editor;
+        if (!editor) {
+            new Notice(t('notice.noActiveEditor'));
+            return;
+        }
+
+        editor.replaceSelection(this.buildReference());
+        new Notice(t('notice.imageInserted'));
+        this.close();
+    }
+
+    private uploadImage(configs: ImageHostingConfig[]) {
+        if (configs.length === 1) {
+            this.plugin.doUpload(this.file, configs[0]!);
+        } else {
+            new HostingPickModal(this.app, configs, (config) => {
+                this.plugin.doUpload(this.file, config);
+            }).open();
+        }
+        this.close();
+    }
+
+    private getImageDimensions(file: TFile): Promise<{ width: number; height: number } | null> {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                resolve({ width: img.naturalWidth, height: img.naturalHeight });
+                URL.revokeObjectURL(img.src);
+            };
+            img.onerror = () => resolve(null);
+            img.src = this.app.vault.getResourcePath(file);
+        });
+    }
+}
+
+class HostingPickModal extends SuggestModal<ImageHostingConfig> {
+    private configs: ImageHostingConfig[];
+    private onChoose: (config: ImageHostingConfig) => void;
+
+    constructor(app: App, configs: ImageHostingConfig[], onChoose: (config: ImageHostingConfig) => void) {
+        super(app);
+        this.configs = configs;
+        this.onChoose = onChoose;
+    }
+
+    getSuggestions(query: string): ImageHostingConfig[] {
+        return this.configs.filter(
+            (c) => c.name.toLowerCase().includes(query.toLowerCase()) || c.type.includes(query.toLowerCase())
+        );
+    }
+
+    renderSuggestion(config: ImageHostingConfig, el: HTMLElement) {
+        el.createDiv({ text: config.name });
+        el.createDiv({ text: config.type, cls: 'suggestion-note' });
+    }
+
+    onChooseItem(config: ImageHostingConfig) {
+        this.onChoose(config);
+    }
+
+    onChooseSuggestion(config: ImageHostingConfig) {
+        this.onChoose(config);
+    }
+}
