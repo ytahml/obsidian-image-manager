@@ -22,7 +22,7 @@ export const en: Record<string, string> = {
     'settings.compressQualityDesc': 'Compression quality (1-100)',
     'settings.gallery': 'Gallery',
     'settings.thumbnailSize': 'Thumbnail size',
-    'settings.thumbnailSizeDesc': 'Thumbnail size in pixels',
+    'settings.thumbnailSizeDesc': 'Thumbnail size in the Image Browser grid (pixels)',
     'settings.imageHosting': 'Image Hosting',
     'settings.addHosting': 'Add image hosting',
     'settings.addHostingDesc': 'Add a new image hosting provider configuration',

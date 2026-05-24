@@ -22,7 +22,7 @@ export const zh: Record<string, string> = {
     'settings.compressQualityDesc': '压缩质量 (1-100)',
     'settings.gallery': '画廊',
     'settings.thumbnailSize': '缩略图大小',
-    'settings.thumbnailSizeDesc': '缩略图大小（像素）',
+    'settings.thumbnailSizeDesc': '图片浏览器中缩略图的显示大小（像素），值越大图片越大，值越小一屏显示越多',
     'settings.imageHosting': '图床',
     'settings.addHosting': '添加图床',
     'settings.addHostingDesc': '添加新的图床服务商配置',
