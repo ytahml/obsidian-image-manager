@@ -4,6 +4,7 @@ import { ImageManagerSettingTab } from './settings';
 import { ImageBrowserModal } from './modals/image-browser';
 import { OrphanImagesModal } from './modals/orphan-images';
 import { RenameImageModal } from './modals/rename-image';
+import { ImageNamePromptModal } from './modals/image-name-prompt';
 import { RefConverter } from './utils/ref-converter';
 import { ImageOptimizer } from './utils/image-optimizer';
 import { ImageScanner } from './utils/image-scanner';
@@ -104,6 +105,18 @@ export default class ImageManagerPlugin extends Plugin {
 
         // Settings tab
         this.addSettingTab(new ImageManagerSettingTab(this.app, this));
+
+        // Intercept paste and drop for custom image reference format
+        this.registerEvent(
+            this.app.workspace.on('editor-paste', (evt, editor, info) => {
+                this.handleImagePaste(evt, editor, info.file);
+            })
+        );
+        this.registerEvent(
+            this.app.workspace.on('editor-drop', (evt, editor, info) => {
+                this.handleImageDrop(evt, editor, info.file);
+            })
+        );
     }
 
     onunload() {}
@@ -150,10 +163,11 @@ export default class ImageManagerPlugin extends Plugin {
         const content = await this.app.vault.cachedRead(file);
         const counts = this.refConverter.countReferences(content);
 
-        const currentFormat = this.settings.referenceFormat;
-        const targetFormat = currentFormat === 'wiki' ? 'markdown' : 'wiki';
+        // Detect format from note content, convert to the opposite
+        const sourceFormat = counts.markdown >= counts.wiki ? 'markdown' : 'wiki';
+        const targetFormat = sourceFormat === 'wiki' ? 'markdown' : 'wiki';
+        const refCount = sourceFormat === 'wiki' ? counts.wiki : counts.markdown;
 
-        const refCount = targetFormat === 'wiki' ? counts.markdown : counts.wiki;
         if (refCount === 0) {
             new Notice(t('notice.noRefsToConvert'));
             return;
@@ -335,6 +349,194 @@ export default class ImageManagerPlugin extends Plugin {
                 new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
             }
         }).open();
+    }
+
+    private handleImagePaste(evt: ClipboardEvent, editor: import('obsidian').Editor, file: TFile | null) {
+        if (evt.defaultPrevented) return;
+        const files = evt.clipboardData?.files;
+        if (!files || files.length === 0) return;
+
+        const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+        if (imageFiles.length === 0) return;
+
+        evt.preventDefault();
+
+        this.processImageFiles(imageFiles, editor);
+    }
+
+    private handleImageDrop(evt: DragEvent, editor: import('obsidian').Editor, file: TFile | null) {
+        if (evt.defaultPrevented) return;
+        const files = evt.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+
+        const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+        if (imageFiles.length === 0) return;
+
+        evt.preventDefault();
+
+        this.processImageFiles(imageFiles, editor);
+    }
+
+    private processImageFiles(files: File[], editor: import('obsidian').Editor) {
+        for (const imgFile of files) {
+            const ext = this.mimeToExt(imgFile.type);
+            const defaultName = this.generateFileName(ext);
+
+            if (this.settings.promptImageName) {
+                new ImageNamePromptModal(this.app, defaultName, (userNamed) => {
+                    const safeName = this.sanitizeFileName(userNamed, ext);
+                    imgFile.arrayBuffer().then((buffer) => {
+                        this.savePastedImage(new Uint8Array(buffer), imgFile.type, safeName, editor);
+                    });
+                }).open();
+            } else {
+                imgFile.arrayBuffer().then((buffer) => {
+                    this.savePastedImage(new Uint8Array(buffer), imgFile.type, defaultName, editor);
+                });
+            }
+        }
+    }
+
+    private generateFileName(ext: string): string {
+        const now = new Date();
+        const vars: Record<string, string> = {
+            date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+            time: `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`,
+            timestamp: String(now.getTime()),
+            random: Math.random().toString(36).substring(2, 6),
+            year: String(now.getFullYear()),
+            month: String(now.getMonth() + 1).padStart(2, '0'),
+            day: String(now.getDate()).padStart(2, '0'),
+            counter: String(this.pasteCounter++),
+        };
+
+        let template = this.settings.imageNamingTemplate || 'image-{date}-{random}';
+        for (const [key, value] of Object.entries(vars)) {
+            template = template.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+        }
+
+        return this.sanitizeFileName(template, ext);
+    }
+
+    private sanitizeFileName(name: string, ext: string): string {
+        // Remove extension if user included it
+        const extPattern = new RegExp(`\\.${ext}$`, 'i');
+        let base = name.replace(extPattern, '');
+
+        // Replace spaces and unsafe characters with hyphens
+        base = base
+            .replace(/\s+/g, '-')
+            .replace(/[/\\:*?"<>|]/g, '')
+            .replace(/-{2,}/g, '-')
+            .replace(/^-+|-+$/g, '');
+
+        if (!base) base = 'image';
+
+        return `${base}.${ext}`;
+    }
+
+    private async ensureUniquePath(dir: string, filename: string): Promise<string> {
+        const ext = filename.split('.').pop() ?? '';
+        const baseName = filename.replace(new RegExp(`\\.${ext}$`), '');
+        let filePath = dir === '.' ? filename : `${dir}/${filename}`;
+        let counter = 1;
+
+        while (this.app.vault.getAbstractFileByPath(filePath)) {
+            const newName = `${baseName}-${counter}.${ext}`;
+            filePath = dir === '.' ? newName : `${dir}/${newName}`;
+            counter++;
+        }
+
+        return filePath;
+    }
+
+    private async savePastedImage(
+        data: Uint8Array,
+        mimeType: string,
+        filename: string,
+        editor: import('obsidian').Editor
+    ) {
+        const ext = this.mimeToExt(mimeType);
+        const dir = this.settings.imageDirectory || 'attachments';
+
+        // Ensure directory exists
+        const dirPath = dir === '.' ? '' : dir;
+        if (dirPath) {
+            const existing = this.app.vault.getAbstractFileByPath(dirPath);
+            if (!existing) {
+                await this.app.vault.createFolder(dirPath).catch(() => {});
+            }
+        }
+
+        // Handle filename collision
+        const filePath = await this.ensureUniquePath(dir, filename);
+
+        // Compress if enabled
+        let outputData: ArrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        if (this.settings.autoCompress && ext !== 'svg') {
+            try {
+                const blob = new Blob([data], { type: mimeType });
+                const img = await this.blobToImage(blob);
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d')!;
+                ctx.drawImage(img, 0, 0);
+
+                const quality = this.settings.compressQuality / 100;
+                const outputMime = ext === 'png' ? 'image/webp' : mimeType;
+                const compressedBlob = await new Promise<Blob>((resolve, reject) => {
+                    canvas.toBlob(
+                        (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
+                        outputMime,
+                        quality
+                    );
+                });
+                outputData = await compressedBlob.arrayBuffer();
+                URL.revokeObjectURL(img.src);
+            } catch {
+                outputData = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+            }
+        }
+
+        // Save to vault
+        const savedFile = await this.app.vault.createBinary(filePath, outputData);
+
+        // Insert reference (URL-encode path for markdown format to handle spaces)
+        const format = this.settings.referenceFormat;
+        let ref: string;
+        if (format === 'wiki') {
+            ref = `![[${savedFile.name}]]`;
+        } else {
+            const encodedPath = savedFile.path.split('/').map(encodeURIComponent).join('/');
+            ref = `![${savedFile.name}](${encodedPath})`;
+        }
+        editor.replaceSelection(ref);
+    }
+
+    private pasteCounter = 0;
+
+    private blobToImage(blob: Blob): Promise<HTMLImageElement> {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = URL.createObjectURL(blob);
+        });
+    }
+
+    private mimeToExt(mimeType: string): string {
+        const map: Record<string, string> = {
+            'image/png': 'png',
+            'image/jpeg': 'jpg',
+            'image/gif': 'gif',
+            'image/webp': 'webp',
+            'image/bmp': 'bmp',
+            'image/svg+xml': 'svg',
+            'image/tiff': 'tiff',
+            'image/avif': 'avif',
+        };
+        return map[mimeType] ?? 'png';
     }
 }
 

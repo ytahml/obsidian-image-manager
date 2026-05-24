@@ -1,7 +1,9 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type ImageManagerPlugin from './main';
-import { DEFAULT_SETTINGS } from './types';
+import { DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { t, setLocale, type Locale } from './i18n';
+import { HostingConfigModal } from './modals/hosting-config';
+import { ConfirmDialog } from './modals/confirm-dialog';
 
 export class ImageManagerSettingTab extends PluginSettingTab {
     plugin: ImageManagerPlugin;
@@ -66,6 +68,32 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     })
             );
 
+        // --- Image Naming ---
+        containerEl.createEl('h3', { text: t('settings.imageNaming') });
+
+        new Setting(containerEl)
+            .setName(t('settings.imageNamingTemplate'))
+            .setDesc(t('settings.imageNamingTemplateDesc'))
+            .addText((text) =>
+                text
+                    .setPlaceholder(DEFAULT_SETTINGS.imageNamingTemplate)
+                    .setValue(this.plugin.settings.imageNamingTemplate)
+                    .onChange(async (value) => {
+                        this.plugin.settings.imageNamingTemplate = value || DEFAULT_SETTINGS.imageNamingTemplate;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.promptImageName'))
+            .setDesc(t('settings.promptImageNameDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.promptImageName).onChange(async (value) => {
+                    this.plugin.settings.promptImageName = value;
+                    await this.plugin.saveSettings();
+                })
+            );
+
         // --- Compression ---
         containerEl.createEl('h3', { text: t('settings.compression') });
 
@@ -113,6 +141,34 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         // --- Image Hosting ---
         containerEl.createEl('h3', { text: t('settings.imageHosting') });
 
+        // Hosting providers list
+        const hostingListEl = containerEl.createDiv({ cls: 'hosting-config-list' });
+        this.renderHostingList(hostingListEl);
+
+        // Add button
+        new Setting(containerEl)
+            .setName(t('settings.addHosting'))
+            .setDesc(t('settings.addHostingDesc'))
+            .addButton((button) =>
+                button.setButtonText('+').onClick(() => {
+                    const newConfig: ImageHostingConfig = {
+                        id: `hosting-${Date.now()}`,
+                        name: '',
+                        type: 'smms',
+                        enabled: true,
+                        config: {},
+                        uploadPath: '',
+                        urlPrefix: '',
+                    };
+                    new HostingConfigModal(this.app, newConfig, async (saved) => {
+                        this.plugin.settings.hostingConfigs.push(saved);
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }).open();
+                })
+            );
+
+        // Upload path template
         new Setting(containerEl)
             .setName(t('settings.uploadPathTemplate'))
             .setDesc(t('settings.uploadPathTemplateDesc'))
@@ -135,5 +191,61 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 })
             );
+    }
+
+    private renderHostingList(container: HTMLElement) {
+        const configs = this.plugin.settings.hostingConfigs;
+
+        if (configs.length === 0) {
+            container.createDiv({
+                cls: 'hosting-config-empty',
+                text: t('settings.noHosting'),
+            });
+            return;
+        }
+
+        for (const config of configs) {
+            const row = container.createDiv({ cls: 'hosting-config-item' });
+
+            // Status indicator
+            const statusDot = row.createSpan({
+                cls: `hosting-config-status ${config.enabled ? 'hosting-config-status-on' : 'hosting-config-status-off'}`,
+            });
+            statusDot.setText(config.enabled ? '●' : '○');
+
+            // Name and type
+            const info = row.createDiv({ cls: 'hosting-config-info' });
+            info.createDiv({ cls: 'hosting-config-name', text: config.name || config.type.toUpperCase() });
+            info.createDiv({ cls: 'hosting-config-type', text: config.type });
+
+            // Edit button
+            const editBtn = row.createEl('button', { text: t('settings.editHosting'), cls: 'hosting-config-btn' });
+            editBtn.addEventListener('click', () => {
+                new HostingConfigModal(this.app, config, async (saved) => {
+                    const idx = this.plugin.settings.hostingConfigs.findIndex((c) => c.id === saved.id);
+                    if (idx >= 0) {
+                        this.plugin.settings.hostingConfigs[idx] = saved;
+                    }
+                    await this.plugin.saveSettings();
+                    this.display();
+                }).open();
+            });
+
+            // Delete button
+            const deleteBtn = row.createEl('button', { text: t('settings.deleteHosting'), cls: 'hosting-config-btn mod-warning' });
+            deleteBtn.addEventListener('click', () => {
+                new ConfirmDialog(this.app, {
+                    title: t('settings.deleteHosting'),
+                    message: t('settings.deleteHostingMsg', { name: config.name || config.type }),
+                    onConfirm: async () => {
+                        this.plugin.settings.hostingConfigs = this.plugin.settings.hostingConfigs.filter(
+                            (c) => c.id !== config.id
+                        );
+                        await this.plugin.saveSettings();
+                        this.display();
+                    },
+                }).open();
+            });
+        }
     }
 }

@@ -128,6 +128,8 @@ export interface ImageManagerSettings {
     autoCompress: boolean;
     compressQuality: number;
     thumbnailSize: number;
+    imageNamingTemplate: string;
+    promptImageName: boolean;
     hostingConfigs: ImageHostingConfig[];
     defaultHostingId: string;
     uploadPathTemplate: string;
@@ -142,6 +144,8 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     autoCompress: false,
     compressQuality: 80,
     thumbnailSize: 200,
+    imageNamingTemplate: 'image-{date}-{random}',
+    promptImageName: false,
     hostingConfigs: [],
     defaultHostingId: '',
     uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',

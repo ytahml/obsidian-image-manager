@@ -203,3 +203,82 @@
     justify-content: flex-end;
     gap: 8px;
 }
+
+/* Hosting Config List */
+.hosting-config-list {
+    margin-bottom: 8px;
+}
+
+.hosting-config-empty {
+    padding: 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9em;
+    border: 1px dashed var(--background-modifier-border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.hosting-config-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+}
+
+.hosting-config-status {
+    font-size: 0.8em;
+    flex-shrink: 0;
+}
+
+.hosting-config-status-on {
+    color: var(--text-success);
+}
+
+.hosting-config-status-off {
+    color: var(--text-muted);
+}
+
+.hosting-config-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.hosting-config-name {
+    font-weight: 500;
+}
+
+.hosting-config-type {
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+.hosting-config-btn {
+    font-size: 0.8em;
+    flex-shrink: 0;
+}
+
+/* Image Name Prompt */
+.image-name-prompt .image-name-prompt-input {
+    width: 100%;
+    margin: 8px 0 16px;
+}
+
+.image-name-prompt .image-name-prompt-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Hosting Config Modal */
+.hosting-config-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--background-modifier-border);
+}

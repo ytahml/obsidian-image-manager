@@ -19,6 +19,12 @@ export const en: Record<string, string> = {
     'settings.thumbnailSize': 'Thumbnail size',
     'settings.thumbnailSizeDesc': 'Thumbnail size in pixels',
     'settings.imageHosting': 'Image Hosting',
+    'settings.addHosting': 'Add image hosting',
+    'settings.addHostingDesc': 'Add a new image hosting provider configuration',
+    'settings.noHosting': 'No hosting providers configured. Click + to add one.',
+    'settings.editHosting': 'Edit',
+    'settings.deleteHosting': 'Delete',
+    'settings.deleteHostingMsg': 'Delete hosting provider "{name}"?',
     'settings.uploadPathTemplate': 'Upload path template',
     'settings.uploadPathTemplateDesc':
         'Template for upload path. Variables: {year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}',
@@ -94,4 +100,32 @@ export const en: Record<string, string> = {
     'modal.rename.title': 'Rename Image',
     'modal.rename.desc': 'Rename "{name}" and update all references across your vault.',
     'modal.rename.confirm': 'Rename',
+
+    // Hosting Config Modal
+    'modal.hosting.addTitle': 'Add Image Hosting',
+    'modal.hosting.editTitle': 'Edit Image Hosting',
+    'modal.hosting.name': 'Name',
+    'modal.hosting.type': 'Provider Type',
+    'modal.hosting.enabled': 'Enabled',
+    'modal.hosting.uploadPath': 'Upload Path',
+    'modal.hosting.uploadPathDesc': 'Override global template. Leave empty to use global setting.',
+    'modal.hosting.urlPrefix': 'URL Prefix',
+    'modal.hosting.urlPrefixDesc': 'Custom domain for public URL, e.g. https://img.example.com',
+    'modal.hosting.providerConfig': 'Provider Configuration',
+    'modal.hosting.save': 'Save',
+    'modal.hosting.smmsTokenDesc': 'Optional. Get token from sm.ms/home/profile/apitoken',
+    'modal.hosting.forcePathStyleDesc': 'Use path-style URLs (e.g. for MinIO)',
+    'modal.hosting.jsonPathDesc': 'Dot-separated path to URL in response JSON, e.g. data.url',
+
+    // Image Name Prompt Modal
+    'modal.imageName.title': 'Image Name',
+    'modal.imageName.placeholder': 'Enter image name (without extension)',
+
+    // Naming Settings
+    'settings.imageNaming': 'Image Naming',
+    'settings.imageNamingTemplate': 'Naming template',
+    'settings.imageNamingTemplateDesc':
+        'Template for pasted/dropped image names. Variables: {date}, {time}, {timestamp}, {random}, {counter}, {year}, {month}, {day}',
+    'settings.promptImageName': 'Prompt for image name',
+    'settings.promptImageNameDesc': 'Show a name input dialog when pasting/dropping images',
 };

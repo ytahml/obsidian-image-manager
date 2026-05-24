@@ -19,6 +19,12 @@ export const zh: Record<string, string> = {
     'settings.thumbnailSize': '缩略图大小',
     'settings.thumbnailSizeDesc': '缩略图大小（像素）',
     'settings.imageHosting': '图床',
+    'settings.addHosting': '添加图床',
+    'settings.addHostingDesc': '添加新的图床服务商配置',
+    'settings.noHosting': '未配置图床，点击 + 添加。',
+    'settings.editHosting': '编辑',
+    'settings.deleteHosting': '删除',
+    'settings.deleteHostingMsg': '删除图床配置 "{name}"？',
     'settings.uploadPathTemplate': '上传路径模板',
     'settings.uploadPathTemplateDesc':
         '上传路径模板。变量：{year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}',
@@ -93,4 +99,30 @@ export const zh: Record<string, string> = {
     'modal.rename.title': '重命名图片',
     'modal.rename.desc': '重命名 "{name}" 并同步更新所有引用。',
     'modal.rename.confirm': '重命名',
+
+    // 图床配置
+    'modal.hosting.addTitle': '添加图床',
+    'modal.hosting.editTitle': '编辑图床',
+    'modal.hosting.name': '名称',
+    'modal.hosting.type': '服务商类型',
+    'modal.hosting.enabled': '启用',
+    'modal.hosting.uploadPath': '上传路径',
+    'modal.hosting.uploadPathDesc': '留空则使用全局模板。',
+    'modal.hosting.urlPrefix': 'URL 前缀',
+    'modal.hosting.urlPrefixDesc': '自定义域名，如 https://img.example.com',
+    'modal.hosting.providerConfig': '服务商配置',
+    'modal.hosting.save': '保存',
+    'modal.hosting.smmsTokenDesc': '可选。从 sm.ms/home/profile/apitoken 获取',
+    'modal.hosting.forcePathStyleDesc': '使用 path-style URL（如 MinIO）',
+    'modal.hosting.jsonPathDesc': '响应 JSON 中 URL 的路径，如 data.url',
+
+    // 图片命名
+    'modal.imageName.title': '图片名称',
+    'modal.imageName.placeholder': '输入图片名称（不含扩展名）',
+    'settings.imageNaming': '图片命名',
+    'settings.imageNamingTemplate': '命名模板',
+    'settings.imageNamingTemplateDesc':
+        '粘贴/拖放图片时的命名模板。变量：{date}, {time}, {timestamp}, {random}, {counter}, {year}, {month}, {day}',
+    'settings.promptImageName': '提示输入图片名称',
+    'settings.promptImageNameDesc': '粘贴/拖放图片时弹出名称输入框',
 };
