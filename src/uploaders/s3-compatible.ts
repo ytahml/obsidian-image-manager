@@ -11,7 +11,7 @@ export class S3Uploader extends UploaderBase {
 
     async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
         const s3Config = this.config.config as S3Config;
-        const targetPath = this.resolveUploadPath(filename);
+        const targetPath = await this.resolveUploadPath(filename, data);
         const contentType = this.guessMimeType(filename);
 
         try {
@@ -165,15 +165,21 @@ export class S3Uploader extends UploaderBase {
         return date.toISOString().slice(0, 10).replace(/-/g, '');
     }
 
-    private resolveUploadPath(filename: string): string {
+    private async resolveUploadPath(filename: string, data?: ArrayBuffer): Promise<string> {
         const now = new Date();
+        let hash = '';
+        if (data) {
+            const hashBuf = await crypto.subtle.digest('SHA-256', data);
+            hash = Array.from(new Uint8Array(hashBuf)).map((b) => ('0' + b.toString(16)).slice(-2)).join('').substring(0, 16);
+        }
         const vars: Record<string, string> = {
             year: now.getFullYear().toString(),
-            month: String(now.getMonth() + 1).padStart(2, '0'),
-            day: String(now.getDate()).padStart(2, '0'),
+            month: ('0' + (now.getMonth() + 1)).slice(-2),
+            day: ('0' + now.getDate()).slice(-2),
             filename: filename.replace(/\.[^.]+$/, ''),
             ext: filename.split('.').pop() ?? '',
             timestamp: Math.floor(now.getTime() / 1000).toString(),
+            hash: hash || Math.random().toString(36).substring(2, 10),
         };
 
         let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';

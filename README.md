@@ -1,90 +1,202 @@
-# Obsidian Sample Plugin
+# Obsidian Image Manager
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式转换、图片浏览器等功能。
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+---
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## 功能概览
 
-## First time developing plugins?
+| 功能 | 状态 |
+|------|------|
+| 图片浏览器 | 已实现 |
+| 图片压缩 | 已实现 |
+| 引用格式转换（Wiki / Markdown） | 已实现 |
+| 图床上传（阿里云 OSS / 七牛 / S3 / 自定义） | 已实现 |
+| 粘贴自动上传图床 | 已实现 |
+| 批量上传 | 已实现 |
+| 孤立图片检测 | 已实现 |
+| 图片重命名（同步更新引用） | 已实现 |
+| 图片资源整理 | 已实现 |
+| 图床迁移 | 未实现 |
+| 图床引用替换为本地引用 | 未实现 |
 
-Quick starting guide for new plugin devs:
+---
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+## 安装
 
-## Releasing new releases
+1. 在 Obsidian 社区插件中搜索 "Image Manager" 安装
+2. 或手动下载 release 包，解压到 `.obsidian/plugins/obsidian-image-manager/`
+3. 在设置中启用插件
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+---
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## 设置说明
 
-## Adding your plugin to the community plugin list
+### 通用
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+- **语言** — 插件显示语言（中文 / English）
+- **图片存储路径模板** — 粘贴图片的存储路径，支持变量：
+  - `{noteName}` — 当前笔记名
+  - `{notePath}` — 当前笔记路径
+  - `{year}`, `{month}`, `{day}` — 日期
+  - `{filename}` — 图片文件名
+- **路径基准** — 路径模板相对于「库根目录」还是「当前文章所在目录」解析
+- **引用格式** — 插入图片引用时使用 Wiki 格式（`![[image.png]]`）还是 Markdown 格式（`![alt](image.png)`）
 
-## How to use
+### 图片命名
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+- **命名模板** — 粘贴/拖放图片时的命名规则，支持变量：
+  - `{date}` — 日期（2026-05-25）
+  - `{time}` — 时间（143025）
+  - `{timestamp}` — Unix 时间戳
+  - `{random}` — 4 位随机字符串
+  - `{counter}` — 递增计数器
+  - `{year}`, `{month}`, `{day}` — 日期分量
+- **提示输入图片名称** — 粘贴时弹出名称输入框
 
-## Manually installing the plugin
+### 压缩
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+- **自动压缩** — 粘贴图片时自动压缩
+- **压缩质量** — 压缩质量 1-100，值越小压缩越狠
 
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
+### 画廊
 
-## Funding URL
+- **缩略图大小** — 图片浏览器中缩略图的显示大小（像素）
+- **启用图片浏览器** — 在侧边栏和命令面板中显示图片浏览器（修改后需重新加载插件生效）
 
-You can include funding URLs where people who use your plugin can financially support it.
+### 图床
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+- **添加图床** — 支持以下服务商：
+  - **阿里云 OSS** — 需要 Region、AccessKey ID、AccessKey Secret、Bucket
+  - **七牛云** — 需要 AccessKey、SecretKey、Bucket、域名
+  - **S3 兼容存储** — 需要 Endpoint、Region、AccessKey ID、Secret Key、Bucket（支持 MinIO 等）
+  - **自定义** — 自定义上传 URL、请求头、字段映射
+- **上传路径模板** — 图床端的存储路径，支持变量：
+  - `{year}`, `{month}`, `{day}` — 日期
+  - `{filename}` — 文件名（不含扩展名）
+  - `{ext}` — 扩展名
+  - `{hash}` — 文件内容 SHA-256 哈希（前 16 位，保证唯一性）
+  - `{timestamp}` — Unix 时间戳
+- **URL 前缀** — 自定义域名，如 `https://img.example.com`
+- **上传后自动替换** — 上传后自动将笔记中的本地引用替换为图床 URL
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
+### 自动上传
 
-If you have multiple URLs, you can also do:
+- **粘贴时自动上传** — 粘贴/拖放图片时自动上传到默认图床
+- **保留本地副本** — 上传图床后是否仍在本地保留一份图片文件
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+---
 
-## API Documentation
+## 使用方法
 
-See https://docs.obsidian.md
+### 图片浏览器
+
+- 点击左侧栏图片图标打开
+- 支持搜索、排序（名称/大小/修改时间/创建时间）
+- 点击缩略图预览图片，查看引用信息
+- 支持孤立图片筛选
+- 预览中可复制引用、插入编辑器、上传到图床
+
+### 粘贴/拖放图片
+
+1. 直接粘贴或拖放图片到笔记中
+2. 图片自动保存到配置的路径
+3. 自动插入引用（Wiki 或 Markdown 格式）
+4. 如开启「自动上传」，图片会异步上传到图床并替换引用
+
+### 压缩图片
+
+- **自动压缩**：在设置中开启后，粘贴图片时自动压缩
+- **手动压缩**：命令面板 → "压缩当前图片"（需先选中图片文件）
+
+### 上传到图床
+
+- **单张上传**：命令面板 → "上传图片到图床"（上传当前打开的图片文件）
+- **批量上传**：命令面板 → "批量上传所有图片"（上传所有本地图片到默认图床）
+- 上传成功后自动复制引用到剪贴板
+- 如开启「上传后自动替换」，会自动更新笔记中的引用
+
+### 引用格式转换
+
+- **当前笔记**：命令面板 → "转换引用格式（当前笔记）"
+- **整个仓库**：命令面板 → "转换引用格式（整个仓库）"
+- **转为 Wiki**：命令面板 → "转换图片链接为 Wiki 格式"
+- **转为 Markdown**：命令面板 → "转换图片链接为 Markdown 格式"
+
+### 孤立图片检测
+
+- 命令面板 → "查找孤立图片"
+- 显示未被任何笔记引用的图片列表
+- 支持全选/取消全选，可批量删除
+
+### 图片重命名
+
+- 在图片浏览器中预览图片时可重命名
+- 自动同步更新所有笔记中的引用
+
+### 图片资源整理
+
+- **当前笔记**：命令面板 → "整理图片资源"
+- **文件夹**：右键文件夹 → "整理图片资源"
+- 将图片移动到统一路径，更新引用，可选自动转换引用格式
+
+### 右键菜单
+
+- 右键 Markdown 文件：整理图片资源、转换为 Wiki/Markdown 格式
+- 右键文件夹：整理图片资源
+
+---
+
+## 支持的图床
+
+| 服务商 | 状态 | 说明 |
+|--------|------|------|
+| 阿里云 OSS | 已支持 | 使用 OSS v1 签名 |
+| 七牛云 | 已支持 | 标准上传接口 |
+| S3 兼容存储 | 已支持 | 支持 AWS S3、MinIO 等 |
+| 自定义 | 已支持 | 自定义上传 URL 和字段映射 |
+
+---
+
+## 未实现功能
+
+以下功能已有命令注册但尚未实现完整逻辑：
+
+- **图床迁移** — 将已上传到一个图床的图片迁移到另一个图床，并更新所有引用
+- **图床引用替换为本地引用** — 将笔记中的远程图片 URL 替换为本地文件引用（已移除，后续可能重新实现）
+
+---
+
+## 变量参考
+
+### 图片命名模板变量
+
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| `{date}` | 当前日期 | `2026-05-25` |
+| `{time}` | 当前时间 | `143025` |
+| `{timestamp}` | Unix 时间戳 | `1748155225` |
+| `{random}` | 4 位随机字符串 | `zjzo` |
+| `{counter}` | 递增计数器 | `1` |
+| `{year}` | 年 | `2026` |
+| `{month}` | 月（补零） | `05` |
+| `{day}` | 日（补零） | `25` |
+
+### 图片路径模板变量
+
+| 变量 | 说明 |
+|------|------|
+| `{noteName}` | 当前笔记名（不含扩展名） |
+| `{notePath}` | 当前笔记所在目录路径 |
+| `{year}`, `{month}`, `{day}` | 日期 |
+| `{filename}` | 图片文件名（不含扩展名） |
+
+### 上传路径模板变量
+
+| 变量 | 说明 |
+|------|------|
+| `{year}`, `{month}`, `{day}` | 日期 |
+| `{filename}` | 文件名（不含扩展名） |
+| `{ext}` | 扩展名 |
+| `{hash}` | 文件内容 SHA-256 哈希（前 16 位） |
+| `{timestamp}` | Unix 时间戳 |

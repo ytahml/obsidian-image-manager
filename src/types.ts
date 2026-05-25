@@ -132,6 +132,8 @@ export interface ImageManagerSettings {
     autoReplaceAfterUpload: boolean;
     reorganizeConvertFormat: boolean;
     enableImageBrowser: boolean;
+    autoUploadOnPaste: boolean;
+    keepLocalCopy: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImageManagerSettings = {
@@ -151,4 +153,6 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     autoReplaceAfterUpload: true,
     reorganizeConvertFormat: true,
     enableImageBrowser: true,
+    autoUploadOnPaste: false,
+    keepLocalCopy: true,
 };

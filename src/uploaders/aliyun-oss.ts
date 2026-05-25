@@ -11,7 +11,8 @@ export class AliyunOSSUploader extends UploaderBase {
 
     async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
         const ossConfig = this.config.config as AliyunOSSConfig;
-        const targetPath = this.resolveUploadPath(filename);
+        const targetPath = await this.resolveUploadPath(filename, data);
+        console.log(`[AliyunOSS] Uploading to: ${targetPath}`);
         const contentType = this.guessMimeType(filename);
         const region = this.parseRegion(ossConfig.region);
         const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;
@@ -35,14 +36,12 @@ export class AliyunOSSUploader extends UploaderBase {
             });
 
             if (resp.status >= 400) {
-                // console.error(`[AliyunOSS] Upload failed: HTTP ${resp.status}`, resp.text);
+                console.error(`[AliyunOSS] Upload failed: HTTP ${resp.status}`, resp.text);
                 return { success: false, error: `HTTP ${resp.status}: ${resp.text}`, originalPath: filename };
             }
-
             const publicUrl = this.config.urlPrefix
                 ? `${this.config.urlPrefix}/${targetPath}`
                 : url;
-
             return { success: true, url: publicUrl, originalPath: filename };
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Upload failed';
@@ -95,8 +94,13 @@ export class AliyunOSSUploader extends UploaderBase {
         return btoa(String.fromCharCode(...new Uint8Array(sig)));
     }
 
-    private resolveUploadPath(filename: string): string {
+    async resolveUploadPath(filename: string, data?: ArrayBuffer): Promise<string> {
         const now = new Date();
+        let hash = '';
+        if (data) {
+            const hashBuf = await crypto.subtle.digest('SHA-256', data);
+            hash = Array.from(new Uint8Array(hashBuf)).map((b) => ('0' + b.toString(16)).slice(-2)).join('').substring(0, 16);
+        }
         const vars: Record<string, string> = {
             year: now.getFullYear().toString(),
             month: String(now.getMonth() + 1).padStart(2, '0'),
@@ -104,6 +108,7 @@ export class AliyunOSSUploader extends UploaderBase {
             filename: filename.replace(/\.[^.]+$/, ''),
             ext: filename.split('.').pop() ?? '',
             timestamp: Math.floor(now.getTime() / 1000).toString(),
+            hash: hash || Math.random().toString(36).substring(2, 10),
         };
 
         let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';

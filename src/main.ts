@@ -20,7 +20,6 @@ export default class ImageManagerPlugin extends Plugin {
     refConverter: RefConverter;
     imageOptimizer: ImageOptimizer;
     batchRename: BatchRename;
-
     async onload() {
         await this.loadSettings();
         setLocale(this.settings.locale);
@@ -522,11 +521,15 @@ export default class ImageManagerPlugin extends Plugin {
                     const safeName = this.sanitizeFileName(userNamed, ext);
                     imgFile.arrayBuffer().then((buffer) => {
                         this.savePastedImage(new Uint8Array(buffer), imgFile.type, safeName, editor, currentFile);
+                    }).catch((e) => {
+                        new Notice(`Image save failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
                     });
                 }).open();
             } else {
                 imgFile.arrayBuffer().then((buffer) => {
                     this.savePastedImage(new Uint8Array(buffer), imgFile.type, defaultName, editor, currentFile);
+                }).catch((e) => {
+                    new Notice(`Image save failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
                 });
             }
         }
@@ -576,7 +579,10 @@ export default class ImageManagerPlugin extends Plugin {
         let filePath = dir === '.' ? filename : `${dir}/${filename}`;
         let counter = 1;
 
-        while (this.app.vault.getAbstractFileByPath(filePath)) {
+        while (
+            this.app.vault.getAbstractFileByPath(filePath) ||
+            (await this.app.vault.adapter.exists(filePath))
+        ) {
             const newName = `${baseName}-${counter}.${ext}`;
             filePath = dir === '.' ? newName : `${dir}/${newName}`;
             counter++;
@@ -675,7 +681,20 @@ export default class ImageManagerPlugin extends Plugin {
         }
 
         // Save to vault
-        const savedFile = await this.app.vault.createBinary(filePath, outputData);
+        let savedFile: TFile;
+        try {
+            console.log(`[ImageManager] Saving image to: ${filePath}`);
+            savedFile = await this.app.vault.createBinary(filePath, outputData);
+        } catch (e) {
+            // Race condition: ensureUniquePath checked in-memory map but createBinary
+            // checks filesystem. Retry with a guaranteed-unique timestamp name.
+            console.warn(`[ImageManager] File conflict at ${filePath}, retrying with unique name`);
+            const ts = Date.now();
+            const retryName = `${filename.replace(/\.[^.]+$/, '')}-${ts}.${ext}`;
+            const retryPath = await this.ensureUniquePath(dir, retryName);
+            console.log(`[ImageManager] Retrying with: ${retryPath}`);
+            savedFile = await this.app.vault.createBinary(retryPath, outputData);
+        }
 
         // Insert reference (URL-encode path for markdown format to handle spaces)
         const format = this.settings.referenceFormat;
@@ -689,6 +708,64 @@ export default class ImageManagerPlugin extends Plugin {
             ref = `![${savedFile.name}](${encodedPath})`;
         }
         editor.replaceSelection(ref);
+
+        // Auto-upload to hosting if enabled
+        if (this.settings.autoUploadOnPaste) {
+            this.autoUploadAfterPaste(savedFile, outputData, editor, currentFile).catch(() => {});
+        }
+    }
+
+    private async autoUploadAfterPaste(savedFile: TFile, data: ArrayBuffer, editor: import('obsidian').Editor, currentFile: TFile | null) {
+        const hostingConfig = this.getDefaultHostingConfig();
+        if (!hostingConfig) return;
+
+        const notice = new Notice(t('notice.autoUploading'), 0);
+
+        try {
+            const uploader = createUploader(hostingConfig);
+            const result = await uploader.upload(data, savedFile.name);
+
+            if (result.success && result.url) {
+                const ref = `![${savedFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;
+
+                // Replace the local reference we just inserted with the remote URL
+                const cursor = editor.getCursor();
+                const line = editor.getLine(cursor.line);
+                const localRefMatch = line.match(/!\[.*?\]\(.*?\)|!\[\[.*?\]\]/);
+                if (localRefMatch) {
+                    const start = localRefMatch.index!;
+                    const end = start + localRefMatch[0].length;
+                    editor.replaceRange(ref, { line: cursor.line, ch: start }, { line: cursor.line, ch: end });
+                }
+
+                // Replace references in other notes
+                await this.replaceReferenceInNote(savedFile, result.url);
+
+                // Delete local file if user doesn't want to keep it
+                if (!this.settings.keepLocalCopy) {
+                    await this.app.vault.delete(savedFile);
+                }
+
+                notice.hide();
+                new Notice(t('notice.autoUploadSuccess'), 3000);
+            } else {
+                notice.hide();
+                new Notice(t('notice.autoUploadFailed', { error: result.error ?? 'Unknown' }), 5000);
+            }
+        } catch (e) {
+            notice.hide();
+            new Notice(t('notice.autoUploadFailed', { error: e instanceof Error ? e.message : 'Unknown' }), 5000);
+        }
+    }
+
+    private getDefaultHostingConfig(): ImageHostingConfig | null {
+        const configs = this.settings.hostingConfigs.filter((c) => c.enabled);
+        if (configs.length === 0) return null;
+        if (this.settings.defaultHostingId) {
+            const found = configs.find((c) => c.id === this.settings.defaultHostingId);
+            if (found) return found;
+        }
+        return configs[0] ?? null;
     }
 
     private pasteCounter = 0;

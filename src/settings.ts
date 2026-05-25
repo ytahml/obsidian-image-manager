@@ -225,6 +225,26 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 })
             );
+
+        new Setting(containerEl)
+            .setName(t('settings.autoUploadOnPaste'))
+            .setDesc(t('settings.autoUploadOnPasteDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
+                    this.plugin.settings.autoUploadOnPaste = value;
+                    await this.plugin.saveSettings();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.keepLocalCopy'))
+            .setDesc(t('settings.keepLocalCopyDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.keepLocalCopy).onChange(async (value) => {
+                    this.plugin.settings.keepLocalCopy = value;
+                    await this.plugin.saveSettings();
+                })
+            );
     }
 
     private renderHostingList(container: HTMLElement) {
