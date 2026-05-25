@@ -145,7 +145,7 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     autoCompress: false,
     compressQuality: 80,
     thumbnailSize: 200,
-    imageNamingTemplate: 'image-{date}-{random}',
+    imageNamingTemplate: 'image-{timestamp}',
     promptImageName: false,
     hostingConfigs: [],
     defaultHostingId: '',

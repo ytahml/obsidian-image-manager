@@ -541,14 +541,13 @@ export default class ImageManagerPlugin extends Plugin {
             date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
             time: `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`,
             timestamp: String(now.getTime()),
-            random: Math.random().toString(36).substring(2, 6),
             year: String(now.getFullYear()),
             month: String(now.getMonth() + 1).padStart(2, '0'),
             day: String(now.getDate()).padStart(2, '0'),
             counter: String(this.pasteCounter++),
         };
 
-        let template = this.settings.imageNamingTemplate || 'image-{date}-{random}';
+        let template = this.settings.imageNamingTemplate || 'image-{timestamp}';
         for (const [key, value] of Object.entries(vars)) {
             template = template.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
         }

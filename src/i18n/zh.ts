@@ -148,7 +148,7 @@ export const zh: Record<string, string> = {
     'settings.imageNaming': '图片命名',
     'settings.imageNamingTemplate': '命名模板',
     'settings.imageNamingTemplateDesc':
-        '粘贴/拖放图片时的命名模板。变量：{date}, {time}, {timestamp}, {random}, {counter}, {year}, {month}, {day}',
+        '粘贴/拖放图片时的命名模板。变量：{date}, {time}, {timestamp}, {counter}, {year}, {month}, {day}',
     'settings.promptImageName': '提示输入图片名称',
     'settings.promptImageNameDesc': '粘贴/拖放图片时弹出名称输入框',
     'settings.enableImageBrowser': '启用图片浏览器',
