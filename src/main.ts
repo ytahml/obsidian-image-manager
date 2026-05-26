@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, TFolder, MarkdownView, SuggestModal } from 'obsidian';
+import { Notice, Plugin, TFile, TFolder, MarkdownView, SuggestModal, normalizePath } from 'obsidian';
 import { ImageManagerSettings, DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { ImageManagerSettingTab } from './settings';
 import { ImageBrowserModal } from './modals/image-browser';
@@ -73,6 +73,17 @@ export default class ImageManagerPlugin extends Plugin {
             id: 'upload-to-hosting',
             name: t('command.uploadToHosting'),
             callback: () => this.uploadCurrentImage(),
+        });
+
+        this.addCommand({
+            id: 'upload-note-images',
+            name: t('command.uploadNoteImages'),
+            checkCallback: (checking) => {
+                const file = this.app.workspace.getActiveFile();
+                if (!file || file.extension !== 'md') return false;
+                if (!checking) this.uploadNoteImages(file);
+                return true;
+            },
         });
 
         this.addCommand({
@@ -160,25 +171,31 @@ export default class ImageManagerPlugin extends Plugin {
         this.registerEvent(
             this.app.workspace.on('file-menu', (menu, file) => {
                 if (file instanceof TFolder) {
+                    menu.addSeparator();
                     menu.addItem((item) => {
-                        item.setTitle(t('command.reorganizeImages'))
-                            .setIcon('folder-input')
+                        item.setTitle(`Image Manager: ${t('command.reorganizeImages')}`)
+                            .setIcon('image-file')
                             .onClick(() => this.reorganizeFolder(file.path));
                     });
                 } else if (file instanceof TFile && file.extension === 'md') {
+                    menu.addSeparator();
                     menu.addItem((item) => {
-                        item.setTitle(t('command.reorganizeImages'))
+                        item.setTitle(`Image Manager: ${t('command.uploadNoteImages')}`)
+                            .setIcon('upload')
+                            .onClick(() => this.uploadNoteImages(file));
+                    });
+                    menu.addItem((item) => {
+                        item.setTitle(`Image Manager: ${t('command.reorganizeImages')}`)
                             .setIcon('image-file')
                             .onClick(() => this.reorganizeNote(file));
                     });
-                    menu.addSeparator();
                     menu.addItem((item) => {
-                        item.setTitle(t('command.convertToWiki'))
+                        item.setTitle(`Image Manager: ${t('command.convertToWiki')}`)
                             .setIcon('file-text')
                             .onClick(() => this.convertNoteToFormat(file, 'wiki'));
                     });
                     menu.addItem((item) => {
-                        item.setTitle(t('command.convertToMd'))
+                        item.setTitle(`Image Manager: ${t('command.convertToMd')}`)
                             .setIcon('file-text')
                             .onClick(() => this.convertNoteToFormat(file, 'markdown'));
                     });
@@ -375,6 +392,97 @@ export default class ImageManagerPlugin extends Plugin {
         } catch (e) {
             new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
         }
+    }
+
+    private async uploadNoteImages(file: TFile) {
+        const configs = this.settings.hostingConfigs.filter((c) => c.enabled);
+        if (configs.length === 0) {
+            new Notice(t('notice.noHostingConfig'));
+            return;
+        }
+
+        const doUpload = async (hostingConfig: ImageHostingConfig) => {
+            const content = await this.app.vault.cachedRead(file);
+            const refs = this.refConverter.parseReferences(content);
+            const noteDir = file.parent?.path ?? '';
+
+            // Filter to local image references
+            const localRefs = refs.filter((r) => !r.path.startsWith('http://') && !r.path.startsWith('https://'));
+            if (localRefs.length === 0) {
+                new Notice(t('notice.noteUploadNoImages'));
+                return;
+            }
+
+            let success = 0;
+            let newContent = content;
+
+            // Process from end to start to preserve positions
+            for (let i = localRefs.length - 1; i >= 0; i--) {
+                const ref = localRefs[i]!;
+                const resolved = this.resolveRefPath(noteDir, ref.path);
+                const imgFile = resolved ? this.app.vault.getAbstractFileByPath(resolved) : null;
+                if (!(imgFile instanceof TFile)) continue;
+
+                try {
+                    let data = await this.app.vault.readBinary(imgFile);
+                    if (this.settings.autoCompress) {
+                        const result = await this.imageOptimizer.compressImage(imgFile, this.settings.compressQuality);
+                        data = result.data;
+                    }
+
+                    const uploader = createUploader(hostingConfig);
+                    const result = await uploader.upload(data, imgFile.name);
+
+                    if (result.success && result.url) {
+                        const newRef = `![${ref.altText || imgFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;
+                        newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
+                        success++;
+
+                        if (this.settings.autoReplaceAfterUpload) {
+                            await this.replaceReferenceInNote(imgFile, result.url);
+                        }
+                    }
+                } catch (e) {
+                    console.error(`[ImageManager] Failed to upload ${imgFile.path}:`, e);
+                }
+            }
+
+            if (success > 0) {
+                await this.app.vault.process(file, () => newContent);
+            }
+            new Notice(t('notice.noteUploadDone', { success: String(success), total: String(localRefs.length) }));
+        };
+
+        if (configs.length === 1) {
+            await doUpload(configs[0]!);
+        } else {
+            new HostingSuggestModal(this.app, configs, (config) => {
+                doUpload(config);
+            }).open();
+        }
+    }
+
+    private resolveRefPath(noteDir: string, refPath: string): string | null {
+        const decoded = refPath.replace(/%20/g, ' ');
+        // Absolute vault path
+        if (decoded.startsWith('/')) {
+            return normalizePath(decoded.substring(1));
+        }
+        // Relative path
+        if (decoded.startsWith('../') || decoded.startsWith('./') || decoded.includes('/')) {
+            const baseParts = noteDir.split('/').filter(Boolean);
+            const relParts = decoded.split('/').filter(Boolean);
+            const parts = [...baseParts];
+            for (const part of relParts) {
+                if (part === '..') parts.pop();
+                else if (part !== '.') parts.push(part);
+            }
+            return normalizePath(parts.join('/'));
+        }
+        // Just a filename — try noteDir first, then vault root
+        const inNoteDir = normalizePath(`${noteDir}/${decoded}`);
+        if (this.app.vault.getAbstractFileByPath(inNoteDir)) return inNoteDir;
+        return normalizePath(decoded);
     }
 
     private buildUploadedReference(filename: string, url: string): string {
