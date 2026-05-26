@@ -48,7 +48,6 @@ export const zh: Record<string, string> = {
     'command.renameImage': '重命名图片（同步更新引用）',
     'command.migrateImages': '迁移图片到图床',
     'command.reorganizeImages': '整理图片资源',
-    'command.convertToWiki': '转换图片链接为 Wiki 格式',
     'command.convertToMd': '转换图片链接为 Markdown 格式',
 
     // 侧边栏

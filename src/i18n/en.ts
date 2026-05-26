@@ -49,7 +49,6 @@ export const en: Record<string, string> = {
     'command.renameImage': 'Rename image (update references)',
     'command.migrateImages': 'Migrate images to hosting',
     'command.reorganizeImages': 'Reorganize images',
-    'command.convertToWiki': 'Convert image refs to Wiki format',
     'command.convertToMd': 'Convert image refs to Markdown format',
 
     // Ribbon

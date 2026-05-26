@@ -73,11 +73,10 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             .setDesc(t('settings.referenceFormatDesc'))
             .addDropdown((dropdown) =>
                 dropdown
-                    .addOption('wiki', t('settings.referenceFormat.wiki'))
                     .addOption('markdown', t('settings.referenceFormat.markdown'))
                     .setValue(this.plugin.settings.referenceFormat)
                     .onChange(async (value: string) => {
-                        this.plugin.settings.referenceFormat = value as 'wiki' | 'markdown';
+                        this.plugin.settings.referenceFormat = value as 'markdown';
                         await this.plugin.saveSettings();
                     })
             );

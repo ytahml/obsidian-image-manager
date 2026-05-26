@@ -131,17 +131,6 @@ export default class ImageManagerPlugin extends Plugin {
         });
 
         this.addCommand({
-            id: 'convert-to-wiki',
-            name: t('command.convertToWiki'),
-            checkCallback: (checking) => {
-                const file = this.app.workspace.getActiveFile();
-                if (!file || file.extension !== 'md') return false;
-                if (!checking) this.convertNoteToFormat(file, 'wiki');
-                return true;
-            },
-        });
-
-        this.addCommand({
             id: 'convert-to-md',
             name: t('command.convertToMd'),
             checkCallback: (checking) => {
@@ -188,11 +177,6 @@ export default class ImageManagerPlugin extends Plugin {
                         item.setTitle(`Image Manager: ${t('command.reorganizeImages')}`)
                             .setIcon('image-file')
                             .onClick(() => this.reorganizeNote(file));
-                    });
-                    menu.addItem((item) => {
-                        item.setTitle(`Image Manager: ${t('command.convertToWiki')}`)
-                            .setIcon('file-text')
-                            .onClick(() => this.convertNoteToFormat(file, 'wiki'));
                     });
                     menu.addItem((item) => {
                         item.setTitle(`Image Manager: ${t('command.convertToMd')}`)
@@ -248,10 +232,9 @@ export default class ImageManagerPlugin extends Plugin {
         const content = await this.app.vault.cachedRead(file);
         const counts = this.refConverter.countReferences(content);
 
-        // Detect format from note content, convert to the opposite
-        const sourceFormat = counts.markdown >= counts.wiki ? 'markdown' : 'wiki';
-        const targetFormat = sourceFormat === 'wiki' ? 'markdown' : 'wiki';
-        const refCount = sourceFormat === 'wiki' ? counts.wiki : counts.markdown;
+        // Always convert wiki → markdown
+        const targetFormat = 'markdown';
+        const refCount = counts.wiki;
 
         if (refCount === 0) {
             new Notice(t('notice.noRefsToConvert'));
@@ -265,7 +248,7 @@ export default class ImageManagerPlugin extends Plugin {
 
     private async convertEntireVault() {
         const mdFiles = this.app.vault.getMarkdownFiles();
-        const targetFormat = this.settings.referenceFormat === 'wiki' ? 'markdown' : 'wiki';
+        const targetFormat = 'markdown';
 
         let totalConverted = 0;
         let filesChanged = 0;
@@ -273,7 +256,7 @@ export default class ImageManagerPlugin extends Plugin {
         for (const file of mdFiles) {
             const content = await this.app.vault.cachedRead(file);
             const counts = this.refConverter.countReferences(content);
-            const refCount = targetFormat === 'wiki' ? counts.markdown : counts.wiki;
+            const refCount = counts.wiki;
 
             if (refCount === 0) continue;
 
@@ -833,17 +816,11 @@ export default class ImageManagerPlugin extends Plugin {
             savedFile = await this.app.vault.createBinary(retryPath, outputData);
         }
 
-        // Insert reference (URL-encode path for markdown format to handle spaces)
-        const format = this.settings.referenceFormat;
-        let ref: string;
-        if (format === 'wiki') {
-            ref = `![[${savedFile.name}]]`;
-        } else {
-            const noteDir = currentFile?.parent?.path ?? '';
-            const relativePath = noteDir ? this.computeRelativePath(noteDir, savedFile.path) : savedFile.path;
-            const encodedPath = encodePathSegments(relativePath);
-            ref = `![${savedFile.name}](${encodedPath})`;
-        }
+        // Insert markdown reference
+        const noteDir = currentFile?.parent?.path ?? '';
+        const relativePath = noteDir ? this.computeRelativePath(noteDir, savedFile.path) : savedFile.path;
+        const encodedPath = encodePathSegments(relativePath);
+        const ref = `![${savedFile.name}](${encodedPath})`;
         editor.replaceSelection(ref);
 
         // Auto-upload to hosting if enabled

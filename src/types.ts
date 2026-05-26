@@ -141,7 +141,7 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     imagePathTemplate: 'attachments',
     imagePathBase: 'note',
     supportedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'avif'],
-    referenceFormat: 'wiki',
+    referenceFormat: 'markdown',
     autoCompress: false,
     compressQuality: 80,
     thumbnailSize: 200,
