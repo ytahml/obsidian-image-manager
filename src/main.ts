@@ -401,7 +401,7 @@ export default class ImageManagerPlugin extends Plugin {
             return;
         }
 
-        const doUpload = async (hostingConfig: ImageHostingConfig) => {
+        const chooseAndUpload = async (hostingConfig: ImageHostingConfig) => {
             const content = await this.app.vault.cachedRead(file);
             const refs = this.refConverter.parseReferences(content);
             const noteDir = file.parent?.path ?? '';
@@ -415,6 +415,7 @@ export default class ImageManagerPlugin extends Plugin {
 
             let success = 0;
             let newContent = content;
+            const progress = new Notice(t('notice.batchUploadProgress', { done: '0', total: String(localRefs.length), current: '' }), 0);
 
             // Process from end to start to preserve positions
             for (let i = localRefs.length - 1; i >= 0; i--) {
@@ -422,6 +423,12 @@ export default class ImageManagerPlugin extends Plugin {
                 const resolved = this.resolveRefPath(noteDir, ref.path);
                 const imgFile = resolved ? this.app.vault.getAbstractFileByPath(resolved) : null;
                 if (!(imgFile instanceof TFile)) continue;
+
+                progress.setMessage(t('notice.batchUploadProgress', {
+                    done: String(success),
+                    total: String(localRefs.length),
+                    current: imgFile.name,
+                }));
 
                 try {
                     let data = await this.app.vault.readBinary(imgFile);
@@ -438,15 +445,17 @@ export default class ImageManagerPlugin extends Plugin {
                         newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
                         success++;
 
-                        if (this.settings.autoReplaceAfterUpload) {
-                            await this.replaceReferenceInNote(imgFile, result.url);
-                        }
+                        // Update references in other notes (skip current file, handled by newContent)
+                        await this.replaceReferenceInNote(imgFile, result.url, file);
+                    } else {
+                        console.error(`[ImageManager] Upload failed for ${imgFile.name}: ${result.error}`);
                     }
                 } catch (e) {
                     console.error(`[ImageManager] Failed to upload ${imgFile.path}:`, e);
                 }
             }
 
+            progress.hide();
             if (success > 0) {
                 await this.app.vault.process(file, () => newContent);
             }
@@ -454,22 +463,24 @@ export default class ImageManagerPlugin extends Plugin {
         };
 
         if (configs.length === 1) {
-            await doUpload(configs[0]!);
+            await chooseAndUpload(configs[0]!);
         } else {
             new HostingSuggestModal(this.app, configs, (config) => {
-                doUpload(config);
+                chooseAndUpload(config).catch((e) => {
+                    new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown' }));
+                });
             }).open();
         }
     }
 
     private resolveRefPath(noteDir: string, refPath: string): string | null {
         const decoded = refPath.replace(/%20/g, ' ');
-        // Absolute vault path
+        // Absolute vault path (starts with /)
         if (decoded.startsWith('/')) {
             return normalizePath(decoded.substring(1));
         }
-        // Relative path
-        if (decoded.startsWith('../') || decoded.startsWith('./') || decoded.includes('/')) {
+        // Explicit relative path (starts with ../ or ./)
+        if (decoded.startsWith('../') || decoded.startsWith('./')) {
             const baseParts = noteDir.split('/').filter(Boolean);
             const relParts = decoded.split('/').filter(Boolean);
             const parts = [...baseParts];
@@ -479,10 +490,28 @@ export default class ImageManagerPlugin extends Plugin {
             }
             return normalizePath(parts.join('/'));
         }
-        // Just a filename — try noteDir first, then vault root
+        // Path contains / — could be absolute vault path or relative path
+        if (decoded.includes('/')) {
+            // Try as absolute vault path first
+            const absolutePath = normalizePath(decoded);
+            if (this.app.vault.getAbstractFileByPath(absolutePath)) return absolutePath;
+            // Try as relative path to noteDir
+            const baseParts = noteDir.split('/').filter(Boolean);
+            const relParts = decoded.split('/').filter(Boolean);
+            const parts = [...baseParts];
+            for (const part of relParts) {
+                if (part === '..') parts.pop();
+                else if (part !== '.') parts.push(part);
+            }
+            return normalizePath(parts.join('/'));
+        }
+        // Just a filename — try noteDir first, then vault root, then search entire vault
         const inNoteDir = normalizePath(`${noteDir}/${decoded}`);
         if (this.app.vault.getAbstractFileByPath(inNoteDir)) return inNoteDir;
-        return normalizePath(decoded);
+        const inVaultRoot = normalizePath(decoded);
+        if (this.app.vault.getAbstractFileByPath(inVaultRoot)) return inVaultRoot;
+        const match = this.app.vault.getFiles().find((f) => f.name === decoded);
+        return match?.path ?? null;
     }
 
     private buildUploadedReference(filename: string, url: string): string {
@@ -490,11 +519,12 @@ export default class ImageManagerPlugin extends Plugin {
         return `![${baseName}](${url})`;
     }
 
-    private async replaceReferenceInNote(imageFile: TFile, newUrl: string) {
+    private async replaceReferenceInNote(imageFile: TFile, newUrl: string, skipFile?: TFile) {
         const mdFiles = this.app.vault.getMarkdownFiles();
         let totalReplaced = 0;
 
         for (const mdFile of mdFiles) {
+            if (skipFile && mdFile.path === skipFile.path) continue;
             const content = await this.app.vault.cachedRead(mdFile);
             const refs = this.refConverter.parseReferences(content);
 
