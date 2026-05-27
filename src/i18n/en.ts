@@ -26,6 +26,8 @@ export const en: Record<string, string> = {
     'settings.imageHosting': 'Image Hosting',
     'settings.addHosting': 'Add image hosting',
     'settings.addHostingDesc': 'Add a new image hosting provider configuration',
+    'settings.defaultHosting': 'Default hosting',
+    'settings.defaultHostingDesc': 'Select the default hosting provider for auto-upload on paste and batch upload',
     'settings.noHosting': 'No hosting providers configured. Click + to add one.',
     'settings.editHosting': 'Edit',
     'settings.deleteHosting': 'Delete',

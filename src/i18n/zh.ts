@@ -26,6 +26,8 @@ export const zh: Record<string, string> = {
     'settings.imageHosting': '图床',
     'settings.addHosting': '添加图床',
     'settings.addHostingDesc': '添加新的图床服务商配置',
+    'settings.defaultHosting': '默认图床',
+    'settings.defaultHostingDesc': '选择粘贴自动上传和批量上传时使用的默认图床',
     'settings.noHosting': '未配置图床，点击 + 添加。',
     'settings.editHosting': '编辑',
     'settings.deleteHosting': '删除',

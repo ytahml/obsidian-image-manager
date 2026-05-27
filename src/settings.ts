@@ -205,6 +205,24 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     })
                 );
 
+            // Default hosting provider
+            const enabledConfigs = this.plugin.settings.hostingConfigs.filter((c) => c.enabled);
+            if (enabledConfigs.length > 1) {
+                new Setting(containerEl)
+                    .setName(t('settings.defaultHosting'))
+                    .setDesc(t('settings.defaultHostingDesc'))
+                    .addDropdown((dropdown) => {
+                        for (const config of enabledConfigs) {
+                            dropdown.addOption(config.id, config.name || config.type.toUpperCase());
+                        }
+                        const currentDefault = this.plugin.settings.defaultHostingId || enabledConfigs[0]!.id;
+                        dropdown.setValue(currentDefault).onChange(async (value) => {
+                            this.plugin.settings.defaultHostingId = value;
+                            await this.plugin.saveSettings();
+                        });
+                    });
+            }
+
             // Upload path template
             new Setting(containerEl)
                 .setName(t('settings.uploadPathTemplate'))
