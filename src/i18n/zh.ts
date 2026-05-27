@@ -148,6 +148,7 @@ export const zh: Record<string, string> = {
     'modal.hosting.save': '保存',
     'modal.hosting.forcePathStyleDesc': '使用 path-style URL（如 MinIO）',
     'modal.hosting.jsonPathDesc': '响应 JSON 中 URL 的路径，如 data.url',
+    'modal.hosting.qiniuRegionDesc': '选择存储区域，需与七牛云后台一致',
 
     // 图片命名
     'modal.imageName.title': '图片名称',

@@ -13,23 +13,38 @@ export class QiniuUploader extends UploaderBase {
         const qiniuConfig = this.config.config as QiniuConfig;
         const targetPath = await this.resolveUploadPath(filename, data);
         const token = await this.generateUploadToken(qiniuConfig, targetPath);
+        const uploadUrl = this.getUploadUrl(qiniuConfig.region);
 
         try {
-            const boundary = `----FormBoundary${Date.now()}`;
+            const boundary = `FormBoundary${Date.now()}`;
             const body = this.buildMultipartBody(boundary, token, targetPath, data);
 
             const resp = await requestUrl({
-                url: 'https://upload.qiniu.com/',
+                url: uploadUrl,
                 method: 'POST',
                 headers: {
                     'Content-Type': `multipart/form-data; boundary=${boundary}`,
                 },
                 body,
+                throw: false,
             });
+
+            if (resp.status >= 400) {
+                console.error(`[Qiniu] Upload failed: HTTP ${resp.status}`, resp.text);
+                return {
+                    success: false,
+                    error: `HTTP ${resp.status}: ${resp.text}`,
+                    originalPath: filename,
+                };
+            }
 
             const json = resp.json;
             if (json.key) {
-                const publicUrl = `${qiniuConfig.domain}/${json.key}`;
+                let domain = (this.config.urlPrefix || '').trim().replace(/\/+$/, '');
+                if (domain && !domain.startsWith('http://') && !domain.startsWith('https://')) {
+                    domain = `https://${domain}`;
+                }
+                const publicUrl = domain ? `${domain}/${json.key}` : `${uploadUrl}${json.key}`;
                 return {
                     success: true,
                     url: publicUrl,
@@ -43,6 +58,7 @@ export class QiniuUploader extends UploaderBase {
                 originalPath: filename,
             };
         } catch (e) {
+            console.error('[Qiniu] Upload exception:', e);
             return {
                 success: false,
                 error: e instanceof Error ? e.message : 'Upload failed',
@@ -63,14 +79,37 @@ export class QiniuUploader extends UploaderBase {
     }
 
     private async generateUploadToken(config: QiniuConfig, key: string): Promise<string> {
+        const accessKey = config.accessKey.trim();
+        const secretKey = config.secretKey.trim();
+        const bucket = config.bucket.trim();
+
         const policy = {
-            scope: `${config.bucket}:${key}`,
+            scope: `${bucket}:${key}`,
             deadline: Math.floor(Date.now() / 1000) + 3600,
         };
-        const encodedPolicy = btoa(JSON.stringify(policy));
-        const sign = await this.hmacSha1(config.secretKey, encodedPolicy);
-        const encodedSign = btoa(String.fromCharCode(...new Uint8Array(sign))).replace(/\+/g, '-').replace(/\//g, '_');
-        return `${config.accessKey}:${encodedSign}:${encodedPolicy}`;
+        const policyStr = JSON.stringify(policy);
+        const encodedPolicy = this.base64UrlEncode(policyStr);
+        const sign = await this.hmacSha1(secretKey, encodedPolicy);
+        const encodedSign = this.base64UrlEncode(String.fromCharCode(...new Uint8Array(sign)));
+        const token = `${accessKey}:${encodedSign}:${encodedPolicy}`;
+
+        return token;
+    }
+
+    private base64UrlEncode(input: string): string {
+        return btoa(input).replace(/\+/g, '-').replace(/\//g, '_');
+    }
+
+    private getUploadUrl(region: string): string {
+        const endpoints: Record<string, string> = {
+            'z0': 'https://upload.qiniu.com/',
+            'z1': 'https://up-z1.qiniup.com/',
+            'z2': 'https://up-z2.qiniup.com/',
+            'na0': 'https://up-na0.qiniup.com/',
+            'as0': 'https://up-as0.qiniup.com/',
+        };
+        const r = (region || 'z0').trim().toLowerCase();
+        return endpoints[r] || 'https://upload.qiniu.com/';
     }
 
     private async hmacSha1(secret: string, data: string): Promise<ArrayBuffer> {

@@ -149,6 +149,7 @@ export const en: Record<string, string> = {
     'modal.hosting.save': 'Save',
     'modal.hosting.forcePathStyleDesc': 'Use path-style URLs (e.g. for MinIO)',
     'modal.hosting.jsonPathDesc': 'Dot-separated path to URL in response JSON, e.g. data.url',
+    'modal.hosting.qiniuRegionDesc': 'Select storage region, must match your Qiniu dashboard setting',
 
     // Image Name Prompt Modal
     'modal.imageName.title': 'Image Name',

@@ -52,7 +52,7 @@ export interface QiniuConfig {
     accessKey: string;
     secretKey: string;
     bucket: string;
-    domain: string;
+    region: string;
 }
 
 /** S3 兼容存储配置 */

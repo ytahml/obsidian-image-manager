@@ -188,12 +188,19 @@ export class HostingConfigModal extends Modal {
                 })
             );
         new Setting(container)
-            .setName('Domain')
-            .setDesc('e.g. https://img.example.com')
-            .addText((text) =>
-                text.setValue(cfg.domain).onChange((v) => {
-                    cfg.domain = v;
-                })
+            .setName('Region')
+            .setDesc(t('modal.hosting.qiniuRegionDesc'))
+            .addDropdown((dropdown) =>
+                dropdown
+                    .addOption('z0', 'z0 - 华东（默认）')
+                    .addOption('z1', 'z1 - 华北')
+                    .addOption('z2', 'z2 - 华南')
+                    .addOption('na0', 'na0 - 北美')
+                    .addOption('as0', 'as0 - 亚太（新加坡）')
+                    .setValue(cfg.region || 'z0')
+                    .onChange((v: string) => {
+                        cfg.region = v;
+                    })
             );
     }
 
@@ -303,7 +310,7 @@ export class HostingConfigModal extends Modal {
             case 'aliyun-oss':
                 return { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' } as AliyunOSSConfig;
             case 'qiniu':
-                return { accessKey: '', secretKey: '', bucket: '', domain: '' } as QiniuConfig;
+                return { accessKey: '', secretKey: '', bucket: '', region: 'z0' } as QiniuConfig;
             case 's3':
                 return { endpoint: '', region: '', accessKeyId: '', secretAccessKey: '', bucket: '', forcePathStyle: false } as S3Config;
             case 'custom':
