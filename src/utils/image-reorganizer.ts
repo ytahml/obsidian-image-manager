@@ -44,6 +44,12 @@ export class ImageReorganizer {
                 continue;
             }
 
+            // Skip wiki references if configured
+            if (this.settings.skipWikiRefsOnReorganize && ref.format === 'wiki') {
+                skipped++;
+                continue;
+            }
+
             const imageFile = this.resolveImageFromRef(ref.path);
             if (!imageFile) {
                 skipped++;

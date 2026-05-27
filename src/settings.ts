@@ -69,24 +69,22 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName(t('settings.referenceFormat'))
-            .setDesc(t('settings.referenceFormatDesc'))
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption('markdown', t('settings.referenceFormat.markdown'))
-                    .setValue(this.plugin.settings.referenceFormat)
-                    .onChange(async (value: string) => {
-                        this.plugin.settings.referenceFormat = value as 'markdown';
-                        await this.plugin.saveSettings();
-                    })
-            );
-
-        new Setting(containerEl)
-            .setName(t('settings.reorganizeConvertFormat'))
-            .setDesc(t('settings.reorganizeConvertFormatDesc'))
+            .setName(t('settings.useMarkdownFormat'))
+            .setDesc(t('settings.useMarkdownFormatDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.reorganizeConvertFormat).onChange(async (value) => {
                     this.plugin.settings.reorganizeConvertFormat = value;
+                    await this.plugin.saveSettings();
+                    this.display();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.skipWikiRefsOnReorganize'))
+            .setDesc(t('settings.skipWikiRefsOnReorganizeDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.skipWikiRefsOnReorganize).onChange(async (value) => {
+                    this.plugin.settings.skipWikiRefsOnReorganize = value;
                     await this.plugin.saveSettings();
                 })
             );
@@ -174,76 +172,83 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         // --- Image Hosting ---
         containerEl.createEl('h3', { text: t('settings.imageHosting') });
 
-        // Hosting providers list
-        const hostingListEl = containerEl.createDiv({ cls: 'hosting-config-list' });
-        this.renderHostingList(hostingListEl);
+        if (!this.plugin.settings.reorganizeConvertFormat) {
+            containerEl.createDiv({
+                cls: 'setting-item-description',
+                text: t('settings.hostingDisabledByFormat'),
+            });
+        } else {
+            // Hosting providers list
+            const hostingListEl = containerEl.createDiv({ cls: 'hosting-config-list' });
+            this.renderHostingList(hostingListEl);
 
-        // Add button
-        new Setting(containerEl)
-            .setName(t('settings.addHosting'))
-            .setDesc(t('settings.addHostingDesc'))
-            .addButton((button) =>
-                button.setButtonText('+').onClick(() => {
-                    const newConfig: ImageHostingConfig = {
-                        id: `hosting-${Date.now()}`,
-                        name: '',
-                        type: 'aliyun-oss',
-                        enabled: true,
-                        config: { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' },
-                        uploadPath: '',
-                        urlPrefix: '',
-                    };
-                    new HostingConfigModal(this.app, newConfig, async (saved) => {
-                        this.plugin.settings.hostingConfigs.push(saved);
-                        await this.plugin.saveSettings();
-                        this.display();
-                    }).open();
-                })
-            );
+            // Add button
+            new Setting(containerEl)
+                .setName(t('settings.addHosting'))
+                .setDesc(t('settings.addHostingDesc'))
+                .addButton((button) =>
+                    button.setButtonText('+').onClick(() => {
+                        const newConfig: ImageHostingConfig = {
+                            id: `hosting-${Date.now()}`,
+                            name: '',
+                            type: 'aliyun-oss',
+                            enabled: true,
+                            config: { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' },
+                            uploadPath: '',
+                            urlPrefix: '',
+                        };
+                        new HostingConfigModal(this.app, newConfig, async (saved) => {
+                            this.plugin.settings.hostingConfigs.push(saved);
+                            await this.plugin.saveSettings();
+                            this.display();
+                        }).open();
+                    })
+                );
 
-        // Upload path template
-        new Setting(containerEl)
-            .setName(t('settings.uploadPathTemplate'))
-            .setDesc(t('settings.uploadPathTemplateDesc'))
-            .addText((text) =>
-                text
-                    .setPlaceholder(DEFAULT_SETTINGS.uploadPathTemplate)
-                    .setValue(this.plugin.settings.uploadPathTemplate)
-                    .onChange(async (value) => {
-                        this.plugin.settings.uploadPathTemplate = value || DEFAULT_SETTINGS.uploadPathTemplate;
+            // Upload path template
+            new Setting(containerEl)
+                .setName(t('settings.uploadPathTemplate'))
+                .setDesc(t('settings.uploadPathTemplateDesc'))
+                .addText((text) =>
+                    text
+                        .setPlaceholder(DEFAULT_SETTINGS.uploadPathTemplate)
+                        .setValue(this.plugin.settings.uploadPathTemplate)
+                        .onChange(async (value) => {
+                            this.plugin.settings.uploadPathTemplate = value || DEFAULT_SETTINGS.uploadPathTemplate;
+                            await this.plugin.saveSettings();
+                        })
+                );
+
+            new Setting(containerEl)
+                .setName(t('settings.autoReplaceAfterUpload'))
+                .setDesc(t('settings.autoReplaceAfterUploadDesc'))
+                .addToggle((toggle) =>
+                    toggle.setValue(this.plugin.settings.autoReplaceAfterUpload).onChange(async (value) => {
+                        this.plugin.settings.autoReplaceAfterUpload = value;
                         await this.plugin.saveSettings();
                     })
-            );
+                );
 
-        new Setting(containerEl)
-            .setName(t('settings.autoReplaceAfterUpload'))
-            .setDesc(t('settings.autoReplaceAfterUploadDesc'))
-            .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.autoReplaceAfterUpload).onChange(async (value) => {
-                    this.plugin.settings.autoReplaceAfterUpload = value;
-                    await this.plugin.saveSettings();
-                })
-            );
+            new Setting(containerEl)
+                .setName(t('settings.autoUploadOnPaste'))
+                .setDesc(t('settings.autoUploadOnPasteDesc'))
+                .addToggle((toggle) =>
+                    toggle.setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
+                        this.plugin.settings.autoUploadOnPaste = value;
+                        await this.plugin.saveSettings();
+                    })
+                );
 
-        new Setting(containerEl)
-            .setName(t('settings.autoUploadOnPaste'))
-            .setDesc(t('settings.autoUploadOnPasteDesc'))
-            .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
-                    this.plugin.settings.autoUploadOnPaste = value;
-                    await this.plugin.saveSettings();
-                })
-            );
-
-        new Setting(containerEl)
-            .setName(t('settings.keepLocalCopy'))
-            .setDesc(t('settings.keepLocalCopyDesc'))
-            .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.keepLocalCopy).onChange(async (value) => {
-                    this.plugin.settings.keepLocalCopy = value;
-                    await this.plugin.saveSettings();
-                })
-            );
+            new Setting(containerEl)
+                .setName(t('settings.keepLocalCopy'))
+                .setDesc(t('settings.keepLocalCopyDesc'))
+                .addToggle((toggle) =>
+                    toggle.setValue(this.plugin.settings.keepLocalCopy).onChange(async (value) => {
+                        this.plugin.settings.keepLocalCopy = value;
+                        await this.plugin.saveSettings();
+                    })
+                );
+        }
     }
 
     private renderHostingList(container: HTMLElement) {

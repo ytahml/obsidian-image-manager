@@ -78,8 +78,11 @@ export const zh: Record<string, string> = {
     'notice.renameFailed': '重命名失败：{error}',
     'notice.reorganizeDone': '已整理 {note} 篇笔记，移动 {moved} 张图片，跳过 {skipped} 张',
     'notice.reorganizeFailed': '整理失败：{error}',
-    'settings.reorganizeConvertFormat': '自动转换引用格式',
-    'settings.reorganizeConvertFormatDesc': '整理图片时，同时将引用格式转换为配置的格式（Wiki/Markdown）',
+    'settings.useMarkdownFormat': '使用 Markdown 标准格式',
+    'settings.useMarkdownFormatDesc': '开启后，粘贴图片使用标准 Markdown 格式（![alt](image.png)），整理图片时将 Wiki 格式转为 Markdown；关闭后，粘贴图片使用 Obsidian 默认的 Wiki 格式（![[image.png]]）',
+    'settings.skipWikiRefsOnReorganize': '跳过 Wiki 引用',
+    'settings.skipWikiRefsOnReorganizeDesc': '整理图片时，跳过 Wiki 格式引用的图片，不进行移动',
+    'settings.hostingDisabledByFormat': '图床功能需要开启「使用 Markdown 标准格式」后才能使用。',
 
     // 图片浏览器
     'modal.imageBrowser.title': '图片浏览器',

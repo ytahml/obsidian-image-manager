@@ -120,7 +120,6 @@ export interface ImageManagerSettings {
     imagePathTemplate: string;
     imagePathBase: 'vault' | 'note';
     supportedExtensions: string[];
-    referenceFormat: ReferenceFormat;
     autoCompress: boolean;
     compressQuality: number;
     thumbnailSize: number;
@@ -131,6 +130,7 @@ export interface ImageManagerSettings {
     uploadPathTemplate: string;
     autoReplaceAfterUpload: boolean;
     reorganizeConvertFormat: boolean;
+    skipWikiRefsOnReorganize: boolean;
     enableImageBrowser: boolean;
     autoUploadOnPaste: boolean;
     keepLocalCopy: boolean;
@@ -141,7 +141,6 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     imagePathTemplate: 'attachments',
     imagePathBase: 'note',
     supportedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'avif'],
-    referenceFormat: 'markdown',
     autoCompress: false,
     compressQuality: 80,
     thumbnailSize: 200,
@@ -152,6 +151,7 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',
     autoReplaceAfterUpload: true,
     reorganizeConvertFormat: true,
+    skipWikiRefsOnReorganize: true,
     enableImageBrowser: true,
     autoUploadOnPaste: false,
     keepLocalCopy: true,

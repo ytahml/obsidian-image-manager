@@ -111,10 +111,6 @@ export class ImagePreviewModal extends Modal {
     }
 
     private buildReference(): string {
-        const format = this.plugin.settings.referenceFormat;
-        if (format === 'wiki') {
-            return `![[${this.file.name}]]`;
-        }
         return `![${this.file.name}](${this.file.path})`;
     }
 

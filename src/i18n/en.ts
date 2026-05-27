@@ -79,8 +79,11 @@ export const en: Record<string, string> = {
     'notice.renameFailed': 'Rename failed: {error}',
     'notice.reorganizeDone': 'Reorganized {note} note(s), moved {moved} image(s), skipped {skipped}',
     'notice.reorganizeFailed': 'Reorganize failed: {error}',
-    'settings.reorganizeConvertFormat': 'Auto convert reference format',
-    'settings.reorganizeConvertFormatDesc': 'When reorganizing images, also convert references to the configured format (Wiki/Markdown)',
+    'settings.useMarkdownFormat': 'Use Markdown standard format',
+    'settings.useMarkdownFormatDesc': 'When enabled, pasted images use standard Markdown format (![alt](image.png)) and reorganizing converts Wiki to Markdown. When disabled, pasted images use Obsidian default Wiki format (![[image.png]])',
+    'settings.skipWikiRefsOnReorganize': 'Skip Wiki references',
+    'settings.skipWikiRefsOnReorganizeDesc': 'When reorganizing images, skip Wiki format references and do not move them',
+    'settings.hostingDisabledByFormat': 'Image hosting requires "Use Markdown standard format" to be enabled.',
 
     // Image Browser Modal
     'modal.imageBrowser.title': 'Image Browser',

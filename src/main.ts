@@ -79,6 +79,7 @@ export default class ImageManagerPlugin extends Plugin {
             id: 'upload-note-images',
             name: t('command.uploadNoteImages'),
             checkCallback: (checking) => {
+                if (!this.settings.reorganizeConvertFormat) return false;
                 const file = this.app.workspace.getActiveFile();
                 if (!file || file.extension !== 'md') return false;
                 if (!checking) this.uploadNoteImages(file);
@@ -168,11 +169,13 @@ export default class ImageManagerPlugin extends Plugin {
                     });
                 } else if (file instanceof TFile && file.extension === 'md') {
                     menu.addSeparator();
-                    menu.addItem((item) => {
-                        item.setTitle(`Image Manager: ${t('command.uploadNoteImages')}`)
-                            .setIcon('upload')
-                            .onClick(() => this.uploadNoteImages(file));
-                    });
+                    if (this.settings.reorganizeConvertFormat) {
+                        menu.addItem((item) => {
+                            item.setTitle(`Image Manager: ${t('command.uploadNoteImages')}`)
+                                .setIcon('upload')
+                                .onClick(() => this.uploadNoteImages(file));
+                        });
+                    }
                     menu.addItem((item) => {
                         item.setTitle(`Image Manager: ${t('command.reorganizeImages')}`)
                             .setIcon('image-file')
@@ -274,6 +277,11 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async uploadCurrentImage() {
+        if (!this.settings.reorganizeConvertFormat) {
+            new Notice(t('settings.hostingDisabledByFormat'));
+            return;
+        }
+
         const file = this.app.workspace.getActiveFile();
         if (!file || !this.isImageFile(file)) {
             new Notice(t('notice.noActiveEditor'));
@@ -296,6 +304,11 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async batchUpload() {
+        if (!this.settings.reorganizeConvertFormat) {
+            new Notice(t('settings.hostingDisabledByFormat'));
+            return;
+        }
+
         const scanner = new ImageScanner(this.app, this.settings.supportedExtensions);
         const images = scanner.getAllImages();
 
@@ -378,6 +391,11 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async uploadNoteImages(file: TFile) {
+        if (!this.settings.reorganizeConvertFormat) {
+            new Notice(t('settings.hostingDisabledByFormat'));
+            return;
+        }
+
         const configs = this.settings.hostingConfigs.filter((c) => c.enabled);
         if (configs.length === 0) {
             new Notice(t('notice.noHostingConfig'));
@@ -557,7 +575,7 @@ export default class ImageManagerPlugin extends Plugin {
     private async reorganizeNote(file: TFile) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
         try {
-            const result = await reorganizer.reorganizeNote(file, this.settings.reorganizeConvertFormat ? this.settings.referenceFormat : undefined);
+            const result = await reorganizer.reorganizeNote(file, this.settings.reorganizeConvertFormat ? 'markdown' : undefined);
             new Notice(
                 t('notice.reorganizeDone', {
                     note: '1',
@@ -573,7 +591,7 @@ export default class ImageManagerPlugin extends Plugin {
     private async reorganizeFolder(folderPath: string) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
         try {
-            const result = await reorganizer.reorganizeFolder(folderPath, this.settings.reorganizeConvertFormat ? this.settings.referenceFormat : undefined);
+            const result = await reorganizer.reorganizeFolder(folderPath, this.settings.reorganizeConvertFormat ? 'markdown' : undefined);
             new Notice(
                 t('notice.reorganizeDone', {
                     note: String(result.notes),
@@ -816,15 +834,22 @@ export default class ImageManagerPlugin extends Plugin {
             savedFile = await this.app.vault.createBinary(retryPath, outputData);
         }
 
-        // Insert markdown reference
+        // Insert reference based on format setting
         const noteDir = currentFile?.parent?.path ?? '';
-        const relativePath = noteDir ? this.computeRelativePath(noteDir, savedFile.path) : savedFile.path;
-        const encodedPath = encodePathSegments(relativePath);
-        const ref = `![${savedFile.name}](${encodedPath})`;
+        let ref: string;
+        if (this.settings.reorganizeConvertFormat) {
+            // Markdown standard format: ![alt](path)
+            const relativePath = noteDir ? this.computeRelativePath(noteDir, savedFile.path) : savedFile.path;
+            const encodedPath = encodePathSegments(relativePath);
+            ref = `![${savedFile.name}](${encodedPath})`;
+        } else {
+            // Wiki format: ![[filename]]
+            ref = `![[${savedFile.name}]]`;
+        }
         editor.replaceSelection(ref);
 
-        // Auto-upload to hosting if enabled
-        if (this.settings.autoUploadOnPaste) {
+        // Auto-upload to hosting if enabled (requires Markdown format)
+        if (this.settings.autoUploadOnPaste && this.settings.reorganizeConvertFormat) {
             this.autoUploadAfterPaste(savedFile, outputData, editor, currentFile).catch(() => {});
         }
     }
