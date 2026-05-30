@@ -4,8 +4,7 @@
 	"version": "1.0.0",
 	"minAppVersion": "1.4.0",
 	"description": "A powerful image management plugin for Obsidian. Browse, optimize, upload to image hosting, and organize your images. Ideal for converting Wiki image refs to standard Markdown format.",
-	"author": "",
-	"authorUrl": "",
-	"fundingUrl": "",
+	"author": "imulan",
+	"authorUrl": "https://imulan.top",
 	"isDesktopOnly": false
 }
