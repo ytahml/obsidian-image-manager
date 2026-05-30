@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: obsidian-image-manager
+  PLUGIN_NAME: image-manager
 
 permissions:
   contents: write
