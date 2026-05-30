@@ -16,9 +16,10 @@ export class S3Uploader extends UploaderBase {
 
         try {
             const url = this.buildUrl(s3Config, targetPath);
-            const headers = await this.signRequest(s3Config, 'PUT', targetPath, data, contentType);
+            const requestHost = new URL(url).host;
+            const headers = await this.signRequest(s3Config, 'PUT', targetPath, requestHost, data, contentType);
 
-            await requestUrl({
+            const resp = await requestUrl({
                 url,
                 method: 'PUT',
                 headers: {
@@ -26,7 +27,16 @@ export class S3Uploader extends UploaderBase {
                     'Content-Type': contentType,
                 },
                 body: data,
+                throw: false,
             });
+
+            if (resp.status >= 400) {
+                return {
+                    success: false,
+                    error: `HTTP ${resp.status}: ${resp.text}`,
+                    originalPath: filename,
+                };
+            }
 
             const publicUrl = this.config.urlPrefix
                 ? `${this.config.urlPrefix}/${targetPath}`
@@ -50,12 +60,14 @@ export class S3Uploader extends UploaderBase {
         const s3Config = this.config.config as S3Config;
 
         try {
-            const headers = await this.signRequest(s3Config, 'GET', '', new ArrayBuffer(0));
             const url = this.buildUrl(s3Config, '');
+            const requestHost = new URL(url).host;
+            const headers = await this.signRequest(s3Config, 'GET', '', requestHost, new ArrayBuffer(0));
             const resp = await requestUrl({
                 url,
                 method: 'GET',
                 headers,
+                throw: false,
             });
             return resp.status === 200;
         } catch {
@@ -76,6 +88,7 @@ export class S3Uploader extends UploaderBase {
         s3Config: S3Config,
         method: string,
         key: string,
+        requestHost: string,
         body: ArrayBuffer,
         contentType = 'application/octet-stream'
     ): Promise<Record<string, string>> {
@@ -84,8 +97,7 @@ export class S3Uploader extends UploaderBase {
         const dateStamp = this.formatDateStamp(now);
         const payloadHash = await this.sha256Hex(body);
 
-        const host = s3Config.endpoint.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        const canonicalHeaders = `content-type:${contentType}\nhost:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+        const canonicalHeaders = `content-type:${contentType}\nhost:${requestHost}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
         const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
 
         const canonicalRequest = [
