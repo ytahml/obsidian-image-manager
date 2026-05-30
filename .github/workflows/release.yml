@@ -12,11 +12,13 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use Node.js 20.x
         uses: actions/setup-node@v4
@@ -25,21 +27,59 @@ jobs:
           cache: "npm"
 
       - name: Build
-        id: build
         run: |
           npm ci
           npm run build
           mkdir ${{ env.PLUGIN_NAME }}
           cp main.js manifest.json styles.css ${{ env.PLUGIN_NAME }}
           zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
-          echo "tag_name=$(git tag --sort version:refname | tail -n 1)" >> $GITHUB_OUTPUT
+
+      - name: Generate release body
+        id: body
+        run: |
+          {
+            echo 'body<<RELEASE_EOF'
+
+            if [ -f "CHANGELOG.md" ]; then
+              # Extract latest version section (from first ## to second ##)
+              awk '
+                /^## [0-9]/ {
+                  if (found) exit
+                  found=1
+                  next
+                }
+                found { print }
+              ' CHANGELOG.md
+            else
+              # Fallback: generate from commits
+              echo "## Changes"
+              echo ""
+              PREV_TAG=$(git tag --sort=-version:refname | sed -n '2p')
+              if [ -n "$PREV_TAG" ]; then
+                git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges
+              else
+                git log --pretty=format:"- %s" --no-merges
+              fi
+              echo ""
+            fi
+
+            echo ""
+            echo "---"
+            echo "### 📦 Installation"
+            echo ""
+            echo "**Manual:** Download \`main.js\`, \`manifest.json\`, \`styles.css\` and copy to \`<Vault>/.obsidian/plugins/${{ env.PLUGIN_NAME }}/\`"
+            echo ""
+            echo "**BRAT:** Use [BRAT](https://github.com/TfTHacker/obsidian-brat) with \`imulan/obsidian-image-manager\`"
+            echo ""
+            echo 'RELEASE_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ steps.body.outputs.body }}
           files: |
             main.js
             manifest.json
             styles.css
             ${{ env.PLUGIN_NAME }}.zip
-          generate_release_notes: true
