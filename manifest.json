@@ -3,7 +3,7 @@
 	"name": "Markdown Image Manager",
 	"version": "1.0.2",
 	"minAppVersion": "1.4.0",
-	"description": "A powerful image management plugin for Obsidian. Browse, optimize, upload to image hosting, and organize your images. Ideal for converting Wiki image refs to standard Markdown format.",
+	"description": "A powerful image management plugin. Browse, optimize, upload to image hosting, and organize your images. Ideal for converting Wiki image refs to standard Markdown format.",
 	"author": "imulan",
 	"authorUrl": "https://imulan.top",
 	"isDesktopOnly": false
