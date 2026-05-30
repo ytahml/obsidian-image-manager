@@ -32,7 +32,7 @@ npm run lint     # ESLint 检查
 
 - 触发：推送 tag（如 `1.0.0`）
 - 执行：`npm ci` → `npm run build` → 打包 `main.js` + `manifest.json` + `styles.css` 为 zip
-- 使用 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 4 个产物（`main.js`、`manifest.json`、`styles.css`、`obsidian-image-manager.zip`）
+- 使用 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 4 个产物（`main.js`、`manifest.json`、`styles.css`、`md-image-manager.zip`）
 
 #### 发布流程
 

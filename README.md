@@ -53,7 +53,7 @@ Obsidian image management plugin — supports image compression, image hosting u
 ## Installation
 
 1. Search "Image Manager" in Obsidian Community Plugins to install
-2. Or manually download the release package and extract to `.obsidian/plugins/obsidian-image-manager/`
+2. Or manually download the release package and extract to `.obsidian/plugins/md-image-manager/`
 3. Enable the plugin in settings
 
 ---

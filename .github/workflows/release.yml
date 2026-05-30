@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: image-manager
+  PLUGIN_NAME: md-image-manager
 
 permissions:
   contents: write

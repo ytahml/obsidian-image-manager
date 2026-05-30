@@ -56,7 +56,7 @@ Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式
 ## 安装
 
 1. 在 Obsidian 社区插件中搜索 "Image Manager" 安装
-2. 或手动下载 release 包，解压到 `.obsidian/plugins/obsidian-image-manager/`
+2. 或手动下载 release 包，解压到 `.obsidian/plugins/md-image-manager/`
 3. 在设置中启用插件
 
 ---

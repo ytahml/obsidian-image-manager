@@ -6,14 +6,14 @@
 
 #### Fixes
 
-- Renamed plugin ID from `obsidian-image-manager` to `image-manager` to comply with Obsidian community plugin guidelines
+- Renamed plugin ID to `md-image-manager` to comply with Obsidian community plugin guidelines
 
 
 ### 🇨🇳 中文
 
 #### 修复
 
-- 将插件 ID 从 `obsidian-image-manager` 更改为 `image-manager`，以符合 Obsidian 社区插件规范
+- 将插件 ID 更改为 `md-image-manager`，以符合 Obsidian 社区插件规范
 
 ---
 
