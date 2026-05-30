@@ -11,10 +11,6 @@ export function setLocale(locale: Locale): void {
     currentLocale = locale;
 }
 
-export function getLocale(): Locale {
-    return currentLocale;
-}
-
 export function t(key: string, vars?: Record<string, string>): string {
     let text = translations[currentLocale]?.[key] ?? en[key] ?? key;
     if (vars) {
