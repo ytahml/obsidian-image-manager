@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.3
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Removed "Obsidian" from plugin description to comply with community guidelines
+
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 移除插件描述中的 "Obsidian" 以符合社区规范
+
+---
+
 ## 1.0.2
 
 ### 🇺🇸 English
