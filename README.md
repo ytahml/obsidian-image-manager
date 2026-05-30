@@ -1,5 +1,7 @@
 # Obsidian Image Manager
 
+English | [中文](README_ZH.md)
+
 Obsidian image management plugin — supports image compression, image hosting upload, reference format conversion, image browser, and more.
 
 > **Note**: This plugin is primarily designed for vaults that use standard Markdown format (`![alt](image.png)`) for image references.

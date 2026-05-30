@@ -1,6 +1,6 @@
 # Obsidian Image Manager
 
-[English](README_EN.md) | 中文
+[English](README.md) | 中文
 
 Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式转换、图片浏览器等功能。
 
