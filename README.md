@@ -1,277 +1,300 @@
 # Obsidian Image Manager
 
-Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式转换、图片浏览器等功能。
+Obsidian image management plugin — supports image compression, image hosting upload, reference format conversion, image browser, and more.
 
-> **说明**：本插件支持两种图片引用格式。开启「使用 Markdown 标准格式」后，粘贴图片和整理资源时使用标准 Markdown 格式（`![alt](image.png)`）；关闭后使用 Obsidian 默认的 Wiki 格式（`![[image.png]]`）。图床功能需要开启 Markdown 标准格式后才能使用。
-
----
-
-## 功能概览
-
-| 功能 | 状态 |
-|------|------|
-| 图片浏览器（画廊） | ✅ 已实现 |
-| 图片压缩（Canvas API） | ✅ 已实现 |
-| Wiki ↔ Markdown 引用格式转换 | ✅ 已实现 |
-| 图床上传（阿里云 OSS / 七牛云 / S3 / 自定义） | ✅ 已实现 |
-| 粘贴自动上传图床 | ✅ 已实现 |
-| 笔记图片批量上传图床 | ✅ 已实现 |
-| 全库批量上传 | ✅ 已实现 |
-| 孤立图片检测与清理 | ✅ 已实现 |
-| 图片重命名（同步更新所有引用） | ✅ 已实现 |
-| 图片资源整理（按模板路径归档） | ✅ 已实现 |
-| 粘贴/拖放图片自动处理 | ✅ 已实现 |
-| 右键菜单集成 | ✅ 已实现 |
-| 中英文国际化 | ✅ 已实现 |
-| 图床迁移 | ❌ 未实现 |
-| 图床引用替换为本地引用 | ❌ 未实现 |
+> **Note**: This plugin is primarily designed for vaults that use standard Markdown format (`![alt](image.png)`) for image references.
+>
+> When "Use Markdown standard format" is enabled, features like paste image, organize resources, and image hosting upload all work based on standard Markdown format. The plugin supports batch converting Wiki format (`![[image.png]]`) to standard Markdown format, but does not support reverse conversion.
 
 ---
 
-## 技术栈
+## Feature Overview
 
-| 项目 | 技术 |
-|------|------|
-| 语言 | TypeScript 5.8（strict 模式） |
-| 运行时 | Obsidian Plugin API |
-| 打包 | esbuild → CommonJS `main.js` |
-| 加密 | Web Crypto API（`crypto.subtle`） |
+| Feature | Status |
+| --- | --- |
+| Image Browser (Gallery) | ✅ Implemented |
+| Image Compression (Canvas API) | ✅ Implemented |
+| Wiki → Markdown Reference Conversion | ✅ Implemented |
+| Markdown → Wiki Reference Conversion | ❌ Not Supported |
+| Image Hosting Upload (Aliyun OSS / Qiniu / S3 / Custom) | ✅ Implemented |
+| Auto Upload on Paste | ✅ Implemented |
+| Batch Upload Note Images | ✅ Implemented |
+| Batch Upload Entire Vault | ✅ Implemented |
+| Orphan Image Detection & Cleanup | ✅ Implemented |
+| Image Rename (sync update all references) | ✅ Implemented |
+| Image Resource Organization (archive by template path) | ✅ Implemented |
+| Paste/Drag & Drop Image Auto Processing | ✅ Implemented |
+| Right-click Menu Integration | ✅ Implemented |
+| Chinese/English Internationalization | ✅ Implemented |
+| Image Hosting Migration | ❌ Not Implemented |
+| Replace Hosting References with Local | ❌ Not Implemented |
+
+---
+
+## Tech Stack
+
+| Item | Technology |
+|------|------------|
+| Language | TypeScript 5.8 (strict mode) |
+| Runtime | Obsidian Plugin API |
+| Bundler | esbuild → CommonJS `main.js` |
+| Encryption | Web Crypto API (`crypto.subtle`) |
 | HTTP | Obsidian `requestUrl` |
-| 国际化 | 自研 i18n（中/英） |
-| Lint | ESLint + typescript-eslint + obsidianmd 插件 |
-| CI | GitHub Actions（Node 20.x / 22.x） |
+| i18n | Custom i18n (Chinese/English) |
+| Lint | ESLint + typescript-eslint + obsidianmd plugin |
+| CI | GitHub Actions (Node 20.x / 22.x) |
 
-**零外部运行时依赖** — 仅依赖 `obsidian` 包本身。
-
----
-
-## 安装
-
-1. 在 Obsidian 社区插件中搜索 "Image Manager" 安装
-2. 或手动下载 release 包，解压到 `.obsidian/plugins/obsidian-image-manager/`
-3. 在设置中启用插件
+**Zero external runtime dependencies** — only depends on the `obsidian` package itself.
 
 ---
 
-## 开发
+## Installation
+
+1. Search "Image Manager" in Obsidian Community Plugins to install
+2. Or manually download the release package and extract to `.obsidian/plugins/obsidian-image-manager/`
+3. Enable the plugin in settings
+
+---
+
+## Development
 
 ```bash
-# 安装依赖
+# Install dependencies
 npm install
 
-# 开发模式（watch）
+# Development mode (watch)
 npm run dev
 
-# 生产构建
+# Production build
 npm run build
 
-# 代码检查
+# Lint
 npm run lint
 
-# 版本更新
+# Version update
 npm run version
 ```
 
-构建产物：`main.js`、`manifest.json`、`styles.css`
+Build artifacts: `main.js`, `manifest.json`, `styles.css`
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```text
 src/
-├── main.ts                 # 插件入口、命令注册、事件处理、核心编排
-├── settings.ts             # 设置面板 UI
-├── types.ts                # TypeScript 类型定义与默认值
-├── constants.ts            # 正则表达式、MIME 类型映射
+├── main.ts                 # Plugin entry, command registration, event handling, core orchestration
+├── settings.ts             # Settings panel UI
+├── types.ts                # TypeScript type definitions and defaults
+├── constants.ts            # Regular expressions, MIME type mappings
 ├── i18n/
-│   ├── index.ts            # 国际化系统（locale 切换、变量插值）
-│   ├── en.ts               # 英文翻译（~183 条）
-│   └── zh.ts               # 中文翻译（~180 条）
+│   ├── index.ts            # Internationalization system (locale switching, variable interpolation)
+│   ├── en.ts               # English translations (~183 entries)
+│   └── zh.ts               # Chinese translations (~180 entries)
 ├── modals/
-│   ├── image-browser.ts    # 图片画廊浏览器（网格、搜索、排序、孤立筛选）
-│   ├── image-preview-modal.ts  # 图片预览（元数据、引用列表、上传操作）
-│   ├── orphan-images.ts    # 孤立图片检测与批量删除
-│   ├── hosting-config.ts   # 图床配置表单（4 种服务商）
-│   ├── confirm-dialog.ts   # 通用确认对话框
-│   ├── rename-image.ts     # 图片重命名对话框
-│   └── image-name-prompt.ts # 粘贴时图片命名提示
+│   ├── image-browser.ts    # Image gallery browser (grid, search, sort, orphan filter)
+│   ├── image-preview-modal.ts  # Image preview (metadata, reference list, upload actions)
+│   ├── orphan-images.ts    # Orphan image detection and batch deletion
+│   ├── hosting-config.ts   # Image hosting config form (4 providers)
+│   ├── confirm-dialog.ts   # Generic confirmation dialog
+│   ├── rename-image.ts     # Image rename dialog
+│   └── image-name-prompt.ts # Image naming prompt on paste
 ├── uploaders/
-│   ├── uploader-base.ts    # 上传器抽象基类
-│   ├── uploader-factory.ts # 上传器工厂（按类型实例化）
-│   ├── aliyun-oss.ts       # 阿里云 OSS（HMAC-SHA1 签名）
-│   ├── qiniu.ts            # 七牛云（Token 认证、区域端点）
-│   ├── s3-compatible.ts    # S3 兼容存储（AWS SigV4）
-│   ├── custom-uploader.ts  # 自定义 HTTP 端点
-│   └── upload-queue.ts     # 并发上传队列（3 并发、3 次重试、进度回调）
+│   ├── uploader-base.ts    # Uploader abstract base class
+│   ├── uploader-factory.ts # Uploader factory (instantiate by type)
+│   ├── aliyun-oss.ts       # Aliyun OSS (HMAC-SHA1 signing)
+│   ├── qiniu.ts            # Qiniu Cloud (Token auth, region endpoints)
+│   ├── s3-compatible.ts    # S3 compatible storage (AWS SigV4)
+│   ├── custom-uploader.ts  # Custom HTTP endpoint
+│   └── upload-queue.ts     # Concurrent upload queue (3 concurrent, 3 retries, progress callback)
 └── utils/
-    ├── ref-converter.ts    # 引用格式解析与转换
-    ├── image-scanner.ts    # 图片扫描、筛选、排序
-    ├── path-utils.ts       # 路径工具、文件大小格式化、模板变量
-    ├── orphan-finder.ts    # 孤立图片检测、反向引用查询
-    ├── image-optimizer.ts  # Canvas 压缩、格式转换
-    ├── batch-rename.ts     # 批量重命名（全库引用同步更新）
-    └── image-reorganizer.ts # 图片归档整理（路径模板、引用更新）
+    ├── ref-converter.ts    # Reference format parsing and conversion
+    ├── image-scanner.ts    # Image scanning, filtering, sorting
+    ├── path-utils.ts       # Path utilities, file size formatting, template variables
+    ├── orphan-finder.ts    # Orphan image detection, reverse reference query
+    ├── image-optimizer.ts  # Canvas compression, format conversion
+    ├── batch-rename.ts     # Batch rename (sync update all vault references)
+    └── image-reorganizer.ts # Image archive organization (path template, reference update)
 ```
 
 ---
 
-## 设置说明
+## Settings Guide
 
-### 通用
+### General
 
-- **语言** — 插件显示语言（中文 / English）
-- **图片存储路径模板** — 粘贴图片的存储路径，支持变量：
-  - `{noteName}` — 当前笔记名
-  - `{notePath}` — 当前笔记路径
-  - `{year}`, `{month}`, `{day}` — 日期
-  - `{filename}` — 图片文件名
-- **路径基准** — 路径模板相对于「库根目录」还是「当前文章所在目录」解析
-- **使用 Markdown 标准格式** — 开启后使用 `![alt](path)` 格式，关闭后使用 `![[path]]` Wiki 格式
-- **跳过 Wiki 引用** — 整理图片时跳过 Wiki 格式引用
+- **Language** — Plugin display language (Chinese / English)
+- **Image Storage Path Template** — Storage path for pasted images, supports variables:
+  - `{noteName}` — Current note name
+  - `{notePath}` — Current note path
+  - `{year}`, `{month}`, `{day}` — Date
+  - `{filename}` — Image filename
+- **Path Base** — Resolve path template relative to "vault root" or "current note's directory"
+- **Use Markdown Standard Format** — Enable to use `![alt](path)` format, disable to use `![[path]]` Wiki format (image hosting requires this to be enabled)
+- **Skip Wiki References** — Skip Wiki format references when organizing images (when disabled, converts Wiki references to MD format)
 
-**设置组合行为：**
+![设置-通用-en.png](images/设置-通用-en.png)
 
-| 使用 MD 标准格式 | 跳过 Wiki 引用 | 粘贴格式 | 整理行为 |
+**Settings Combination Behavior:**
+
+| Use MD Standard | Skip Wiki Refs | Paste Format | Organize Behavior |
 | --- | --- | --- | --- |
-| ✅ 开启 | ✅ 开启 | `![alt](path)` | 跳过 Wiki 引用，仅整理 MD 格式图片 |
-| ✅ 开启 | ❌ 关闭 | `![alt](path)` | Wiki 引用转为 MD 格式并整理 |
-| ❌ 关闭 | ✅ 开启 | `![[path]]` | 跳过 Wiki 引用，仅整理 MD 格式图片 |
-| ❌ 关闭 | ❌ 关闭 | `![[path]]` | 整理所有格式图片（保持原格式） |
+| ✅ Enabled | ✅ Enabled | `![alt](path)` | Skip Wiki refs, only organize MD format images |
+| ✅ Enabled | ❌ Disabled | `![alt](path)` | Convert Wiki refs to MD format and organize (one-way) |
+| ❌ Disabled | ✅ Enabled | `![[path]]` | Skip Wiki refs, only organize MD format images |
+| ❌ Disabled | ❌ Disabled | `![[path]]` | Organize all format images (preserve original format) |
 
-### 图片命名
+> **Note**: Wiki → Markdown conversion is one-way and cannot be automatically reversed.
 
-- **命名模板** — 支持变量：`{date}`、`{time}`、`{timestamp}`、`{counter}`、`{year}`、`{month}`、`{day}`
-- **提示输入图片名称** — 粘贴时弹出名称输入框
+### Image Naming
 
-### 压缩
+- **Naming Template** — Supports variables: `{date}`, `{time}`, `{timestamp}`, `{counter}`, `{year}`, `{month}`, `{day}`
+- **Prompt for Image Name** — Show name input dialog on paste
 
-- **自动压缩** — 粘贴图片时自动压缩
-- **压缩质量** — 1-100，值越小压缩越狠
+![设置-图片命名-en.png](images/设置-图片命名-en.png)
+![设置-图片-重命名-en.png](images/设置-图片-重命名-en.png)
+### Compression
 
-### 画廊
+- **Auto Compress** — Automatically compress images on paste
+- **Compression Quality** — 1-100, lower value = more compression
 
-- **缩略图大小** — 80-400 像素
-- **启用图片浏览器** — 侧边栏和命令面板中显示（修改后需重新加载插件）
+![设置-图片压缩-en.png](设置-图片压缩-en.png)
 
-### 图床
+### Gallery
 
-> **注意**：图床功能需要开启「使用 Markdown 标准格式」后才能使用。
+- **Thumbnail Size** — 80-400 pixels
+- **Enable Image Browser** — Show in sidebar and command palette (requires plugin reload after change)
 
-- **添加图床** — 支持阿里云 OSS、七牛云、S3 兼容存储、自定义 HTTP 端点
-- **上传路径模板** — 支持 `{year}`、`{month}`、`{day}`、`{filename}`、`{ext}`、`{hash}`、`{timestamp}`
-- **URL 前缀** — 自定义域名
-- **上传后自动替换** — 自动将本地引用替换为图床 URL
+### Image Hosting
 
-### 自动上传
+> **Note**: Image hosting requires "Use Markdown Standard Format" to be enabled.
 
-- **粘贴时自动上传** — 粘贴/拖放时自动上传到默认图床
-- **保留本地副本** — 上传后是否保留本地文件
+- **Add Image Hosting** — Supports Aliyun OSS, Qiniu Cloud, S3 compatible storage, custom HTTP endpoint
+- **Upload Path Template** — Supports `{year}`, `{month}`, `{day}`, `{filename}`, `{ext}`, `{hash}`, `{timestamp}`
+- **URL Prefix** — Custom domain
+- **Auto Replace After Upload** — Automatically replace local references with hosting URL
 
----
+![设置-图床-en.png](images/设置-图床-en.png)
 
-## 使用方法
+### Auto Upload
 
-### 图片浏览器
-
-- 点击左侧栏图片图标打开
-- 支持搜索、排序（名称/大小/修改时间/创建时间）
-- 支持孤立图片筛选
-- 点击缩略图预览，可复制引用、插入编辑器、上传图床、跳转到引用笔记
-
-### 粘贴/拖放图片
-
-1. 粘贴或拖放图片到笔记
-2. 自动保存到配置路径，插入引用
-3. 如开启「自动上传」，异步上传到图床并替换引用
-
-### 上传到图床
-
-- **单张上传**：命令面板 → "上传图片到图床"
-- **笔记图片上传**：命令面板 → "上传笔记图片到图床" 或右键 Markdown 文件
-- **批量上传**：命令面板 → "批量上传所有图片"
-- 上传成功后自动复制引用到剪贴板
-
-### 引用格式转换
-
-- **当前笔记**：命令面板 → "转换引用格式（当前笔记）"
-- **整个仓库**：命令面板 → "转换引用格式（整个仓库）"
-- **转为 Markdown**：命令面板 → "转换图片链接为 Markdown 格式"
-
-### 孤立图片检测
-
-- 命令面板 → "查找孤立图片"
-- 支持全选/取消全选，可批量删除
-
-### 图片重命名
-
-- 图片浏览器中预览时可重命名，自动同步更新所有引用
-
-### 图片资源整理
-
-- **当前笔记**：命令面板 → "整理图片资源"
-- **文件夹**：右键文件夹 → "整理图片资源"
-
-### 右键菜单
-
-- **Markdown 文件**：上传笔记图片到图床、整理图片资源、转换为 Markdown 格式
-- **文件夹**：整理图片资源
+- **Auto Upload on Paste** — Automatically upload to default hosting on paste/drag & drop
+- **Keep Local Copy** — Whether to keep local file after upload
 
 ---
 
-## 支持的图床
+## Usage
 
-| 服务商 | 状态 | 说明 |
-|--------|------|------|
-| 阿里云 OSS | ✅ 已支持 | PUT 上传，HMAC-SHA1 签名 |
-| 七牛云 | ✅ 已支持 | Token 认证，multipart 上传 |
-| S3 兼容存储 | ✅ 已支持 | AWS SigV4，支持 MinIO、Cloudflare R2 等 |
-| 自定义 | ✅ 已支持 | 自定义 URL、Method、Headers、字段映射 |
+### Image Browser
+
+> Note: The image browser only manages local images, not images on image hosting.
+
+- Click the image icon in the left sidebar to open
+- Supports search, sort (name/size/modified time/created time)
+- Supports orphan image filtering
+- Click thumbnail to preview, can copy reference, insert to editor, upload to hosting, jump to referencing note
+
+![使用-图片浏览器-en.png](images/使用-图片浏览器-en.png)
+
+![使用-图片浏览器-预览图片-en.png](images/使用-图片浏览器-预览图片-en.png)
+
+### Paste/Drag & Drop Images
+
+1. Paste or drag & drop image into note
+2. Auto save to configured path, insert reference
+3. If "Auto Upload" is enabled, async upload to hosting and replace reference
+
+### Upload to Image Hosting
+
+- **Single Upload**: Command palette → "Upload Image to Hosting"
+- **Note Images Upload**: Command palette → "Upload Note Images to Hosting" or right-click Markdown file
+- **Batch Upload**: Command palette → "Batch Upload All Images"
+- Auto copy reference to clipboard after successful upload
+
+### Reference Format Conversion (Wiki → Markdown)
+
+- **Current Note**: Command palette → "Convert Reference Format (Current Note)"
+- **Entire Vault**: Command palette → "Convert Reference Format (Entire Vault)"
+- **Convert to Markdown**: Command palette → "Convert Image Links to Markdown Format"
+
+> **Note**: Only supports Wiki → Markdown conversion, reverse conversion is not supported.
+
+### Orphan Image Detection
+
+- Command palette → "Find Orphan Images"
+- Supports select all/deselect all, batch deletion
+
+### Image Rename
+
+- Can rename in image browser preview, auto sync update all references
+
+### Image Resource Organization
+
+- **Current Note**: Command palette → "Organize Image Resources"
+- **Folder**: Right-click folder → "Organize Image Resources"
+
+### Right-click Menu
+
+- **Markdown Files**: Upload note images to hosting, organize image resources, convert to Markdown format
+- **Folders**: Organize image resources
+
+![使用-右键菜单栏-en.png](images/使用-右键菜单栏-en.png)
 
 ---
 
-## 变量参考
+## Supported Image Hosting
 
-### 图片命名模板
-
-| 变量 | 说明 | 示例 |
-|------|------|------|
-| `{date}` | 当前日期 | `2026-05-30` |
-| `{time}` | 当前时间 | `143025` |
-| `{timestamp}` | Unix 时间戳（毫秒） | `1748155225123` |
-| `{counter}` | 递增计数器 | `1` |
-| `{year}` / `{month}` / `{day}` | 日期分量 | `2026` / `05` / `30` |
-
-### 图片路径模板
-
-| 变量 | 说明 |
-|------|------|
-| `{noteName}` | 当前笔记名（不含扩展名） |
-| `{notePath}` | 当前笔记所在目录路径 |
-| `{year}` / `{month}` / `{day}` | 日期 |
-| `{filename}` | 图片文件名（不含扩展名） |
-
-### 上传路径模板
-
-| 变量 | 说明 |
-|------|------|
-| `{year}` / `{month}` / `{day}` | 日期 |
-| `{filename}` | 文件名（不含扩展名） |
-| `{ext}` | 扩展名 |
-| `{hash}` | 文件内容 SHA-256 哈希（前 16 位） |
-| `{timestamp}` | Unix 时间戳 |
+| Provider | Status | Description |
+|----------|--------|-------------|
+| Aliyun OSS | ✅ Supported | PUT upload, HMAC-SHA1 signing |
+| Qiniu Cloud | ✅ Supported | Token auth, multipart upload |
+| S3 Compatible Storage | ✅ Supported | AWS SigV4, supports MinIO, Cloudflare R2, etc. |
+| Custom | ✅ Supported | Custom URL, Method, Headers, field mapping |
 
 ---
 
-## 已知限制
+## Variable Reference
 
-- `main.ts` 文件较大（~982 行），部分逻辑可拆分到独立模块
-- 剪贴板操作使用 `require('electron')`，移动端不兼容
-- 无自动化测试
-- 图床迁移功能尚未实现
+### Image Naming Template
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{date}` | Current date | `2026-05-30` |
+| `{time}` | Current time | `143025` |
+| `{timestamp}` | Unix timestamp (milliseconds) | `1748155225123` |
+| `{counter}` | Incrementing counter | `1` |
+| `{year}` / `{month}` / `{day}` | Date components | `2026` / `05` / `30` |
+
+### Image Path Template
+
+| Variable | Description |
+|----------|-------------|
+| `{noteName}` | Current note name (without extension) |
+| `{notePath}` | Current note's directory path |
+| `{year}` / `{month}` / `{day}` | Date |
+| `{filename}` | Image filename (without extension) |
+
+### Upload Path Template
+
+| Variable | Description |
+|----------|-------------|
+| `{year}` / `{month}` / `{day}` | Date |
+| `{filename}` | Filename (without extension) |
+| `{ext}` | Extension |
+| `{hash}` | File content SHA-256 hash (first 16 characters) |
+| `{timestamp}` | Unix timestamp |
 
 ---
 
-## 许可证
+## Known Limitations
+
+- Does not support Markdown → Wiki format conversion (only Wiki → Markdown one-way conversion)
+- Image hosting requires "Use Markdown Standard Format" to be enabled
+- Clipboard operations use `require('electron')`, not compatible with mobile
+- Image hosting migration not yet implemented
+
+---
+
+## License
 
 ISC License
