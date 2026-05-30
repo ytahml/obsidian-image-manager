@@ -20,6 +20,32 @@ npm run build    # 生产构建（tsc 检查 + esbuild 压缩）
 npm run lint     # ESLint 检查
 ```
 
+## CI/CD
+
+### Lint & Build（`.github/workflows/lint.yml`）
+
+- 触发：push/PR 到 `master`
+- Node 20.x / 22.x 矩阵
+- 执行：`npm ci` → `npm run build` → `npm run lint`
+
+### Release（`.github/workflows/release.yml`）
+
+- 触发：推送 tag（如 `1.0.0`）
+- 执行：`npm ci` → `npm run build` → 打包 `main.js` + `manifest.json` + `styles.css` 为 zip
+- 使用 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 4 个产物（`main.js`、`manifest.json`、`styles.css`、`obsidian-image-manager.zip`）
+
+#### 发布流程
+
+```bash
+# 1. 更新 manifest.json 中的 version
+# 2. 提交
+git add -A && git commit -m "release: vX.Y.Z"
+# 3. 打 tag 并推送
+git tag X.Y.Z
+git push origin master --tags
+# 4. GitHub Actions 自动创建 Release 并上传产物
+```
+
 ## 架构
 
 ```
