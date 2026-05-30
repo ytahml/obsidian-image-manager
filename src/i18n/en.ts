@@ -150,6 +150,11 @@ export const en: Record<string, string> = {
     'modal.hosting.forcePathStyleDesc': 'Use path-style URLs (e.g. for MinIO)',
     'modal.hosting.jsonPathDesc': 'Dot-separated path to URL in response JSON, e.g. data.url',
     'modal.hosting.qiniuRegionDesc': 'Select storage region, must match your Qiniu dashboard setting',
+    'modal.hosting.extraBody': 'Extra Form Fields',
+    'modal.hosting.extraBodyDesc': 'Add extra form fields (e.g. token) that will be sent with the file upload',
+    'modal.hosting.extraBodyKey': 'Field name',
+    'modal.hosting.extraBodyValue': 'Field value',
+    'modal.hosting.extraBodyAdd': 'Add field',
 
     // Image Name Prompt Modal
     'modal.imageName.title': 'Image Name',

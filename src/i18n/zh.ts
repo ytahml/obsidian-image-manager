@@ -149,6 +149,11 @@ export const zh: Record<string, string> = {
     'modal.hosting.forcePathStyleDesc': '使用 path-style URL（如 MinIO）',
     'modal.hosting.jsonPathDesc': '响应 JSON 中 URL 的路径，如 data.url',
     'modal.hosting.qiniuRegionDesc': '选择存储区域，需与七牛云后台一致',
+    'modal.hosting.extraBody': '额外表单字段',
+    'modal.hosting.extraBodyDesc': '添加额外的表单字段（如 token），会随文件一起发送',
+    'modal.hosting.extraBodyKey': '字段名',
+    'modal.hosting.extraBodyValue': '字段值',
+    'modal.hosting.extraBodyAdd': '添加字段',
 
     // 图片命名
     'modal.imageName.title': '图片名称',

@@ -303,6 +303,66 @@ export class HostingConfigModal extends Modal {
                     }
                 });
             });
+
+        // Extra body fields (key-value pairs)
+        const extraBodySetting = new Setting(container)
+            .setName(t('modal.hosting.extraBody'))
+            .setDesc(t('modal.hosting.extraBodyDesc'));
+
+        const extraBodyContainer = container.createDiv({ cls: 'extra-body-container' });
+        this.renderExtraBodyFields(extraBodyContainer, cfg);
+    }
+
+    private renderExtraBodyFields(container: HTMLElement, cfg: CustomConfig) {
+        container.empty();
+        const extraBody = cfg.extraBody ?? {};
+        const entries = Object.entries(extraBody);
+
+        for (let i = 0; i < entries.length; i++) {
+            const [key, value] = entries[i]!;
+            const row = container.createDiv({ cls: 'extra-body-row' });
+
+            const keyInput = row.createEl('input', {
+                type: 'text',
+                placeholder: t('modal.hosting.extraBodyKey'),
+                value: key,
+            });
+            keyInput.style.width = '40%';
+
+            const valueInput = row.createEl('input', {
+                type: 'text',
+                placeholder: t('modal.hosting.extraBodyValue'),
+                value: value,
+            });
+            valueInput.style.width = '40%';
+
+            const removeBtn = row.createEl('button', { text: '×', cls: 'extra-body-remove-btn' });
+            removeBtn.addEventListener('click', () => {
+                delete cfg.extraBody[key];
+                this.renderExtraBodyFields(container, cfg);
+            });
+
+            // Update on change
+            keyInput.addEventListener('change', () => {
+                const oldKey = key;
+                const newKey = keyInput.value;
+                if (newKey && newKey !== oldKey) {
+                    delete cfg.extraBody[oldKey];
+                    cfg.extraBody[newKey] = valueInput.value;
+                }
+            });
+            valueInput.addEventListener('change', () => {
+                cfg.extraBody[keyInput.value] = valueInput.value;
+            });
+        }
+
+        // Add button
+        const addRow = container.createDiv({ cls: 'extra-body-row' });
+        const addBtn = addRow.createEl('button', { text: `+ ${t('modal.hosting.extraBodyAdd')}` });
+        addBtn.addEventListener('click', () => {
+            cfg.extraBody[`field_${Date.now()}`] = '';
+            this.renderExtraBodyFields(container, cfg);
+        });
     }
 
     private getDefaultProviderConfig(type: HostingType): AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig {
