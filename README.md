@@ -158,7 +158,7 @@ src/
 - **Auto Compress** — Automatically compress images on paste
 - **Compression Quality** — 1-100, lower value = more compression
 
-![设置-图片压缩-en.png](设置-图片压缩-en.png)
+![设置-图片压缩-en.png](images/设置-图片压缩-en.png)
 
 ### Gallery
 
