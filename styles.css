@@ -416,3 +416,12 @@
     border-color: var(--text-error);
     background: var(--background-modifier-error);
 }
+
+.extra-body-key-input,
+.extra-body-value-input {
+    width: 40%;
+}
+
+.hosting-config-monospace {
+    font-family: monospace;
+}

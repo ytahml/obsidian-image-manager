@@ -31,8 +31,13 @@ export class BatchRename {
         // Update all references in markdown files
         const notesUpdated = await this.updateReferences(oldName, newName, file.path, newPath);
 
+        const renamedFile = this.app.vault.getAbstractFileByPath(newPath);
+        if (!(renamedFile instanceof TFile)) {
+            throw new Error(`Failed to rename file: ${newPath}`);
+        }
+
         return {
-            file: this.app.vault.getAbstractFileByPath(newPath) as TFile,
+            file: renamedFile,
             oldName,
             newName,
             notesUpdated,

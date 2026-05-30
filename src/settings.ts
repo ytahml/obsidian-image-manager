@@ -17,10 +17,10 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        containerEl.createEl('h2', { text: t('settings.title') });
+        new Setting(containerEl).setName(t('settings.title')).setHeading();
 
         // --- Language ---
-        containerEl.createEl('h3', { text: t('settings.language') });
+        new Setting(containerEl).setName(t('settings.language')).setHeading();
 
         new Setting(containerEl)
             .setName(t('settings.language'))
@@ -39,7 +39,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         // --- General ---
-        containerEl.createEl('h3', { text: t('settings.general') });
+        new Setting(containerEl).setName(t('settings.general')).setHeading();
 
         new Setting(containerEl)
             .setName(t('settings.imagePathTemplate'))
@@ -90,7 +90,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         // --- Image Naming ---
-        containerEl.createEl('h3', { text: t('settings.imageNaming') });
+        new Setting(containerEl).setName(t('settings.imageNaming')).setHeading();
 
         new Setting(containerEl)
             .setName(t('settings.imageNamingTemplate'))
@@ -116,7 +116,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         // --- Compression ---
-        containerEl.createEl('h3', { text: t('settings.compression') });
+        new Setting(containerEl).setName(t('settings.compression')).setHeading();
 
         new Setting(containerEl)
             .setName(t('settings.autoCompress'))
@@ -143,7 +143,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         // --- Gallery ---
-        containerEl.createEl('h3', { text: t('settings.gallery') });
+        new Setting(containerEl).setName(t('settings.gallery')).setHeading();
 
         new Setting(containerEl)
             .setName(t('settings.enableImageBrowser'))
@@ -170,7 +170,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         // --- Image Hosting ---
-        containerEl.createEl('h3', { text: t('settings.imageHosting') });
+        new Setting(containerEl).setName(t('settings.imageHosting')).setHeading();
 
         if (!this.plugin.settings.reorganizeConvertFormat) {
             containerEl.createDiv({
@@ -197,10 +197,9 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                             uploadPath: '',
                             urlPrefix: '',
                         };
-                        new HostingConfigModal(this.app, newConfig, async (saved) => {
+                        new HostingConfigModal(this.app, newConfig, (saved) => {
                             this.plugin.settings.hostingConfigs.push(saved);
-                            await this.plugin.saveSettings();
-                            this.display();
+                            void this.plugin.saveSettings().then(() => this.display());
                         }).open();
                     })
                 );
@@ -297,13 +296,12 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             // Edit button
             const editBtn = row.createEl('button', { text: t('settings.editHosting'), cls: 'hosting-config-btn' });
             editBtn.addEventListener('click', () => {
-                new HostingConfigModal(this.app, config, async (saved) => {
+                new HostingConfigModal(this.app, config, (saved) => {
                     const idx = this.plugin.settings.hostingConfigs.findIndex((c) => c.id === saved.id);
                     if (idx >= 0) {
                         this.plugin.settings.hostingConfigs[idx] = saved;
                     }
-                    await this.plugin.saveSettings();
-                    this.display();
+                    void this.plugin.saveSettings().then(() => this.display());
                 }).open();
             });
 

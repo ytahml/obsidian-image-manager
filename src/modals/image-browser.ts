@@ -65,7 +65,7 @@ export class ImageBrowserModal extends Modal {
             cls: 'image-browser-orphan-btn',
             text: t('modal.imageBrowser.orphanFilter'),
         });
-        this.orphanBtn.addEventListener('click', () => this.toggleOrphanFilter());
+        this.orphanBtn.addEventListener('click', () => void this.toggleOrphanFilter());
 
         // Count
         this.countEl = controls.createEl('span', { cls: 'image-browser-count' });

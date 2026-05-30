@@ -1,9 +1,8 @@
-import { App, Notice, TFile } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import type { ImageHostingConfig, ImageManagerSettings } from '../types';
 import type { UploaderBase } from './uploader-base';
 import { createUploader } from './uploader-factory';
 import { ImageOptimizer } from '../utils/image-optimizer';
-import { t } from '../i18n';
 
 export interface QueueItem {
     file: TFile;

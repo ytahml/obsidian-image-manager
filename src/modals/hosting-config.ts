@@ -9,7 +9,7 @@ export class HostingConfigModal extends Modal {
 
     constructor(app: App, config: ImageHostingConfig, onSave: (config: ImageHostingConfig) => void) {
         super(app);
-        this.config = JSON.parse(JSON.stringify(config));
+        this.config = JSON.parse(JSON.stringify(config)) as ImageHostingConfig;
         this.onSave = onSave;
         this.isNew = !config.id;
     }
@@ -45,9 +45,9 @@ export class HostingConfigModal extends Modal {
             .setName(t('modal.hosting.type'))
             .addDropdown((dropdown) =>
                 dropdown
-                    .addOption('aliyun-oss', 'Aliyun OSS')
+                    .addOption('aliyun-oss', 'Aliyun oss')
                     .addOption('qiniu', 'Qiniu')
-                    .addOption('s3', 'S3 Compatible')
+                    .addOption('s3', 'S3 compatible')
                     .addOption('custom', 'Custom')
                     .setValue(this.config.type)
                     .onChange((v: string) => {
@@ -133,6 +133,7 @@ export class HostingConfigModal extends Modal {
         const cfg = this.config.config as AliyunOSSConfig;
         new Setting(container)
             .setName('Region')
+            // eslint-disable-next-line obsidianmd/ui/sentence-case -- Technical example
             .setDesc('e.g. oss-cn-hangzhou')
             .addText((text) =>
                 text.setValue(cfg.region).onChange((v) => {
@@ -147,14 +148,14 @@ export class HostingConfigModal extends Modal {
                 })
             );
         new Setting(container)
-            .setName('Access Key ID')
+            .setName('Access key ID')
             .addText((text) =>
                 text.setValue(cfg.accessKeyId).onChange((v) => {
                     cfg.accessKeyId = v;
                 })
             );
         new Setting(container)
-            .setName('Access Key Secret')
+            .setName('Access key secret')
             .addText((text) => {
                 text.inputEl.type = 'password';
                 text.setValue(cfg.accessKeySecret).onChange((v) => {
@@ -166,14 +167,14 @@ export class HostingConfigModal extends Modal {
     private renderQiniuFields(container: HTMLElement) {
         const cfg = this.config.config as QiniuConfig;
         new Setting(container)
-            .setName('Access Key')
+            .setName('Access key')
             .addText((text) =>
                 text.setValue(cfg.accessKey).onChange((v) => {
                     cfg.accessKey = v;
                 })
             );
         new Setting(container)
-            .setName('Secret Key')
+            .setName('Secret key')
             .addText((text) => {
                 text.inputEl.type = 'password';
                 text.setValue(cfg.secretKey).onChange((v) => {
@@ -192,11 +193,13 @@ export class HostingConfigModal extends Modal {
             .setDesc(t('modal.hosting.qiniuRegionDesc'))
             .addDropdown((dropdown) =>
                 dropdown
+                    /* eslint-disable obsidianmd/ui/sentence-case -- Chinese region names */
                     .addOption('z0', 'z0 - 华东（默认）')
                     .addOption('z1', 'z1 - 华北')
                     .addOption('z2', 'z2 - 华南')
                     .addOption('na0', 'na0 - 北美')
                     .addOption('as0', 'as0 - 亚太（新加坡）')
+                    /* eslint-enable obsidianmd/ui/sentence-case */
                     .setValue(cfg.region || 'z0')
                     .onChange((v: string) => {
                         cfg.region = v;
@@ -229,14 +232,14 @@ export class HostingConfigModal extends Modal {
                 })
             );
         new Setting(container)
-            .setName('Access Key ID')
+            .setName('Access key ID')
             .addText((text) =>
                 text.setValue(cfg.accessKeyId).onChange((v) => {
                     cfg.accessKeyId = v;
                 })
             );
         new Setting(container)
-            .setName('Secret Access Key')
+            .setName('Secret access key')
             .addText((text) => {
                 text.inputEl.type = 'password';
                 text.setValue(cfg.secretAccessKey).onChange((v) => {
@@ -244,7 +247,7 @@ export class HostingConfigModal extends Modal {
                 });
             });
         new Setting(container)
-            .setName('Force Path Style')
+            .setName('Force path style')
             .setDesc(t('modal.hosting.forcePathStyleDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(cfg.forcePathStyle ?? false).onChange((v) => {
@@ -274,17 +277,18 @@ export class HostingConfigModal extends Modal {
                     })
             );
         new Setting(container)
-            .setName('File Field Name')
+            .setName('File field name')
             .addText((text) =>
                 text.setValue(cfg.fileFieldName).onChange((v) => {
                     cfg.fileFieldName = v;
                 })
             );
         new Setting(container)
-            .setName('Response JSON Path')
+            .setName('Response JSON path')
             .setDesc(t('modal.hosting.jsonPathDesc'))
             .addText((text) =>
                 text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- Technical placeholder
                     .setPlaceholder('data.url')
                     .setValue(cfg.jsonPath)
                     .onChange((v) => {
@@ -294,10 +298,10 @@ export class HostingConfigModal extends Modal {
         new Setting(container)
             .setName('Headers (JSON)')
             .addText((text) => {
-                text.inputEl.style.fontFamily = 'monospace';
+                text.inputEl.classList.add('hosting-config-monospace');
                 text.setValue(JSON.stringify(cfg.headers ?? {}, null, 0)).onChange((v) => {
                     try {
-                        cfg.headers = JSON.parse(v);
+                        cfg.headers = JSON.parse(v) as Record<string, string>;
                     } catch {
                         // ignore invalid JSON
                     }
@@ -305,7 +309,7 @@ export class HostingConfigModal extends Modal {
             });
 
         // Extra body fields (key-value pairs)
-        const extraBodySetting = new Setting(container)
+        new Setting(container)
             .setName(t('modal.hosting.extraBody'))
             .setDesc(t('modal.hosting.extraBodyDesc'));
 
@@ -326,15 +330,15 @@ export class HostingConfigModal extends Modal {
                 type: 'text',
                 placeholder: t('modal.hosting.extraBodyKey'),
                 value: key,
+                cls: 'extra-body-key-input',
             });
-            keyInput.style.width = '40%';
 
             const valueInput = row.createEl('input', {
                 type: 'text',
                 placeholder: t('modal.hosting.extraBodyValue'),
                 value: value,
+                cls: 'extra-body-value-input',
             });
-            valueInput.style.width = '40%';
 
             const removeBtn = row.createEl('button', { text: '×', cls: 'extra-body-remove-btn' });
             removeBtn.addEventListener('click', () => {

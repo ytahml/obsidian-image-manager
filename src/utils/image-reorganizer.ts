@@ -78,7 +78,7 @@ export class ImageReorganizer {
             let finalPath = imageFile.path;
             if (needsMove) {
                 await this.ensureDirectory(targetDir);
-                finalPath = await this.ensureUniquePath(targetPath);
+                finalPath = this.ensureUniquePath(targetPath);
                 await this.app.vault.rename(imageFile, finalPath);
                 moved++;
             }
@@ -178,7 +178,7 @@ export class ImageReorganizer {
         }
     }
 
-    private async ensureUniquePath(filePath: string): Promise<string> {
+    private ensureUniquePath(filePath: string): string {
         if (!this.app.vault.getAbstractFileByPath(filePath)) {
             return filePath;
         }

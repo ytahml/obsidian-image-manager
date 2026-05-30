@@ -1,5 +1,4 @@
-import { App, Modal, Notice, TFile } from 'obsidian';
-import { BatchRename } from '../utils/batch-rename';
+import { App, Modal, TFile } from 'obsidian';
 import { t } from '../i18n';
 
 export class RenameImageModal extends Modal {

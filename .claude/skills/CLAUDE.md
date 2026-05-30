@@ -65,6 +65,70 @@ src/
 - 路径处理使用 `path-utils.ts` 中的工具函数
 - 图片引用正则在 `constants.ts` 中定义（`MD_IMAGE_REGEX`、`WIKI_IMAGE_REGEX`）
 
+## ESLint 配置
+
+项目使用 `typescript-eslint` 的 `recommendedTypeChecked` 规则集，配合 `eslint-plugin-obsidianmd`。
+
+### 关键规则
+
+| 规则 | 说明 |
+| --- | --- |
+| `@typescript-eslint/no-floating-promises` | Promise 必须 await、.catch、.then 或用 `void` 显式忽略 |
+| `@typescript-eslint/no-misused-promises` | 回调不能返回 Promise（用 `void` 包装或改为非 async） |
+| `@typescript-eslint/no-unsafe-assignment` | 禁止 `any` 类型赋值，需添加类型断言 |
+| `@typescript-eslint/no-unsafe-member-access` | 禁止在 `any` 上访问成员 |
+| `@typescript-eslint/require-await` | async 函数必须包含 await |
+| `@typescript-eslint/restrict-template-expressions` | 模板字符串不能使用 `never` 类型 |
+| `obsidianmd/ui/sentence-case` | UI 文本使用 sentence case（首字母大写，其余小写） |
+| `obsidianmd/settings-tab/no-manual-html-headings` | 使用 `new Setting().setName().setHeading()` 代替 `createEl('h3')` |
+| `obsidianmd/no-static-styles-assignment` | 使用 CSS 类代替 `element.style.*` 直接赋值 |
+| `obsidianmd/no-tfile-tfolder-cast` | 使用 `instanceof TFile` 代替 `as TFile` 类型断言 |
+| `obsidianmd/prefer-file-manager-trash-file` | 使用 `fileManager.trashFile()` 代替 `vault.delete()` |
+| `no-console` | 仅允许 `console.warn`、`console.error`、`console.debug` |
+
+### 常见修复模式
+
+```typescript
+// 1. 浮动 Promise — 添加 void
+void this.handleConfirm();
+void doUpload(config);
+
+// 2. 回调返回 Promise — 改为非 async 或用 void 包装
+// ❌
+new Modal(app, async (saved) => { await save(); });
+// ✅
+new Modal(app, (saved) => { void save().then(() => display()); });
+
+// 3. JSON.parse 类型安全
+this.config = JSON.parse(JSON.stringify(config)) as ImageHostingConfig;
+
+// 4. resp.json 类型安全
+const json = resp.json as { key?: string; error?: string };
+
+// 5. Array().fill() 类型安全
+// ❌
+const ups: string[] = Array(count).fill('..');
+// ✅
+const ups: string[] = Array.from({ length: count }, () => '..');
+
+// 6. Sentence case — 品牌名保持原样，技术术语小写
+'Access key ID'  // ✅
+'Access Key ID'  // ❌
+
+// 7. 设置标题
+// ❌
+containerEl.createEl('h3', { text: '标题' });
+// ✅
+new Setting(containerEl).setName('标题').setHeading();
+
+// 8. TFile 类型安全
+// ❌
+const file = vault.getAbstractFileByPath(path) as TFile;
+// ✅
+const file = vault.getAbstractFileByPath(path);
+if (!(file instanceof TFile)) throw new Error('Not a file');
+```
+
 ## 新增功能开发流程
 
 1. **新增图床服务商**：继承 `UploaderBase`，实现 `upload()` 和 `testConnection()`，在 `uploader-factory.ts` 注册，在 `hosting-config.ts` 添加配置字段

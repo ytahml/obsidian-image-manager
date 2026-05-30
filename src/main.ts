@@ -52,7 +52,7 @@ export default class ImageManagerPlugin extends Plugin {
             checkCallback: (checking) => {
                 const file = this.app.workspace.getActiveFile();
                 if (!file || !this.isImageFile(file)) return false;
-                if (!checking) this.compressCurrentImage(file);
+                if (!checking) void this.compressCurrentImage(file);
                 return true;
             },
         });
@@ -82,7 +82,7 @@ export default class ImageManagerPlugin extends Plugin {
                 if (!this.settings.reorganizeConvertFormat) return false;
                 const file = this.app.workspace.getActiveFile();
                 if (!file || file.extension !== 'md') return false;
-                if (!checking) this.uploadNoteImages(file);
+                if (!checking) void this.uploadNoteImages(file);
                 return true;
             },
         });
@@ -126,7 +126,7 @@ export default class ImageManagerPlugin extends Plugin {
             checkCallback: (checking) => {
                 const file = this.app.workspace.getActiveFile();
                 if (!file || file.extension !== 'md') return false;
-                if (!checking) this.reorganizeNote(file);
+                if (!checking) void this.reorganizeNote(file);
                 return true;
             },
         });
@@ -137,7 +137,7 @@ export default class ImageManagerPlugin extends Plugin {
             checkCallback: (checking) => {
                 const file = this.app.workspace.getActiveFile();
                 if (!file || file.extension !== 'md') return false;
-                if (!checking) this.convertNoteToFormat(file, 'markdown');
+                if (!checking) void this.convertNoteToFormat(file, 'markdown');
                 return true;
             },
         });
@@ -194,7 +194,7 @@ export default class ImageManagerPlugin extends Plugin {
     onunload() {}
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<ImageManagerSettings>);
     }
 
     async saveSettings() {
@@ -298,7 +298,7 @@ export default class ImageManagerPlugin extends Plugin {
             await this.doUpload(file, configs[0]!);
         } else {
             new HostingSuggestModal(this.app, configs, (config) => {
-                this.doUpload(file, config);
+                void this.doUpload(file, config);
             }).open();
         }
     }
@@ -354,7 +354,7 @@ export default class ImageManagerPlugin extends Plugin {
             await doBatch(configs[0]!);
         } else {
             new HostingSuggestModal(this.app, configs, (config) => {
-                doBatch(config);
+                void doBatch(config);
             }).open();
         }
     }
@@ -376,8 +376,7 @@ export default class ImageManagerPlugin extends Plugin {
             if (result.success && result.url) {
                 const ref = this.buildUploadedReference(file.name, result.url);
                 new Notice(`${t('notice.uploadSuccess')}\n${result.url}`, 5000);
-                const { clipboard } = require('electron');
-                clipboard.writeText(ref);
+                await navigator.clipboard.writeText(ref);
 
                 if (this.settings.autoReplaceAfterUpload) {
                     await this.replaceReferenceInNote(file, result.url);
@@ -556,19 +555,21 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private renameImage(file: TFile) {
-        new RenameImageModal(this.app, file, async (newName) => {
-            try {
-                const result = await this.batchRename.renameImage(file, newName);
-                new Notice(
-                    t('notice.renameSuccess', {
-                        old: result.oldName,
-                        new: result.newName,
-                        notes: String(result.notesUpdated),
-                    })
-                );
-            } catch (e) {
-                new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
-            }
+        new RenameImageModal(this.app, file, (newName) => {
+            void (async () => {
+                try {
+                    const result = await this.batchRename.renameImage(file, newName);
+                    new Notice(
+                        t('notice.renameSuccess', {
+                            old: result.oldName,
+                            new: result.newName,
+                            notes: String(result.notesUpdated),
+                        })
+                    );
+                } catch (e) {
+                    new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+                }
+            })();
         }).open();
     }
 
@@ -658,15 +659,15 @@ export default class ImageManagerPlugin extends Plugin {
             if (this.settings.promptImageName) {
                 new ImageNamePromptModal(this.app, defaultName, (userNamed) => {
                     const safeName = this.sanitizeFileName(userNamed, ext);
-                    imgFile.arrayBuffer().then((buffer) => {
-                        this.savePastedImage(new Uint8Array(buffer), imgFile.type, safeName, editor, currentFile);
+                    void imgFile.arrayBuffer().then((buffer) => {
+                        void this.savePastedImage(new Uint8Array(buffer), imgFile.type, safeName, editor, currentFile);
                     }).catch((e) => {
                         new Notice(`Image save failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
                     });
                 }).open();
             } else {
-                imgFile.arrayBuffer().then((buffer) => {
-                    this.savePastedImage(new Uint8Array(buffer), imgFile.type, defaultName, editor, currentFile);
+                void imgFile.arrayBuffer().then((buffer) => {
+                    void this.savePastedImage(new Uint8Array(buffer), imgFile.type, defaultName, editor, currentFile);
                 }).catch((e) => {
                     new Notice(`Image save failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
                 });
@@ -821,16 +822,16 @@ export default class ImageManagerPlugin extends Plugin {
         // Save to vault
         let savedFile: TFile;
         try {
-            console.log(`[ImageManager] Saving image to: ${filePath}`);
+            console.debug(`[ImageManager] Saving image to: ${filePath}`);
             savedFile = await this.app.vault.createBinary(filePath, outputData);
-        } catch (e) {
+        } catch {
             // Race condition: ensureUniquePath checked in-memory map but createBinary
             // checks filesystem. Retry with a guaranteed-unique timestamp name.
             console.warn(`[ImageManager] File conflict at ${filePath}, retrying with unique name`);
             const ts = Date.now();
             const retryName = `${filename.replace(/\.[^.]+$/, '')}-${ts}.${ext}`;
             const retryPath = await this.ensureUniquePath(dir, retryName);
-            console.log(`[ImageManager] Retrying with: ${retryPath}`);
+            console.debug(`[ImageManager] Retrying with: ${retryPath}`);
             savedFile = await this.app.vault.createBinary(retryPath, outputData);
         }
 
@@ -882,7 +883,7 @@ export default class ImageManagerPlugin extends Plugin {
 
                 // Delete local file if user doesn't want to keep it
                 if (!this.settings.keepLocalCopy) {
-                    await this.app.vault.delete(savedFile);
+                    await this.app.fileManager.trashFile(savedFile);
                 }
 
                 notice.hide();
@@ -940,7 +941,7 @@ export default class ImageManagerPlugin extends Plugin {
             commonLen++;
         }
         const upCount = fromParts.length - commonLen;
-        const ups = Array(upCount).fill('..');
+        const ups: string[] = Array.from({ length: upCount }, () => '..');
         const downs = toParts.slice(commonLen);
         const result = [...ups, ...downs].join('/');
         return result || toPath;

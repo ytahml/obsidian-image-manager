@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import type { ImageFile, ImageFilter, SortBy, SortOrder } from '../types';
+import type { ImageFilter, SortBy, SortOrder } from '../types';
 import { IMAGE_MIME_TYPES } from '../constants';
 
 export class ImageScanner {

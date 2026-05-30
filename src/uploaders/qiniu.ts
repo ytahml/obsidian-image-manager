@@ -38,7 +38,7 @@ export class QiniuUploader extends UploaderBase {
                 };
             }
 
-            const json = resp.json;
+            const json = resp.json as { key?: string; error?: string };
             if (json.key) {
                 let domain = (this.config.urlPrefix || '').trim().replace(/\/+$/, '');
                 if (domain && !domain.startsWith('http://') && !domain.startsWith('https://')) {

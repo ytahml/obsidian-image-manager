@@ -12,7 +12,7 @@ export class AliyunOSSUploader extends UploaderBase {
     async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
         const ossConfig = this.config.config as AliyunOSSConfig;
         const targetPath = await this.resolveUploadPath(filename, data);
-        console.log(`[AliyunOSS] Uploading to: ${targetPath}`);
+        console.debug(`[AliyunOSS] Uploading to: ${targetPath}`);
         const contentType = this.guessMimeType(filename);
         const region = this.parseRegion(ossConfig.region);
         const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;

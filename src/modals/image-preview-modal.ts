@@ -22,7 +22,7 @@ export class ImagePreviewModal extends Modal {
         contentEl.addClass('image-preview');
 
         // Image preview
-        const imgEl = contentEl.createEl('img', {
+        contentEl.createEl('img', {
             cls: 'image-preview-img',
             attr: { src: this.app.vault.getResourcePath(this.file) },
         });
@@ -64,15 +64,16 @@ export class ImagePreviewModal extends Modal {
             for (const note of notes.slice(0, 10)) {
                 const noteRow = notesList.createDiv({ cls: 'image-preview-note-item image-preview-note-link' });
                 noteRow.createSpan({ text: note.path });
-                noteRow.addEventListener('click', async () => {
+                noteRow.addEventListener('click', () => {
                     this.close();
                     this.browserModal?.close();
-                    await this.app.workspace.openLinkText(note.path, note.path, true);
-                    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-                    if (activeView) {
-                        activeView.editor.setCursor(note.line);
-                        activeView.editor.scrollIntoView({ from: { line: note.line, ch: 0 }, to: { line: note.line, ch: 0 } }, true);
-                    }
+                    void this.app.workspace.openLinkText(note.path, note.path, true).then(() => {
+                        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+                        if (activeView) {
+                            activeView.editor.setCursor(note.line);
+                            activeView.editor.scrollIntoView({ from: { line: note.line, ch: 0 }, to: { line: note.line, ch: 0 } }, true);
+                        }
+                    });
                 });
             }
             if (notes.length > 10) {
@@ -88,7 +89,7 @@ export class ImagePreviewModal extends Modal {
 
         // Copy reference
         const copyBtn = btnsEl.createEl('button', { text: t('modal.preview.copyRef'), cls: 'mod-cta' });
-        copyBtn.addEventListener('click', () => this.copyReference());
+        copyBtn.addEventListener('click', () => void this.copyReference());
 
         // Insert into editor
         const insertBtn = btnsEl.createEl('button', { text: t('modal.preview.insert') });
@@ -98,7 +99,7 @@ export class ImagePreviewModal extends Modal {
         const configs = this.plugin.settings.hostingConfigs.filter((c) => c.enabled);
         if (configs.length > 0) {
             const uploadBtn = btnsEl.createEl('button', { text: t('modal.preview.upload') });
-            uploadBtn.addEventListener('click', () => this.uploadImage(configs));
+            uploadBtn.addEventListener('click', () => void this.uploadImage(configs));
         }
 
         // Close
@@ -116,8 +117,7 @@ export class ImagePreviewModal extends Modal {
 
     private async copyReference() {
         const ref = this.buildReference();
-        const { clipboard } = require('electron');
-        clipboard.writeText(ref);
+        await navigator.clipboard.writeText(ref);
         new Notice(t('notice.refCopied'));
     }
 
@@ -144,7 +144,7 @@ export class ImagePreviewModal extends Modal {
             await doUpload(configs[0]!);
         } else {
             new HostingPickModal(this.app, configs, (config) => {
-                doUpload(config);
+                void doUpload(config);
             }).open();
         }
     }

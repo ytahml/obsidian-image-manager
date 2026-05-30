@@ -140,7 +140,7 @@ export class OrphanImagesModal extends Modal {
         for (const file of this.orphans) {
             if (this.selected.has(file.path)) {
                 try {
-                    await this.app.vault.delete(file);
+                    await this.app.fileManager.trashFile(file);
                     deleted++;
                 } catch (e) {
                     console.error(`Failed to delete ${file.path}:`, e);

@@ -99,7 +99,7 @@ export class RefConverter {
 
         // Go up from fromDir to the common ancestor
         const upCount = fromParts.length - commonLen;
-        const ups = Array(upCount).fill('..');
+        const ups: string[] = Array.from({ length: upCount }, () => '..');
         // Then go down to the target
         const downs = toParts.slice(commonLen);
 

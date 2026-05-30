@@ -21,7 +21,7 @@ export class ConfirmDialog extends Modal {
         this.keyHandler = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                this.handleConfirm();
+                void this.handleConfirm();
             }
         };
     }
@@ -51,7 +51,7 @@ export class ConfirmDialog extends Modal {
             text: this.options.confirmText ?? t('modal.confirm.ok'),
             cls: 'mod-cta',
         });
-        confirmBtn.addEventListener('click', () => this.handleConfirm());
+        confirmBtn.addEventListener('click', () => void this.handleConfirm());
 
         document.addEventListener('keydown', this.keyHandler);
     }

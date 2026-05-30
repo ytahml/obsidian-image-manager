@@ -16,6 +16,6 @@ export function createUploader(config: ImageHostingConfig): UploaderBase {
         case 'custom':
             return new CustomUploader(config);
         default:
-            throw new Error(`Unknown uploader type: ${config.type}`);
+            throw new Error(`Unknown uploader type: ${config.type as string}`);
     }
 }
