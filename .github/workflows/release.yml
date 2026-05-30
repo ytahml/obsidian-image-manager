@@ -67,9 +67,7 @@ jobs:
             echo "---"
             echo "### 📦 Installation"
             echo ""
-            echo "**Manual:** Download \`main.js\`, \`manifest.json\`, \`styles.css\` and copy to \`<Vault>/.obsidian/plugins/${{ env.PLUGIN_NAME }}/\`"
-            echo ""
-            echo "**BRAT:** Use [BRAT](https://github.com/TfTHacker/obsidian-brat) with \`imulan/obsidian-image-manager\`"
+            echo "Download \`main.js\`, \`manifest.json\`, \`styles.css\` and copy to \`<Vault>/.obsidian/plugins/${{ env.PLUGIN_NAME }}/\`"
             echo ""
             echo 'RELEASE_EOF'
           } >> "$GITHUB_OUTPUT"
