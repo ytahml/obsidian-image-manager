@@ -1,4 +1,4 @@
-# Obsidian Image Manager
+# Obsidian Markdown Image Manager
 
 English | [中文](README_ZH.md)
 
@@ -52,7 +52,7 @@ Obsidian image management plugin — supports image compression, image hosting u
 
 ## Installation
 
-1. Search "Image Manager" in Obsidian Community Plugins to install
+1. Search "Markdown Image Manager" in Obsidian Community Plugins to install
 2. Or manually download the release package and extract to `.obsidian/plugins/md-image-manager/`
 3. Enable the plugin in settings
 

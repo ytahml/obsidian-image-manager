@@ -1,6 +1,6 @@
 export const en: Record<string, string> = {
     // Settings
-    'settings.title': 'Image Manager Settings',
+    'settings.title': 'Markdown Image Manager Settings',
     'settings.language': 'Language',
     'settings.languageDesc': 'Display language for the plugin',
     'settings.general': 'General',
@@ -54,7 +54,7 @@ export const en: Record<string, string> = {
     'command.convertToMd': 'Convert image refs to Markdown format',
 
     // Ribbon
-    'ribbon.tooltip': 'Image Manager',
+    'ribbon.tooltip': 'Markdown Image Manager',
 
     // Notices
     'notice.notImplemented': 'not yet implemented',

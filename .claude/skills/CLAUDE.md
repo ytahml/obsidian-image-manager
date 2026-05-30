@@ -1,4 +1,4 @@
-# Obsidian Image Manager — 开发指南
+# Obsidian Markdown Image Manager — 开发指南
 
 ## 项目概述
 

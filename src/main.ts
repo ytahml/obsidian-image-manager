@@ -163,7 +163,7 @@ export default class ImageManagerPlugin extends Plugin {
                 if (file instanceof TFolder) {
                     menu.addSeparator();
                     menu.addItem((item) => {
-                        item.setTitle(`Image Manager: ${t('command.reorganizeImages')}`)
+                        item.setTitle(`Markdown Image Manager: ${t('command.reorganizeImages')}`)
                             .setIcon('image-file')
                             .onClick(() => this.reorganizeFolder(file.path));
                     });
@@ -171,18 +171,18 @@ export default class ImageManagerPlugin extends Plugin {
                     menu.addSeparator();
                     if (this.settings.reorganizeConvertFormat) {
                         menu.addItem((item) => {
-                            item.setTitle(`Image Manager: ${t('command.uploadNoteImages')}`)
+                            item.setTitle(`Markdown Image Manager: ${t('command.uploadNoteImages')}`)
                                 .setIcon('upload')
                                 .onClick(() => this.uploadNoteImages(file));
                         });
                     }
                     menu.addItem((item) => {
-                        item.setTitle(`Image Manager: ${t('command.reorganizeImages')}`)
+                        item.setTitle(`Markdown Image Manager: ${t('command.reorganizeImages')}`)
                             .setIcon('image-file')
                             .onClick(() => this.reorganizeNote(file));
                     });
                     menu.addItem((item) => {
-                        item.setTitle(`Image Manager: ${t('command.convertToMd')}`)
+                        item.setTitle(`Markdown Image Manager: ${t('command.convertToMd')}`)
                             .setIcon('file-text')
                             .onClick(() => this.convertNoteToFormat(file, 'markdown'));
                     });
