@@ -19,6 +19,7 @@ export class ConfirmDialog extends Modal {
         this.options = options;
 
         this.keyHandler = (e: KeyboardEvent) => {
+            if (e.isComposing) return;
             if (e.key === 'Enter') {
                 e.preventDefault();
                 void this.handleConfirm();

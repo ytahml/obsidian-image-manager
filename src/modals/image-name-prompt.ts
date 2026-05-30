@@ -42,6 +42,7 @@ export class ImageNamePromptModal extends Modal {
         });
 
         input.addEventListener('keydown', (e) => {
+            if (e.isComposing) return;
             if (e.key === 'Enter') {
                 e.preventDefault();
                 confirmBtn.click();

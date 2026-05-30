@@ -174,3 +174,16 @@ if (!(file instanceof TFile)) throw new Error('Not a file');
 - `main.js` 是构建产物，不要手动编辑
 - 发布产物：`main.js` + `manifest.json` + `styles.css`
 - CI 在 Node 20.x/22.x 上运行 build + lint
+
+## 已修复问题
+
+### IME 输入法回车触发表单提交（2026-05-30 修复）
+
+- **问题**：中文输入法下按回车确认选字时，会直接触发表单提交，导致图片名称未正确输入
+- **根因**：`keydown` 事件未检查 `e.isComposing` 状态
+- **修复文件**：
+  - `modals/image-name-prompt.ts` 第 45 行
+  - `modals/rename-image.ts` 第 57 行
+  - `modals/confirm-dialog.ts` 第 22 行
+- **修复方式**：在 keydown 事件处理中添加 `if (e.isComposing) return;`
+- **效果**：输入法组合状态下（如拼音选字）按回车不会触发提交，只有输入法关闭后按回车才会触发
