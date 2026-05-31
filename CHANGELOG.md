@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.4
+
+### 🇺🇸 English
+
+#### Improvements
+
+- Added GitHub artifact attestation for release assets (`main.js`, `styles.css`)
+
+
+### 🇨🇳 中文
+
+#### 改进
+
+- 为发布产物（`main.js`、`styles.css`）添加 GitHub artifact attestation 验证
+
+---
+
 ## 1.0.3
 
 ### 🇺🇸 English
