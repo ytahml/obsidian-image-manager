@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.0.7
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Fixed image preview reference count: now counts all references instead of unique notes. Previously, an image referenced 5 times in one note showed "1 note(s)"; now correctly shows "5 reference(s) in 1 note(s)"
+- Expandable details in image preview: click ▸ to view all reference line numbers per note, click a line number to jump to that position
+
+#### Improvements
+
+- Refactored `settings.ts`: split monolithic `display()` into 6 independent methods (`renderLanguage`, `renderGeneral`, `renderImageNaming`, `renderCompression`, `renderGallery`, `renderImageHosting`)
+- Optimized version release workflow: `npm version` now automatically runs build check, updates versions.json (newest first), stages all files, commits, tags, and pushes
+- Bumped `minAppVersion` from 1.7.0 to 1.12.0
+
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 修复图片预览引用计数：现在统计所有引用而非仅笔记数。之前同一篇笔记引用 5 次显示"1 note(s)"，现在正确显示"5 reference(s) in 1 note(s)"
+- 图片预览支持展开详情：点击 ▸ 查看每篇笔记的所有引用行号，点击行号可跳转到对应位置
+
+#### 改进
+
+- `settings.ts` 模块化拆分：将单体 `display()` 拆分为 6 个独立方法（`renderLanguage`、`renderGeneral`、`renderImageNaming`、`renderCompression`、`renderGallery`、`renderImageHosting`）
+- 优化版本发布流程：`npm version` 自动执行构建检查、更新 versions.json（新版本置顶）、暂存文件、提交、打 tag、推送
+- `minAppVersion` 从 1.7.0 提升至 1.12.0
+
+---
+
 ## 1.0.6
 
 ### 🇺🇸 English
