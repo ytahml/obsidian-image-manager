@@ -30,8 +30,8 @@ export default tseslint.config(
 	{
 		files: ["src/settings.ts"],
 		rules: {
-			// display() 已废弃但 getSettingDefinitions() 是声明式 API，
-			// 当前 settings.ts 有动态图床列表等复杂逻辑，全面重写风险大
+			// display() 已废弃但 getSettingDefinitions() 需要 Obsidian 1.13.0+
+			// 当前 minAppVersion=1.12.0，暂用 display() 命令式 API
 			"@typescript-eslint/no-deprecated": "off",
 		},
 	},

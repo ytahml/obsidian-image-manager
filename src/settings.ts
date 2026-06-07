@@ -17,11 +17,17 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        new Setting(containerEl).setName(t('settings.title')).setHeading();
+        this.renderLanguage(containerEl);
+        this.renderGeneral(containerEl);
+        this.renderImageNaming(containerEl);
+        this.renderCompression(containerEl);
+        this.renderGallery(containerEl);
+        this.renderImageHosting(containerEl);
+    }
 
-        // --- Language ---
-        new Setting(containerEl).setName(t('settings.language')).setHeading();
+    // --- Language ---
 
+    private renderLanguage(containerEl: HTMLElement) {
         new Setting(containerEl)
             .setName(t('settings.language'))
             .setDesc(t('settings.languageDesc'))
@@ -37,8 +43,11 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                         this.display();
                     })
             );
+    }
 
-        // --- General ---
+    // --- General ---
+
+    private renderGeneral(containerEl: HTMLElement) {
         new Setting(containerEl).setName(t('settings.general')).setHeading();
 
         new Setting(containerEl)
@@ -88,8 +97,11 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 })
             );
+    }
 
-        // --- Image Naming ---
+    // --- Image Naming ---
+
+    private renderImageNaming(containerEl: HTMLElement) {
         new Setting(containerEl).setName(t('settings.imageNaming')).setHeading();
 
         new Setting(containerEl)
@@ -114,8 +126,11 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 })
             );
+    }
 
-        // --- Compression ---
+    // --- Compression ---
+
+    private renderCompression(containerEl: HTMLElement) {
         new Setting(containerEl).setName(t('settings.compression')).setHeading();
 
         new Setting(containerEl)
@@ -141,8 +156,11 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     })
             );
+    }
 
-        // --- Gallery ---
+    // --- Gallery ---
+
+    private renderGallery(containerEl: HTMLElement) {
         new Setting(containerEl).setName(t('settings.gallery')).setHeading();
 
         new Setting(containerEl)
@@ -168,8 +186,11 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     })
             );
+    }
 
-        // --- Image Hosting ---
+    // --- Image Hosting ---
+
+    private renderImageHosting(containerEl: HTMLElement) {
         new Setting(containerEl).setName(t('settings.imageHosting')).setHeading();
 
         if (!this.plugin.settings.reorganizeConvertFormat) {
@@ -177,95 +198,96 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 cls: 'setting-item-description',
                 text: t('settings.hostingDisabledByFormat'),
             });
-        } else {
-            // Hosting providers list
-            const hostingListEl = containerEl.createDiv({ cls: 'hosting-config-list' });
-            this.renderHostingList(hostingListEl);
-
-            // Add button
-            new Setting(containerEl)
-                .setName(t('settings.addHosting'))
-                .setDesc(t('settings.addHostingDesc'))
-                .addButton((button) =>
-                    button.setButtonText('+').onClick(() => {
-                        const newConfig: ImageHostingConfig = {
-                            id: `hosting-${Date.now()}`,
-                            name: '',
-                            type: 'aliyun-oss',
-                            enabled: true,
-                            config: { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' },
-                            uploadPath: '',
-                            urlPrefix: '',
-                        };
-                        new HostingConfigModal(this.app, newConfig, (saved) => {
-                            this.plugin.settings.hostingConfigs.push(saved);
-                            void this.plugin.saveSettings().then(() => this.display());
-                        }).open();
-                    })
-                );
-
-            // Default hosting provider
-            const enabledConfigs = this.plugin.settings.hostingConfigs.filter((c) => c.enabled);
-            if (enabledConfigs.length > 1) {
-                new Setting(containerEl)
-                    .setName(t('settings.defaultHosting'))
-                    .setDesc(t('settings.defaultHostingDesc'))
-                    .addDropdown((dropdown) => {
-                        for (const config of enabledConfigs) {
-                            dropdown.addOption(config.id, config.name || config.type.toUpperCase());
-                        }
-                        const currentDefault = this.plugin.settings.defaultHostingId || enabledConfigs[0]!.id;
-                        dropdown.setValue(currentDefault).onChange(async (value) => {
-                            this.plugin.settings.defaultHostingId = value;
-                            await this.plugin.saveSettings();
-                        });
-                    });
-            }
-
-            // Upload path template
-            new Setting(containerEl)
-                .setName(t('settings.uploadPathTemplate'))
-                .setDesc(t('settings.uploadPathTemplateDesc'))
-                .addText((text) =>
-                    text
-                        .setPlaceholder(DEFAULT_SETTINGS.uploadPathTemplate)
-                        .setValue(this.plugin.settings.uploadPathTemplate)
-                        .onChange(async (value) => {
-                            this.plugin.settings.uploadPathTemplate = value || DEFAULT_SETTINGS.uploadPathTemplate;
-                            await this.plugin.saveSettings();
-                        })
-                );
-
-            new Setting(containerEl)
-                .setName(t('settings.autoReplaceAfterUpload'))
-                .setDesc(t('settings.autoReplaceAfterUploadDesc'))
-                .addToggle((toggle) =>
-                    toggle.setValue(this.plugin.settings.autoReplaceAfterUpload).onChange(async (value) => {
-                        this.plugin.settings.autoReplaceAfterUpload = value;
-                        await this.plugin.saveSettings();
-                    })
-                );
-
-            new Setting(containerEl)
-                .setName(t('settings.autoUploadOnPaste'))
-                .setDesc(t('settings.autoUploadOnPasteDesc'))
-                .addToggle((toggle) =>
-                    toggle.setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
-                        this.plugin.settings.autoUploadOnPaste = value;
-                        await this.plugin.saveSettings();
-                    })
-                );
-
-            new Setting(containerEl)
-                .setName(t('settings.keepLocalCopy'))
-                .setDesc(t('settings.keepLocalCopyDesc'))
-                .addToggle((toggle) =>
-                    toggle.setValue(this.plugin.settings.keepLocalCopy).onChange(async (value) => {
-                        this.plugin.settings.keepLocalCopy = value;
-                        await this.plugin.saveSettings();
-                    })
-                );
+            return;
         }
+
+        // Hosting providers list
+        const hostingListEl = containerEl.createDiv({ cls: 'hosting-config-list' });
+        this.renderHostingList(hostingListEl);
+
+        // Add button
+        new Setting(containerEl)
+            .setName(t('settings.addHosting'))
+            .setDesc(t('settings.addHostingDesc'))
+            .addButton((button) =>
+                button.setButtonText('+').onClick(() => {
+                    const newConfig: ImageHostingConfig = {
+                        id: `hosting-${Date.now()}`,
+                        name: '',
+                        type: 'aliyun-oss',
+                        enabled: true,
+                        config: { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' },
+                        uploadPath: '',
+                        urlPrefix: '',
+                    };
+                    new HostingConfigModal(this.app, newConfig, (saved) => {
+                        this.plugin.settings.hostingConfigs.push(saved);
+                        void this.plugin.saveSettings().then(() => this.display());
+                    }).open();
+                })
+            );
+
+        // Default hosting provider
+        const enabledConfigs = this.plugin.settings.hostingConfigs.filter((c) => c.enabled);
+        if (enabledConfigs.length > 1) {
+            new Setting(containerEl)
+                .setName(t('settings.defaultHosting'))
+                .setDesc(t('settings.defaultHostingDesc'))
+                .addDropdown((dropdown) => {
+                    for (const config of enabledConfigs) {
+                        dropdown.addOption(config.id, config.name || config.type.toUpperCase());
+                    }
+                    const currentDefault = this.plugin.settings.defaultHostingId || enabledConfigs[0]!.id;
+                    dropdown.setValue(currentDefault).onChange(async (value) => {
+                        this.plugin.settings.defaultHostingId = value;
+                        await this.plugin.saveSettings();
+                    });
+                });
+        }
+
+        // Upload path template
+        new Setting(containerEl)
+            .setName(t('settings.uploadPathTemplate'))
+            .setDesc(t('settings.uploadPathTemplateDesc'))
+            .addText((text) =>
+                text
+                    .setPlaceholder(DEFAULT_SETTINGS.uploadPathTemplate)
+                    .setValue(this.plugin.settings.uploadPathTemplate)
+                    .onChange(async (value) => {
+                        this.plugin.settings.uploadPathTemplate = value || DEFAULT_SETTINGS.uploadPathTemplate;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.autoReplaceAfterUpload'))
+            .setDesc(t('settings.autoReplaceAfterUploadDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.autoReplaceAfterUpload).onChange(async (value) => {
+                    this.plugin.settings.autoReplaceAfterUpload = value;
+                    await this.plugin.saveSettings();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.autoUploadOnPaste'))
+            .setDesc(t('settings.autoUploadOnPasteDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
+                    this.plugin.settings.autoUploadOnPaste = value;
+                    await this.plugin.saveSettings();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.keepLocalCopy'))
+            .setDesc(t('settings.keepLocalCopyDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.keepLocalCopy).onChange(async (value) => {
+                    this.plugin.settings.keepLocalCopy = value;
+                    await this.plugin.saveSettings();
+                })
+            );
     }
 
     private renderHostingList(container: HTMLElement) {
