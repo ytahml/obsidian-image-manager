@@ -23,10 +23,13 @@ export class RenameImageModal extends Modal {
 
         const form = contentEl.createDiv({ cls: 'rename-image-form' });
 
+        const ext = this.file.name.includes('.') ? '.' + this.file.name.split('.').pop() : '';
+        const stem = ext ? this.file.name.slice(0, -ext.length) : this.file.name;
+
         const input = form.createEl('input', {
             attr: {
                 type: 'text',
-                value: this.file.name,
+                value: stem,
             },
             cls: 'rename-image-input',
         });
@@ -44,12 +47,12 @@ export class RenameImageModal extends Modal {
             cls: 'mod-cta',
         });
         confirmBtn.addEventListener('click', () => {
-            const newName = input.value.trim();
-            if (!newName || newName === this.file.name) {
+            const newStem = input.value.trim();
+            if (!newStem || newStem === stem) {
                 this.close();
                 return;
             }
-            this.onSubmit(newName);
+            this.onSubmit(newStem + ext);
             this.close();
         });
 
