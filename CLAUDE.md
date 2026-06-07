@@ -2,22 +2,27 @@
 
 ## 项目概述
 
-Obsidian 图片管理插件，TypeScript 编写，使用 Obsidian Plugin API。核心功能：图片压缩、图床上传（4 种服务商）、引用格式转换、图片浏览器、孤立图片检测、资源整理。
+Obsidian 图片管理插件（ID: `md-image-manager`），TypeScript 编写，使用 Obsidian Plugin API。当前版本 `1.0.7`，`minAppVersion: 1.12.0`。
+
+**核心功能**：图片压缩、图床上传（4 种服务商）、引用格式转换（Wiki ↔ Markdown）、图片浏览器、孤立图片检测、资源整理、批量重命名。
+
+**知识库**：`/Users/imulan/workspace/pri-notes/ai-notes/obsidian-image-manager/` 按模块存储详细实现知识，新功能开发或 bug 修复时可结合 feature-dev skill 使用。
 
 ## 技术约束
 
-- **零外部运行时依赖** — 仅依赖 `obsidian` 包
+- **零外部运行时依赖** — 仅 `obsidian` 包（devDependency）
 - 加密用 Web Crypto API（`crypto.subtle`），HTTP 用 Obsidian `requestUrl`
 - 剪贴板操作用 `require('electron')`，移动端不兼容
 - ESM 源码，esbuild 打包为 CJS `main.js`
-- TypeScript strict 模式
+- TypeScript strict 模式，锁定 5.8.x
+- Node 通过 Volta 固定 22.22.3
 
 ## 构建命令
 
 ```bash
 npm run dev      # watch 模式开发
 npm run build    # 生产构建（tsc 检查 + esbuild 压缩）
-npm run lint     # ESLint 检查
+npm run lint     # ESLint 检查（obsidianmd 官方插件 33 条规则）
 ```
 
 ## CI/CD
@@ -30,206 +35,212 @@ npm run lint     # ESLint 检查
 
 ### Release（`.github/workflows/release.yml`）
 
-- 触发：推送 tag（如 `1.0.0`）
-- 执行：`npm ci` → `npm run build` → 打包 `main.js` + `manifest.json` + `styles.css` 为 zip
-- 使用 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 4 个产物（`main.js`、`manifest.json`、`styles.css`、`md-image-manager.zip`）
+- 触发：推送 tag（如 `1.0.0`，无 `v` 前缀）
+- 执行：`npm ci` → `npm run build` → 打包 zip
+- 产物：`main.js`、`manifest.json`、`styles.css`、`md-image-manager.zip`
 
-#### 版本发布流程
-
-使用 `npm version` 一条命令完成版本发布，自动执行以下生命周期：
+### 版本发布流程
 
 ```bash
-npm version patch   # 1.0.7 → 1.0.8（修复）
-npm version minor   # 1.0.7 → 1.1.0（新功能）
-npm version major   # 1.0.7 → 2.0.0（破坏性变更）
+npm version patch   # 1.0.7 → 1.0.8
+npm version minor   # 1.0.7 → 1.1.0
+npm version major   # 1.0.7 → 2.0.0
 ```
 
 | 阶段 | 脚本 | 动作 |
 | ----- | ---- | ---- |
-| `preversion` | `npm run build` | 构建检查（lint + tsc + esbuild），失败则中止 |
-| `version` | `version-bump.mjs` | 更新 `manifest.json` 版本号、`versions.json` 添加新版本条目（置顶） |
-| `version` | `git add` | 暂存 `manifest.json`、`versions.json`、`package.json`、`package-lock.json` |
-| npm 自动 | — | 修改 `package.json` 版本号，创建 commit（`vX.Y.Z`）和 tag（`X.Y.Z`） |
-| `postversion` | `git push` | 推送 commit 和 tag 到 `origin master`，触发 GitHub Actions Release |
-
-**`version-bump.mjs` 逻辑**：
-
-- 从 `manifest.json` 读取 `minAppVersion`
-- 将 `manifest.json` 的 `version` 更新为目标版本
-- 在 `versions.json` 开头插入 `{ "X.Y.Z": "minAppVersion" }` 条目
-- 若目标版本已存在则跳过
+| `preversion` | `npm run build` | 构建检查，失败则中止 |
+| `version` | `version-bump.mjs` | 更新 `manifest.json` + `versions.json`（新版本置顶） |
+| `version` | `git add` | 暂存 4 个文件 |
+| npm 自动 | — | 修改 `package.json`，创建 commit + tag |
+| `postversion` | `git push` | 推送触发 GitHub Actions Release |
 
 ## 架构
 
 ```
 src/
-├── main.ts              # 入口、命令注册、事件处理、粘贴/拖放编排（~982 行，待拆分）
-├── settings.ts          # 设置面板 UI
-├── types.ts             # 类型定义 + DEFAULT_SETTINGS
-├── constants.ts         # 正则、MIME 映射
-├── i18n/                # 国际化（中/英，~180 条翻译）
-├── modals/              # 7 个 Modal 组件（浏览器、预览、孤立检测、配置表单等）
+├── main.ts              # 入口、12 个命令注册、事件处理、粘贴/拖放编排（~995 行）
+├── settings.ts          # 设置面板 UI（6 个 render 方法 + refresh() 封装）
+├── types.ts             # 类型定义 + DEFAULT_SETTINGS（17 个设置字段）
+├── constants.ts         # 正则（MD_IMAGE_REGEX、WIKI_IMAGE_REGEX）、MIME 映射
+├── i18n/                # 国际化（中/英，~180 条翻译，{key} 变量插值）
+│   ├── index.ts         # setLocale() + t() 函数
+│   ├── en.ts
+│   └── zh.ts
+├── modals/              # 7 个 Modal 组件
+│   ├── image-browser.ts       # 网格浏览、搜索（300ms 防抖）、排序、孤立筛选
+│   ├── image-preview-modal.ts # 预览、引用列表（可展开行号）、操作按钮
+│   ├── orphan-images.ts       # 孤立图片检测、批量删除
+│   ├── rename-image.ts        # 重命名（仅显示主干名）
+│   ├── hosting-config.ts      # 图床配置表单（4 种服务商动态字段）
+│   ├── confirm-dialog.ts      # 通用确认对话框
+│   └── image-name-prompt.ts   # 粘贴/拖放时的命名输入
 ├── uploaders/           # 4 个上传器 + 工厂 + 并发队列
-└── utils/               # 7 个工具模块（引用转换、扫描、压缩、重命名、整理等）
+│   ├── uploader-base.ts       # 抽象基类：upload() + testConnection()
+│   ├── uploader-factory.ts    # createUploader() 工厂
+│   ├── aliyun-oss.ts          # HMAC-SHA1 签名 PUT
+│   ├── qiniu.ts               # 上传 token + 区域端点
+│   ├── s3-compatible.ts       # AWS Signature V4
+│   ├── custom-uploader.ts     # POST/PUT 可配、JSON path 提取 URL
+│   └── upload-queue.ts        # 3 并发、3 重试、进度回调
+└── utils/               # 7 个工具模块
+    ├── ref-converter.ts       # 引用解析、格式转换、相对路径计算
+    ├── image-scanner.ts       # 图片文件扫描、过滤、排序
+    ├── orphan-finder.ts       # 孤立图片检测、引用查找
+    ├── image-optimizer.ts     # Canvas API 压缩、格式转换
+    ├── image-reorganizer.ts   # 资源整理（移动文件 + 更新引用）
+    ├── batch-rename.ts        # 重命名 + 全库引用更新
+    └── path-utils.ts          # 路径工具（文件名提取、拼接、编码、日期变量）
 ```
 
-## 关键模块说明
+## 核心数据流
 
-### 上传器体系 (`src/uploaders/`)
-- `UploaderBase` 抽象基类，定义 `upload()` 和 `testConnection()`
-- `createUploader()` 工厂按 `HostingType` 实例化
-- 4 种实现：`AliyunOSSUploader`、`QiniuUploader`、`S3Uploader`、`CustomUploader`
-- `UploadQueue`：3 并发、3 次重试、进度回调
+### 粘贴/拖放流程
 
-### 引用格式 (`src/utils/ref-converter.ts`)
-- 两种格式：Markdown `![alt](path)` 和 Wiki `![[path|alt]]`
-- `RefConverter` 负责解析、转换、相对路径计算
-- 转换时反向处理以保持字符索引
+```
+editor-paste/editor-drop 事件
+  → evt.defaultPrevented 检查
+  → handleImagePaste/handleImageDrop（返回 boolean）
+  → processImageFiles
+    → 可选 ImageNamePromptModal（promptImageName 设置）
+    → savePastedImage
+      → resolveImagePath（模板变量替换）
+      → ensureDirectory（递归创建目录）
+      → ensureUniquePath（文件名冲突处理）
+      → 可选 Canvas 压缩（autoCompress 设置）
+      → vault.createBinary 保存
+      → 插入引用（reorganizeConvertFormat 决定 MD/Wiki 格式）
+      → 可选 autoUploadAfterPaste（autoUploadOnPaste 设置）
+```
 
-### 设置门控逻辑
-- `reorganizeConvertFormat`（使用 MD 标准格式）是图床功能的前置条件
-- `skipWikiRefsOnReorganize` 控制整理时是否跳过 Wiki 引用
-- 两个设置组合产生 4 种行为，见 README 设置组合表
+### 图床上传流程
 
-### 粘贴/拖放处理 (`main.ts` L627-948)
-- 拦截 `editor-paste` 和 `editor-drop` 事件
-- 命名模板变量替换 → 文件保存 → 引用插入 → 可选自动上传
+```
+选择图片 → createUploader() 工厂实例化
+  → 可选 autoCompress 压缩
+  → uploader.upload(data, filename)
+  → 成功后：复制 URL 到剪贴板
+  → 可选 replaceReferenceInNote（autoReplaceAfterUpload 设置）
+  → 可选 trashFile（!keepLocalCopy 设置）
+```
+
+### 资源整理流程
+
+```
+reorganizeNote/reorganizeFolder
+  → ImageReorganizer.reorganizeNote
+    → 解析笔记中所有图片引用
+    → 跳过：外部 URL、Wiki 引用（skipWikiRefsOnReorganize）
+    → resolveImagePath 计算目标路径
+    → vault.rename 移动文件
+    → 更新引用格式（convertFormat）
+    → updateOtherNotes 更新其他笔记中的引用
+```
+
+## 设置门控逻辑
+
+| 设置 | 作用 | 影响范围 |
+|------|------|----------|
+| `reorganizeConvertFormat` | 使用 MD 标准格式 | 图床功能前置条件、引用格式、整理行为 |
+| `skipWikiRefsOnReorganize` | 整理时跳过 Wiki 引用 | 仅影响 reorganize |
+| `promptImageName` | 粘贴时提示输入名称 | 粘贴/拖放流程 |
+| `autoUploadOnPaste` | 粘贴后自动上传 | 需 `reorganizeConvertFormat=true` |
+| `autoReplaceAfterUpload` | 上传后替换引用 | 上传流程 |
+| `keepLocalCopy` | 上传后保留本地文件 | 自动上传流程 |
+
+**关键约束**：`reorganizeConvertFormat=false` 时，图床功能完全禁用（设置面板显示提示，命令执行时 Notice 提示）。
 
 ## 编码规范
 
-- 遵循 AGENTS.md 中的 Obsidian 插件开发指南
-- 单文件建议 200-300 行以内，超长需拆分
+- 单文件建议 200-300 行以内，超长需拆分（`main.ts` 为例外，~995 行）
 - 使用 `this.register*` 注册所有监听器，确保卸载时清理
 - UI 文本使用 `t('key')` 国际化函数
 - 路径处理使用 `path-utils.ts` 中的工具函数
-- 图片引用正则在 `constants.ts` 中定义（`MD_IMAGE_REGEX`、`WIKI_IMAGE_REGEX`）
+- 图片引用正则在 `constants.ts` 中定义
+- 反向遍历处理引用替换（保持字符索引）
 
 ## ESLint 配置
 
-项目使用 `eslint-plugin-obsidianmd@0.3.0` 官方插件（`obsidianmd.configs.recommended`），内含 `typescript-eslint` 的 `recommendedTypeChecked` 规则集。
+使用 `eslint-plugin-obsidianmd@0.3.0`（`obsidianmd.configs.recommended`），含 `typescript-eslint` 的 `recommendedTypeChecked`。
 
-### 关键规则
+### 关键规则速查
 
-| 规则 | 说明 |
+| 规则 | 要点 |
 | --- | --- |
-| `@typescript-eslint/no-floating-promises` | Promise 必须 await、.catch、.then 或用 `void` 显式忽略 |
-| `@typescript-eslint/no-misused-promises` | 回调不能返回 Promise（用 `void` 包装或改为非 async） |
-| `@typescript-eslint/no-unsafe-assignment` | 禁止 `any` 类型赋值，需添加类型断言 |
-| `@typescript-eslint/no-unsafe-member-access` | 禁止在 `any` 上访问成员 |
-| `@typescript-eslint/require-await` | async 函数必须包含 await |
-| `@typescript-eslint/restrict-template-expressions` | 模板字符串不能使用 `never` 类型 |
-| `obsidianmd/ui/sentence-case` | UI 文本使用 sentence case（首字母大写，其余小写），不允许 eslint-disable |
-| `obsidianmd/settings-tab/no-manual-html-headings` | 使用 `new Setting().setName().setHeading()` 代替 `createEl('h3')` |
-| `obsidianmd/no-static-styles-assignment` | 使用 CSS 类代替 `element.style.*` 直接赋值 |
-| `obsidianmd/no-tfile-tfolder-cast` | 使用 `instanceof TFile` 代替 `as TFile` 类型断言 |
-| `obsidianmd/prefer-file-manager-trash-file` | 使用 `fileManager.trashFile()` 代替 `vault.delete()` |
-| `obsidianmd/prefer-window-timers` | 使用 `window.setTimeout`/`window.clearTimeout` 代替全局版本 |
-| `obsidianmd/prefer-active-doc` | 使用 `activeDocument` 代替 `document`（popout 窗口兼容） |
-| `obsidianmd/editor-drop-paste` | `editor-paste`/`editor-drop` 处理器需检查 `evt.defaultPrevented` 并调用 `evt.preventDefault()` |
-| `obsidianmd/no-unsupported-api` | 禁止使用高于 `minAppVersion` 声明的 Obsidian API |
-| `no-console` | 仅允许 `console.warn`、`console.error`、`console.debug` |
+| `no-floating-promises` | Promise 必须 `await`/`.catch`/`.then` 或 `void` |
+| `no-misused-promises` | 回调不能返回 Promise |
+| `no-unsafe-assignment` | 禁止 `any` 赋值，需类型断言 |
+| `sentence-case` | UI 文本首字母大写，品牌名保持原样 |
+| `no-manual-html-headings` | 用 `new Setting().setHeading()` 代替 `createEl('h3')` |
+| `no-static-styles-assignment` | 用 CSS 类代替 `element.style.*` |
+| `no-tfile-tfolder-cast` | 用 `instanceof TFile` 代替 `as TFile` |
+| `prefer-file-manager-trash-file` | 用 `fileManager.trashFile()` 代替 `vault.delete()` |
+| `prefer-window-timers` | 用 `window.setTimeout`/`window.clearTimeout` |
+| `prefer-active-doc` | 用 `activeDocument` 代替 `document` |
+| `editor-drop-paste` | 检查 `evt.defaultPrevented` + 调用 `evt.preventDefault()` |
+| `no-unsupported-api` | 禁止高于 `minAppVersion` 的 API |
+| `no-console` | 仅允许 `console.warn`/`error`/`debug` |
 
 ### 常见修复模式
 
 ```typescript
-// 1. 浮动 Promise — 添加 void
+// 1. 浮动 Promise
 void this.handleConfirm();
-void doUpload(config);
 
-// 2. 回调返回 Promise — 改为非 async 或用 void 包装
-// ❌
-new Modal(app, async (saved) => { await save(); });
-// ✅
+// 2. 回调返回 Promise
 new Modal(app, (saved) => { void save().then(() => display()); });
 
 // 3. JSON.parse 类型安全
 this.config = JSON.parse(JSON.stringify(config)) as ImageHostingConfig;
 
-// 4. resp.json 类型安全
-const json = resp.json as { key?: string; error?: string };
-
-// 5. Array().fill() 类型安全
-// ❌
-const ups: string[] = Array(count).fill('..');
-// ✅
+// 4. Array().fill() 类型安全
 const ups: string[] = Array.from({ length: count }, () => '..');
 
-// 6. Sentence case — 品牌名保持原样，技术术语小写
-'Access key ID'  // ✅
-'Access Key ID'  // ❌
+// 5. Sentence case
+'Access key ID'  // ✅  'Access Key ID'  // ❌
 
-// 7. 设置标题
-// ❌
-containerEl.createEl('h3', { text: '标题' });
-// ✅
+// 6. 设置标题
 new Setting(containerEl).setName('标题').setHeading();
 
-// 8. TFile 类型安全
-// ❌
-const file = vault.getAbstractFileByPath(path) as TFile;
-// ✅
+// 7. TFile 类型安全
 const file = vault.getAbstractFileByPath(path);
 if (!(file instanceof TFile)) throw new Error('Not a file');
 
-// 9. window 定时器（popout 窗口兼容）
-// ❌
-setTimeout(() => {}, 100);
-clearTimeout(timer);
-// ✅
+// 8. window 定时器 + activeDocument（popout 兼容）
 window.setTimeout(() => {}, 100);
-window.clearTimeout(timer);
-
-// 10. activeDocument（popout 窗口兼容）
-// ❌
-document.createElement('canvas');
-document.addEventListener('keydown', handler);
-// ✅
 activeDocument.createElement('canvas');
-activeDocument.addEventListener('keydown', handler);
 
-// 11. 事件处理器返回值（editor-paste/editor-drop）
-// ❌ 直接在处理器中调用 preventDefault
-private handlePaste(evt: ClipboardEvent, editor: Editor, file: TFile | null) {
-    evt.preventDefault(); // 不应在处理器内调用
-}
-// ✅ 处理器返回 boolean，由注册处调用 preventDefault
-private handlePaste(evt: ClipboardEvent, editor: Editor, file: TFile | null): boolean {
-    if (!imageFiles.length) return false;
-    // ... 处理逻辑
-    return true;
-}
-// 注册处：
+// 9. editor-paste/editor-drop 处理器
+// 处理器返回 boolean，注册处调用 preventDefault
 this.registerEvent(this.app.workspace.on('editor-paste', (evt, editor, info) => {
     if (evt.defaultPrevented) return;
-    const handled = this.handlePaste(evt, editor, info.file);
+    const handled = this.handleImagePaste(evt, editor, info.file);
     if (handled) evt.preventDefault();
 }));
 ```
 
 ## 开发完成检查清单
 
-**每次功能开发或修改完成后，必须执行以下检查：**
-
 ```bash
-npm run build    # TypeScript 编译检查 + esbuild 打包
-npm run lint     # Obsidian 官方 ESLint 规则检查
+npm run build    # TypeScript 编译 + esbuild 打包
+npm run lint     # Obsidian 官方 ESLint 规则
 ```
 
 - 两项都通过后才能提交
-- CI（Node 20.x/22.x 矩阵）会执行相同检查，本地未通过则 CI 必定失败
-- 禁止使用 `eslint-disable` 绕过 `obsidianmd/*` 规则（插件审核不允许）
+- CI（Node 20.x/22.x 矩阵）执行相同检查
+- 禁止 `eslint-disable` 绕过 `obsidianmd/*` 规则
 
 ## 新增功能开发流程
 
-1. **新增图床服务商**：继承 `UploaderBase`，实现 `upload()` 和 `testConnection()`，在 `uploader-factory.ts` 注册，在 `hosting-config.ts` 添加配置字段
+1. **新增图床服务商**：继承 `UploaderBase`，实现 `upload()` + `testConnection()`，在 `uploader-factory.ts` 注册，在 `hosting-config.ts` 添加配置字段
 2. **新增 Modal**：继承 Obsidian `Modal`，参考 `modals/` 下现有组件
 3. **新增命令**：在 `main.ts` 的 `addCommand()` 注册，复杂逻辑提取到独立模块
-4. **新增设置项**：在 `types.ts` 的 `ImageManagerSettings` 和 `DEFAULT_SETTINGS` 中添加，在 `settings.ts` 中渲染 UI
+4. **新增设置项**：在 `types.ts` 的 `ImageManagerSettings` + `DEFAULT_SETTINGS` 中添加，在 `settings.ts` 中渲染 UI
 5. **新增翻译**：在 `i18n/en.ts` 和 `i18n/zh.ts` 中添加键值对
 
 ## 待实现功能
 
-- **图床迁移**：命令已注册（`migrate-images`），显示"未实现"提示
+- **图床迁移**：命令已注册（`migrate-images`），类型已定义（`MigrationRecord`/`MigrationChange`），显示"未实现"提示
 - **恢复本地引用**：翻译键已存在（`command.restoreLocalRefs` 等），无实现代码
 
 ## 注意事项
@@ -237,17 +248,23 @@ npm run lint     # Obsidian 官方 ESLint 规则检查
 - `data.json` 包含测试用 API 密钥，已在 `.gitignore` 中
 - `main.js` 是构建产物，不要手动编辑
 - 发布产物：`main.js` + `manifest.json` + `styles.css`
-- CI 在 Node 20.x/22.x 上运行 build + lint
+- Obsidian 内置重命名会剥离 Markdown 引用的目录路径，插件通过 `vault rename` 事件 + `fixBrokenImageRefs` 修复
 
 ## 已修复问题
 
-### IME 输入法回车触发表单提交（2026-05-30 修复）
+### IME 输入法回车触发表单提交（1.0.1）
 
-- **问题**：中文输入法下按回车确认选字时，会直接触发表单提交，导致图片名称未正确输入
-- **根因**：`keydown` 事件未检查 `e.isComposing` 状态
-- **修复文件**：
-  - `modals/image-name-prompt.ts` 第 45 行
-  - `modals/rename-image.ts` 第 57 行
-  - `modals/confirm-dialog.ts` 第 22 行
-- **修复方式**：在 keydown 事件处理中添加 `if (e.isComposing) return;`
-- **效果**：输入法组合状态下（如拼音选字）按回车不会触发提交，只有输入法关闭后按回车才会触发
+- **问题**：中文输入法按回车确认选字时触发表单提交
+- **修复**：`keydown` 事件添加 `if (e.isComposing) return;`
+- **文件**：`image-name-prompt.ts`、`rename-image.ts`、`confirm-dialog.ts`
+
+### 重命名丢失目录路径（1.0.5）
+
+- **问题**：Obsidian 内置重命名将 `![alt](assets/folder/old.png)` 变为 `![alt](new.png)`
+- **修复**：监听 `vault rename` 事件，调用 `fixBrokenImageRefs` 恢复目录路径
+- **时序**：`window.setTimeout(() => {...}, 100)` 等待 Obsidian 完成内置更新
+
+### 引用计数错误（1.0.7）
+
+- **问题**：同一篇笔记引用 5 次显示"1 note(s)"而非"5 reference(s)"
+- **修复**：统计所有引用而非仅去重笔记数
