@@ -34,17 +34,30 @@ npm run lint     # ESLint 检查
 - 执行：`npm ci` → `npm run build` → 打包 `main.js` + `manifest.json` + `styles.css` 为 zip
 - 使用 `softprops/action-gh-release@v2` 创建 GitHub Release 并上传 4 个产物（`main.js`、`manifest.json`、`styles.css`、`md-image-manager.zip`）
 
-#### 发布流程
+#### 版本发布流程
+
+使用 `npm version` 一条命令完成版本发布，自动执行以下生命周期：
 
 ```bash
-# 1. 更新 manifest.json 中的 version
-# 2. 提交
-git add -A && git commit -m "release: vX.Y.Z"
-# 3. 打 tag 并推送
-git tag X.Y.Z
-git push origin master --tags
-# 4. GitHub Actions 自动创建 Release 并上传产物
+npm version patch   # 1.0.7 → 1.0.8（修复）
+npm version minor   # 1.0.7 → 1.1.0（新功能）
+npm version major   # 1.0.7 → 2.0.0（破坏性变更）
 ```
+
+| 阶段 | 脚本 | 动作 |
+| ----- | ---- | ---- |
+| `preversion` | `npm run build` | 构建检查（lint + tsc + esbuild），失败则中止 |
+| `version` | `version-bump.mjs` | 更新 `manifest.json` 版本号、`versions.json` 添加新版本条目（置顶） |
+| `version` | `git add` | 暂存 `manifest.json`、`versions.json`、`package.json`、`package-lock.json` |
+| npm 自动 | — | 修改 `package.json` 版本号，创建 commit（`vX.Y.Z`）和 tag（`X.Y.Z`） |
+| `postversion` | `git push` | 推送 commit 和 tag 到 `origin master`，触发 GitHub Actions Release |
+
+**`version-bump.mjs` 逻辑**：
+
+- 从 `manifest.json` 读取 `minAppVersion`
+- 将 `manifest.json` 的 `version` 更新为目标版本
+- 在 `versions.json` 开头插入 `{ "X.Y.Z": "minAppVersion" }` 条目
+- 若目标版本已存在则跳过
 
 ## 架构
 
