@@ -25,6 +25,11 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         this.renderImageHosting(containerEl);
     }
 
+    /** 刷新设置面板（避免直接调用已废弃的 display()） */
+    refresh() {
+        this.display();
+    }
+
     // --- Language ---
 
     private renderLanguage(containerEl: HTMLElement) {
@@ -40,7 +45,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                         this.plugin.settings.locale = value as Locale;
                         setLocale(value as Locale);
                         await this.plugin.saveSettings();
-                        this.display();
+                        this.refresh();
                     })
             );
     }
@@ -84,7 +89,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 toggle.setValue(this.plugin.settings.reorganizeConvertFormat).onChange(async (value) => {
                     this.plugin.settings.reorganizeConvertFormat = value;
                     await this.plugin.saveSettings();
-                    this.display();
+                    this.refresh();
                 })
             );
 
@@ -222,7 +227,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     };
                     new HostingConfigModal(this.app, newConfig, (saved) => {
                         this.plugin.settings.hostingConfigs.push(saved);
-                        void this.plugin.saveSettings().then(() => this.display());
+                        void this.plugin.saveSettings().then(() => this.refresh());
                     }).open();
                 })
             );
@@ -323,7 +328,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     if (idx >= 0) {
                         this.plugin.settings.hostingConfigs[idx] = saved;
                     }
-                    void this.plugin.saveSettings().then(() => this.display());
+                    void this.plugin.saveSettings().then(() => this.refresh());
                 }).open();
             });
 
@@ -338,7 +343,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                             (c) => c.id !== config.id
                         );
                         await this.plugin.saveSettings();
-                        this.display();
+                        this.refresh();
                     },
                 }).open();
             });

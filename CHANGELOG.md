@@ -12,6 +12,7 @@
 #### Improvements
 
 - Refactored `settings.ts`: split monolithic `display()` into 6 independent methods (`renderLanguage`, `renderGeneral`, `renderImageNaming`, `renderCompression`, `renderGallery`, `renderImageHosting`)
+- Added `refresh()` wrapper to consolidate all `display()` calls, reducing deprecated API warnings from 5 to 1
 - Optimized version release workflow: `npm version` now automatically runs build check, updates versions.json (newest first), stages all files, commits, tags, and pushes
 - Bumped `minAppVersion` from 1.7.0 to 1.12.0
 
@@ -26,6 +27,7 @@
 #### 改进
 
 - `settings.ts` 模块化拆分：将单体 `display()` 拆分为 6 个独立方法（`renderLanguage`、`renderGeneral`、`renderImageNaming`、`renderCompression`、`renderGallery`、`renderImageHosting`）
+- 新增 `refresh()` 方法封装所有 `display()` 调用，deprecated 警告从 5 处降至 1 处
 - 优化版本发布流程：`npm version` 自动执行构建检查、更新 versions.json（新版本置顶）、暂存文件、提交、打 tag、推送
 - `minAppVersion` 从 1.7.0 提升至 1.12.0
 
