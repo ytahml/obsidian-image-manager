@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.0.5
+
+### 🇺🇸 English
+
+#### New features
+
+- Added rename button in image browser preview
+
+#### Improvements
+
+- Rename dialog now shows only the filename stem and preserves the extension automatically
+- Default settings adjusted: auto-replace after upload and keep local copy are now off by default
+
+#### Fixes
+
+- Fixed rename losing directory path in image references
+
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 图片浏览器预览新增重命名按钮
+
+#### 改进
+
+- 重命名弹窗输入框只显示文件名主干，自动保留扩展名
+- 调整默认设置：上传后自动替换和保留本地副本默认关闭
+
+#### 修复
+
+- 修复图片重命名引用丢失目录路径问题
+
+---
+
 ## 1.0.4
 
 ### 🇺🇸 English
