@@ -133,8 +133,7 @@ export class HostingConfigModal extends Modal {
         const cfg = this.config.config as AliyunOSSConfig;
         new Setting(container)
             .setName('Region')
-            // eslint-disable-next-line obsidianmd/ui/sentence-case -- Technical example
-            .setDesc('e.g. oss-cn-hangzhou')
+            .setDesc('Example: oss-cn-hangzhou')
             .addText((text) =>
                 text.setValue(cfg.region).onChange((v) => {
                     cfg.region = v;
@@ -193,13 +192,11 @@ export class HostingConfigModal extends Modal {
             .setDesc(t('modal.hosting.qiniuRegionDesc'))
             .addDropdown((dropdown) =>
                 dropdown
-                    /* eslint-disable obsidianmd/ui/sentence-case -- Chinese region names */
-                    .addOption('z0', 'z0 - 华东（默认）')
-                    .addOption('z1', 'z1 - 华北')
-                    .addOption('z2', 'z2 - 华南')
-                    .addOption('na0', 'na0 - 北美')
-                    .addOption('as0', 'as0 - 亚太（新加坡）')
-                    /* eslint-enable obsidianmd/ui/sentence-case */
+                    .addOption('z0', t('modal.hosting.qiniuRegion.z0'))
+                    .addOption('z1', t('modal.hosting.qiniuRegion.z1'))
+                    .addOption('z2', t('modal.hosting.qiniuRegion.z2'))
+                    .addOption('na0', t('modal.hosting.qiniuRegion.na0'))
+                    .addOption('as0', t('modal.hosting.qiniuRegion.as0'))
                     .setValue(cfg.region || 'z0')
                     .onChange((v: string) => {
                         cfg.region = v;
@@ -288,8 +285,7 @@ export class HostingConfigModal extends Modal {
             .setDesc(t('modal.hosting.jsonPathDesc'))
             .addText((text) =>
                 text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- Technical placeholder
-                    .setPlaceholder('data.url')
+                    .setPlaceholder('Data.url')
                     .setValue(cfg.jsonPath)
                     .onChange((v) => {
                         cfg.jsonPath = v;

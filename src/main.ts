@@ -148,12 +148,16 @@ export default class ImageManagerPlugin extends Plugin {
         // Intercept paste and drop for custom image reference format
         this.registerEvent(
             this.app.workspace.on('editor-paste', (evt, editor, info) => {
-                this.handleImagePaste(evt, editor, info.file);
+                if (evt.defaultPrevented) return;
+                const handled = this.handleImagePaste(evt, editor, info.file);
+                if (handled) evt.preventDefault();
             })
         );
         this.registerEvent(
             this.app.workspace.on('editor-drop', (evt, editor, info) => {
-                this.handleImageDrop(evt, editor, info.file);
+                if (evt.defaultPrevented) return;
+                const handled = this.handleImageDrop(evt, editor, info.file);
+                if (handled) evt.preventDefault();
             })
         );
 
@@ -162,7 +166,7 @@ export default class ImageManagerPlugin extends Plugin {
         this.registerEvent(
             this.app.vault.on('rename', (file, oldPath) => {
                 if (!(file instanceof TFile) || !this.isImageFile(file)) return;
-                setTimeout(() => {
+                window.setTimeout(() => {
                     void this.batchRename.fixBrokenImageRefs(oldPath, file.path);
                 }, 100);
             })
@@ -636,30 +640,26 @@ export default class ImageManagerPlugin extends Plugin {
         new Notice(t('notice.convertSuccess', { count: String(totalCount) }));
     }
 
-    private handleImagePaste(evt: ClipboardEvent, editor: import('obsidian').Editor, file: TFile | null) {
-        if (evt.defaultPrevented) return;
+    private handleImagePaste(evt: ClipboardEvent, editor: import('obsidian').Editor, file: TFile | null): boolean {
         const files = evt.clipboardData?.files;
-        if (!files || files.length === 0) return;
+        if (!files || files.length === 0) return false;
 
         const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-        if (imageFiles.length === 0) return;
-
-        evt.preventDefault();
+        if (imageFiles.length === 0) return false;
 
         this.processImageFiles(imageFiles, editor, file);
+        return true;
     }
 
-    private handleImageDrop(evt: DragEvent, editor: import('obsidian').Editor, file: TFile | null) {
-        if (evt.defaultPrevented) return;
+    private handleImageDrop(evt: DragEvent, editor: import('obsidian').Editor, file: TFile | null): boolean {
         const files = evt.dataTransfer?.files;
-        if (!files || files.length === 0) return;
+        if (!files || files.length === 0) return false;
 
         const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-        if (imageFiles.length === 0) return;
-
-        evt.preventDefault();
+        if (imageFiles.length === 0) return false;
 
         this.processImageFiles(imageFiles, editor, file);
+        return true;
     }
 
     private processImageFiles(files: File[], editor: import('obsidian').Editor, currentFile: TFile | null) {
@@ -808,7 +808,7 @@ export default class ImageManagerPlugin extends Plugin {
             try {
                 const blob = new Blob([data], { type: mimeType });
                 const img = await this.blobToImage(blob);
-                const canvas = document.createElement('canvas');
+                const canvas = activeDocument.createElement('canvas');
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
                 const ctx = canvas.getContext('2d')!;

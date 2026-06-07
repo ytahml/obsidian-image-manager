@@ -18,7 +18,7 @@ export class ImageBrowserModal extends Modal {
     private sortSelect: HTMLSelectElement | null = null;
     private orphanBtn: HTMLButtonElement | null = null;
     private showOrphansOnly = false;
-    private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private debounceTimer: number | null = null;
 
     constructor(app: App, plugin: ImageManagerPlugin) {
         super(app);
@@ -78,7 +78,7 @@ export class ImageBrowserModal extends Modal {
     }
 
     onClose() {
-        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
         this.contentEl.empty();
     }
 
@@ -88,8 +88,8 @@ export class ImageBrowserModal extends Modal {
     }
 
     private onSearchInput() {
-        if (this.debounceTimer) clearTimeout(this.debounceTimer);
-        this.debounceTimer = setTimeout(() => this.applyFilterAndSort(), 300);
+        if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+        this.debounceTimer = window.setTimeout(() => this.applyFilterAndSort(), 300);
     }
 
     private onSortChange() {

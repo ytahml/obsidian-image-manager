@@ -54,13 +54,13 @@ export class ConfirmDialog extends Modal {
         });
         confirmBtn.addEventListener('click', () => void this.handleConfirm());
 
-        document.addEventListener('keydown', this.keyHandler);
+        activeDocument.addEventListener('keydown', this.keyHandler);
     }
 
     onClose() {
         const { contentEl } = this;
         contentEl.empty();
-        document.removeEventListener('keydown', this.keyHandler);
+        activeDocument.removeEventListener('keydown', this.keyHandler);
     }
 
     private async handleConfirm() {
