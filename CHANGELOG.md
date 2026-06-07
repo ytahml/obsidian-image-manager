@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.0.6
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Fixed plugin review errors: API compatibility, sentence-case violations, event handler guards, popout window compatibility
+- Bumped `minAppVersion` from 1.4.0 to 1.7.0 (`trashFile` API requires 1.6.6+)
+
+#### Improvements
+
+- Upgraded `eslint-plugin-obsidianmd` to 0.3.0 with full Obsidian official rule set (33 rules)
+- Added `window.setTimeout`/`window.clearTimeout` for popout window compatibility
+- Added `activeDocument` instead of `document` for popout window compatibility
+- Added `evt.defaultPrevented` check and `evt.preventDefault()` in editor-paste/editor-drop handlers
+- Moved Qiniu region names to i18n system
+- Pinned TypeScript to 5.8.x, CI to Node 22.x only
+- Cleaned up project dependencies
+
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 修复插件审核报错：API 兼容性、sentence-case 违规、事件处理器守卫、popout 窗口兼容性
+- `minAppVersion` 从 1.4.0 提升至 1.7.0（`trashFile` API 需要 1.6.6+）
+
+#### 改进
+
+- 升级 `eslint-plugin-obsidianmd` 至 0.3.0，启用完整 Obsidian 官方规则集（33 条规则）
+- `setTimeout`/`clearTimeout` 改用 `window.*` 版本，兼容 popout 窗口
+- `document` 改用 `activeDocument`，兼容 popout 窗口
+- `editor-paste`/`editor-drop` 处理器添加 `evt.defaultPrevented` 检查和 `evt.preventDefault()` 调用
+- 七牛云区域名称移入 i18n 系统
+- 锁定 TypeScript 5.8.x，CI 仅保留 Node 22.x
+- 整理项目依赖版本
+
+---
+
 ## 1.0.5
 
 ### 🇺🇸 English
