@@ -93,7 +93,7 @@ src/
 
 ## ESLint 配置
 
-项目使用 `typescript-eslint` 的 `recommendedTypeChecked` 规则集，配合 `eslint-plugin-obsidianmd`。
+项目使用 `eslint-plugin-obsidianmd@0.3.0` 官方插件（`obsidianmd.configs.recommended`），内含 `typescript-eslint` 的 `recommendedTypeChecked` 规则集。
 
 ### 关键规则
 
@@ -105,11 +105,15 @@ src/
 | `@typescript-eslint/no-unsafe-member-access` | 禁止在 `any` 上访问成员 |
 | `@typescript-eslint/require-await` | async 函数必须包含 await |
 | `@typescript-eslint/restrict-template-expressions` | 模板字符串不能使用 `never` 类型 |
-| `obsidianmd/ui/sentence-case` | UI 文本使用 sentence case（首字母大写，其余小写） |
+| `obsidianmd/ui/sentence-case` | UI 文本使用 sentence case（首字母大写，其余小写），不允许 eslint-disable |
 | `obsidianmd/settings-tab/no-manual-html-headings` | 使用 `new Setting().setName().setHeading()` 代替 `createEl('h3')` |
 | `obsidianmd/no-static-styles-assignment` | 使用 CSS 类代替 `element.style.*` 直接赋值 |
 | `obsidianmd/no-tfile-tfolder-cast` | 使用 `instanceof TFile` 代替 `as TFile` 类型断言 |
 | `obsidianmd/prefer-file-manager-trash-file` | 使用 `fileManager.trashFile()` 代替 `vault.delete()` |
+| `obsidianmd/prefer-window-timers` | 使用 `window.setTimeout`/`window.clearTimeout` 代替全局版本 |
+| `obsidianmd/prefer-active-doc` | 使用 `activeDocument` 代替 `document`（popout 窗口兼容） |
+| `obsidianmd/editor-drop-paste` | `editor-paste`/`editor-drop` 处理器需检查 `evt.defaultPrevented` 并调用 `evt.preventDefault()` |
+| `obsidianmd/no-unsupported-api` | 禁止使用高于 `minAppVersion` 声明的 Obsidian API |
 | `no-console` | 仅允许 `console.warn`、`console.error`、`console.debug` |
 
 ### 常见修复模式
@@ -153,7 +157,54 @@ const file = vault.getAbstractFileByPath(path) as TFile;
 // ✅
 const file = vault.getAbstractFileByPath(path);
 if (!(file instanceof TFile)) throw new Error('Not a file');
+
+// 9. window 定时器（popout 窗口兼容）
+// ❌
+setTimeout(() => {}, 100);
+clearTimeout(timer);
+// ✅
+window.setTimeout(() => {}, 100);
+window.clearTimeout(timer);
+
+// 10. activeDocument（popout 窗口兼容）
+// ❌
+document.createElement('canvas');
+document.addEventListener('keydown', handler);
+// ✅
+activeDocument.createElement('canvas');
+activeDocument.addEventListener('keydown', handler);
+
+// 11. 事件处理器返回值（editor-paste/editor-drop）
+// ❌ 直接在处理器中调用 preventDefault
+private handlePaste(evt: ClipboardEvent, editor: Editor, file: TFile | null) {
+    evt.preventDefault(); // 不应在处理器内调用
+}
+// ✅ 处理器返回 boolean，由注册处调用 preventDefault
+private handlePaste(evt: ClipboardEvent, editor: Editor, file: TFile | null): boolean {
+    if (!imageFiles.length) return false;
+    // ... 处理逻辑
+    return true;
+}
+// 注册处：
+this.registerEvent(this.app.workspace.on('editor-paste', (evt, editor, info) => {
+    if (evt.defaultPrevented) return;
+    const handled = this.handlePaste(evt, editor, info.file);
+    if (handled) evt.preventDefault();
+}));
 ```
+
+## 开发完成检查清单
+
+**每次功能开发或修改完成后，必须执行以下检查：**
+
+```bash
+npm run build    # TypeScript 编译检查 + esbuild 打包
+npm run lint     # Obsidian 官方 ESLint 规则检查
+```
+
+- 两项都通过后才能提交
+- CI（Node 20.x/22.x 矩阵）会执行相同检查，本地未通过则 CI 必定失败
+- 禁止使用 `eslint-disable` 绕过 `obsidianmd/*` 规则（插件审核不允许）
 
 ## 新增功能开发流程
 

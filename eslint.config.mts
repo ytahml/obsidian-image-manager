@@ -1,6 +1,5 @@
 import tseslint from 'typescript-eslint';
 import obsidianmd from "eslint-plugin-obsidianmd";
-import globals from "globals";
 import { globalIgnores } from "eslint/config";
 
 export default tseslint.config(
@@ -8,35 +7,24 @@ export default tseslint.config(
 		"node_modules",
 		"dist",
 		"esbuild.config.mjs",
-		"eslint.config.js",
 		"version-bump.mjs",
 		"versions.json",
 		"main.js",
 	]),
-	{
-		languageOptions: {
-			globals: {
-				...globals.browser,
-			},
-		},
-	},
 	...obsidianmd.configs.recommended,
 	{
-		files: ['**/*.ts'],
+		files: ['**/*.ts', '**/*.tsx'],
 		languageOptions: {
 			parserOptions: {
-				projectService: {
-					allowDefaultProject: [
-						'eslint.config.js',
-						'manifest.json'
-					]
-				},
+				projectService: true,
 				tsconfigRootDir: import.meta.dirname,
 			},
 		},
 	},
-	...tseslint.configs.recommendedTypeChecked.map(config => ({
-		...config,
-		files: ['**/*.ts'],
-	})),
+	{
+		files: ["package.json"],
+		rules: {
+			"obsidianmd/no-plugin-as-component": "off",
+		},
+	},
 );
