@@ -50,32 +50,58 @@ export class ImagePreviewModal extends Modal {
         // Referencing notes
         const finder = new OrphanFinder(this.app, this.plugin.settings.supportedExtensions);
         const notes = await finder.getReferencingNotes(this.file);
+        const totalRefs = notes.reduce((sum, n) => sum + n.lines.length, 0);
 
         const refRow = infoEl.createDiv({ cls: 'image-preview-meta' });
         refRow.createSpan({ cls: 'image-preview-label', text: t('modal.preview.references') });
         if (notes.length === 0) {
             refRow.createSpan({ cls: 'image-preview-orphan', text: t('modal.preview.orphan') });
         } else {
-            refRow.createSpan({ text: t('modal.preview.refCount', { count: String(notes.length) }) });
-        }
+            refRow.createSpan({
+                text: t('modal.preview.refCount', {
+                    total: String(totalRefs),
+                    notes: String(notes.length),
+                }),
+            });
 
-        // Show referencing notes list
-        if (notes.length > 0) {
-            const notesList = infoEl.createDiv({ cls: 'image-preview-notes' });
+            // Expandable details
+            const detailsToggle = refRow.createSpan({
+                cls: 'image-preview-details-toggle',
+                text: ' ▸',
+            });
+            const notesList = infoEl.createDiv({ cls: 'image-preview-notes image-preview-notes-hidden' });
+            let expanded = false;
+
+            detailsToggle.addEventListener('click', () => {
+                expanded = !expanded;
+                detailsToggle.setText(expanded ? ' ▾' : ' ▸');
+                notesList.toggleClass('image-preview-notes-hidden', !expanded);
+            });
+
             for (const note of notes.slice(0, 10)) {
-                const noteRow = notesList.createDiv({ cls: 'image-preview-note-item image-preview-note-link' });
-                noteRow.createSpan({ text: note.path });
-                noteRow.addEventListener('click', () => {
-                    this.close();
-                    this.browserModal?.close();
-                    void this.app.workspace.openLinkText(note.path, note.path, true).then(() => {
-                        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-                        if (activeView) {
-                            activeView.editor.setCursor(note.line);
-                            activeView.editor.scrollIntoView({ from: { line: note.line, ch: 0 }, to: { line: note.line, ch: 0 } }, true);
-                        }
+                const noteRow = notesList.createDiv({ cls: 'image-preview-note-item' });
+                noteRow.createSpan({ cls: 'image-preview-note-path', text: note.path });
+                const linesSpan = noteRow.createSpan({ cls: 'image-preview-note-lines' });
+                for (const line of note.lines) {
+                    const lineLink = linesSpan.createSpan({
+                        cls: 'image-preview-note-line-link',
+                        text: `:${line + 1}`,
                     });
-                });
+                    lineLink.addEventListener('click', () => {
+                        this.close();
+                        this.browserModal?.close();
+                        void this.app.workspace.openLinkText(note.path, note.path, true).then(() => {
+                            const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+                            if (activeView) {
+                                activeView.editor.setCursor(line);
+                                activeView.editor.scrollIntoView(
+                                    { from: { line, ch: 0 }, to: { line, ch: 0 } },
+                                    true
+                                );
+                            }
+                        });
+                    });
+                }
             }
             if (notes.length > 10) {
                 notesList.createDiv({

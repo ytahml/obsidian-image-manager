@@ -53,25 +53,26 @@ export class OrphanFinder {
     }
 
     /**
-     * 获取引用指定图片的笔记路径和行号列表
+     * 获取引用指定图片的笔记路径和所有引用行号列表
      */
-    async getReferencingNotes(file: TFile): Promise<Array<{ path: string; line: number }>> {
-        const notes: Array<{ path: string; line: number }> = [];
+    async getReferencingNotes(file: TFile): Promise<Array<{ path: string; lines: number[] }>> {
+        const notes: Array<{ path: string; lines: number[] }> = [];
         const mdFiles = this.app.vault.getMarkdownFiles();
 
         for (const mdFile of mdFiles) {
             const content = await this.app.vault.cachedRead(mdFile);
-            const line = this.findReferenceLine(content, file, mdFile.path);
-            if (line >= 0) {
-                notes.push({ path: mdFile.path, line });
+            const lines = this.findReferenceLines(content, file, mdFile.path);
+            if (lines.length > 0) {
+                notes.push({ path: mdFile.path, lines });
             }
         }
 
         return notes;
     }
 
-    private findReferenceLine(text: string, file: TFile, notePath: string): number {
+    private findReferenceLines(text: string, file: TFile, notePath: string): number[] {
         const noteDir = notePath.substring(0, notePath.lastIndexOf('/'));
+        const result: number[] = [];
 
         // Check markdown references
         let match: RegExpExecArray | null;
@@ -81,11 +82,10 @@ export class OrphanFinder {
             if (path && !path.startsWith('http://') && !path.startsWith('https://')) {
                 const decoded = this.tryDecode(path);
                 if (decoded === file.path || decoded === file.name) {
-                    return text.substring(0, match.index).split('\n').length - 1;
-                }
-                if (decoded.startsWith('../') || decoded.startsWith('./') || (!decoded.startsWith('/') && decoded.includes('/'))) {
+                    result.push(text.substring(0, match.index).split('\n').length - 1);
+                } else if (decoded.startsWith('../') || decoded.startsWith('./') || (!decoded.startsWith('/') && decoded.includes('/'))) {
                     if (this.resolveRelative(noteDir, decoded) === file.path) {
-                        return text.substring(0, match.index).split('\n').length - 1;
+                        result.push(text.substring(0, match.index).split('\n').length - 1);
                     }
                 }
             }
@@ -97,12 +97,12 @@ export class OrphanFinder {
             const path = match[1]?.trim();
             if (path && !path.startsWith('http://') && !path.startsWith('https://')) {
                 if (path === file.path || path === file.name) {
-                    return text.substring(0, match.index).split('\n').length - 1;
+                    result.push(text.substring(0, match.index).split('\n').length - 1);
                 }
             }
         }
 
-        return -1;
+        return result;
     }
 
     private resolveRelative(baseDir: string, relativePath: string): string {

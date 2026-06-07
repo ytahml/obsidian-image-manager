@@ -175,6 +175,38 @@
     font-style: italic;
 }
 
+.image-preview-details-toggle {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    color: var(--text-muted);
+}
+
+.image-preview-notes-hidden {
+    display: none;
+}
+
+.image-preview-note-path {
+    margin-right: 6px;
+}
+
+.image-preview-note-lines {
+    display: inline-flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.image-preview-note-line-link {
+    cursor: pointer;
+    color: var(--text-accent);
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+}
+
+.image-preview-note-line-link:hover {
+    text-decoration: underline;
+}
+
 .image-preview-buttons {
     display: flex;
     justify-content: flex-end;

@@ -105,7 +105,7 @@ export const en: Record<string, string> = {
     'modal.preview.size': 'Size: ',
     'modal.preview.references': 'References: ',
     'modal.preview.orphan': 'No references (orphan)',
-    'modal.preview.refCount': '{count} note(s)',
+    'modal.preview.refCount': '{total} reference(s) in {notes} note(s)',
     'modal.preview.copyRef': 'Copy Reference',
     'modal.preview.insert': 'Insert into Editor',
     'modal.preview.upload': 'Upload to Hosting',

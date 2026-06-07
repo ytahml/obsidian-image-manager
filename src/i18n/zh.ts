@@ -104,7 +104,7 @@ export const zh: Record<string, string> = {
     'modal.preview.size': '大小：',
     'modal.preview.references': '引用：',
     'modal.preview.orphan': '无引用（孤立图片）',
-    'modal.preview.refCount': '{count} 个笔记引用',
+    'modal.preview.refCount': '{total} 处引用，来自 {notes} 个笔记',
     'modal.preview.copyRef': '复制引用',
     'modal.preview.insert': '插入编辑器',
     'modal.preview.upload': '上传到图床',
