@@ -149,10 +149,10 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     hostingConfigs: [],
     defaultHostingId: '',
     uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',
-    autoReplaceAfterUpload: true,
+    autoReplaceAfterUpload: false,
     reorganizeConvertFormat: true,
     skipWikiRefsOnReorganize: true,
     enableImageBrowser: true,
     autoUploadOnPaste: false,
-    keepLocalCopy: true,
+    keepLocalCopy: false,
 };
