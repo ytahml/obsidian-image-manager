@@ -368,13 +368,13 @@ export class HostingConfigModal extends Modal {
     private getDefaultProviderConfig(type: HostingType): AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig {
         switch (type) {
             case 'aliyun-oss':
-                return { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' } as AliyunOSSConfig;
+                return { region: '', accessKeyId: '', accessKeySecret: '', bucket: '' };
             case 'qiniu':
-                return { accessKey: '', secretKey: '', bucket: '', region: 'z0' } as QiniuConfig;
+                return { accessKey: '', secretKey: '', bucket: '', region: 'z0' };
             case 's3':
-                return { endpoint: '', region: '', accessKeyId: '', secretAccessKey: '', bucket: '', forcePathStyle: false } as S3Config;
+                return { endpoint: '', region: '', accessKeyId: '', secretAccessKey: '', bucket: '', forcePathStyle: false };
             case 'custom':
-                return { uploadUrl: '', method: 'POST' as const, headers: {}, fileFieldName: 'file', jsonPath: 'data.url', extraBody: {} } as CustomConfig;
+                return { uploadUrl: '', method: 'POST' as const, headers: {}, fileFieldName: 'file', jsonPath: 'data.url', extraBody: {} };
         }
     }
 }

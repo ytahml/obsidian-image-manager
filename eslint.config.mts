@@ -27,4 +27,12 @@ export default tseslint.config(
 			"obsidianmd/no-plugin-as-component": "off",
 		},
 	},
+	{
+		files: ["src/settings.ts"],
+		rules: {
+			// display() 已废弃但 getSettingDefinitions() 是声明式 API，
+			// 当前 settings.ts 有动态图床列表等复杂逻辑，全面重写风险大
+			"@typescript-eslint/no-deprecated": "off",
+		},
+	},
 );
