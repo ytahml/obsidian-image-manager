@@ -228,7 +228,8 @@ src/
 
 ### Image Rename
 
-- Can rename in image browser preview, auto sync update all references
+- Command palette → "Rename image", or right-click file → rename in file explorer
+- Auto sync update all markdown references, preserving directory paths
 
 ### Image Resource Organization
 

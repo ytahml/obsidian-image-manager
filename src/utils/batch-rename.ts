@@ -25,11 +25,12 @@ export class BatchRename {
         const parentDir = file.parent?.path ?? '';
         const newPath = parentDir ? `${parentDir}/${newName}` : newName;
 
+        // Update references BEFORE vault.rename() — Obsidian auto-updates links
+        // after rename, which conflicts with our own updates
+        const notesUpdated = await this.updateReferencesBeforeRename(file, oldName, newName);
+
         // Rename the file
         await this.app.vault.rename(file, newPath);
-
-        // Update all references in markdown files
-        const notesUpdated = await this.updateReferences(oldName, newName, file.path, newPath);
 
         const renamedFile = this.app.vault.getAbstractFileByPath(newPath);
         if (!(renamedFile instanceof TFile)) {
@@ -45,14 +46,11 @@ export class BatchRename {
     }
 
     /**
-     * 更新所有笔记中对旧文件名的引用
+     * 在 vault.rename() 之前更新引用，避免与 Obsidian 内置链接更新器冲突
+     * vault.rename() 会触发 Obsidian 自动更新 wiki 链接，导致我们的更新被覆盖
      */
-    private async updateReferences(
-        oldName: string,
-        newName: string,
-        oldPath: string,
-        newPath: string
-    ): Promise<number> {
+    private async updateReferencesBeforeRename(file: TFile, oldName: string, newName: string): Promise<number> {
+        const oldPath = file.path;
         const mdFiles = this.app.vault.getMarkdownFiles();
         let updatedCount = 0;
 
@@ -69,27 +67,7 @@ export class BatchRename {
                 const refName = ref.path.split('/').pop() ?? ref.path;
 
                 if (refName === oldName || ref.path === oldPath || ref.path === oldName) {
-                    // Build new reference
-                    let newRefPath = ref.path;
-                    if (ref.path === oldPath) {
-                        newRefPath = newPath;
-                    } else if (refName === oldName) {
-                        // Replace just the filename part
-                        const dir = ref.path.substring(0, ref.path.lastIndexOf('/'));
-                        newRefPath = dir ? `${dir}/${newName}` : newName;
-                    }
-
-                    let newRef: string;
-                    if (ref.format === 'wiki') {
-                        if (ref.altText) {
-                            newRef = `![[${newRefPath}|${ref.altText}]]`;
-                        } else {
-                            newRef = `![[${newRefPath}]]`;
-                        }
-                    } else {
-                        newRef = `![${ref.altText}](${newRefPath})`;
-                    }
-
+                    const newRef = this.buildUpdatedRef(ref, oldName, newName, oldPath);
                     newContent =
                         newContent.substring(0, ref.col) +
                         newRef +
@@ -105,5 +83,88 @@ export class BatchRename {
         }
 
         return updatedCount;
+    }
+
+    /**
+     * 修复 Obsidian 内置重命名后丢失目录路径的图片引用
+     * Obsidian 的链接更新器会将 `![alt](assets/folder/old.png)` 变为 `![alt](new.png)`，
+     * 丢失了相对路径中的目录部分
+     */
+    async fixBrokenImageRefs(oldPath: string, newPath: string): Promise<number> {
+        const oldName = oldPath.split('/').pop() ?? oldPath;
+        const newName = newPath.split('/').pop() ?? newPath;
+        const oldBaseName = oldName.replace(/\.[^.]+$/, '');
+        const newBaseName = newName.replace(/\.[^.]+$/, '');
+        const mdFiles = this.app.vault.getMarkdownFiles();
+        let updatedCount = 0;
+
+        for (const mdFile of mdFiles) {
+            const content = await this.app.vault.cachedRead(mdFile);
+            const refs = this.refConverter.parseReferences(content);
+
+            let newContent = content;
+            let changed = false;
+
+            for (let i = refs.length - 1; i >= 0; i--) {
+                const ref = refs[i]!;
+
+                if (ref.path !== newName && ref.path.split('/').pop() !== newName) continue;
+
+                // Restore directory path
+                const dir = oldPath.substring(0, oldPath.lastIndexOf('/'));
+                const correctPath = dir ? `${dir}/${newName}` : newName;
+                if (ref.path === correctPath) continue;
+
+                // Update alt text if it was the old filename
+                let altText = ref.altText;
+                if (altText === oldBaseName || altText === oldName) {
+                    altText = newBaseName;
+                }
+
+                const newRef =
+                    ref.format === 'wiki'
+                        ? altText
+                            ? `![[${correctPath}|${altText}]]`
+                            : `![[${correctPath}]]`
+                        : `![${altText}](${correctPath})`;
+
+                newContent =
+                    newContent.substring(0, ref.col) +
+                    newRef +
+                    newContent.substring(ref.col + ref.fullMatch.length);
+                changed = true;
+            }
+
+            if (changed) {
+                await this.app.vault.process(mdFile, () => newContent);
+                updatedCount++;
+            }
+        }
+
+        return updatedCount;
+    }
+
+    /** 构建更新后的引用字符串，保留原有目录路径 */
+    private buildUpdatedRef(
+        ref: { path: string; altText: string; format: string; fullMatch: string },
+        oldName: string,
+        newName: string,
+        oldPath: string
+    ): string {
+        let newRefPath: string;
+        if (ref.path === oldPath || ref.path === oldName) {
+            // Full path match or bare filename — replace entire path
+            const dir = oldPath.substring(0, oldPath.lastIndexOf('/'));
+            newRefPath = dir ? `${dir}/${newName}` : newName;
+        } else {
+            // Filename match — preserve the reference's own directory
+            const dir = ref.path.substring(0, ref.path.lastIndexOf('/'));
+            newRefPath = dir ? `${dir}/${newName}` : newName;
+        }
+
+        if (ref.format === 'wiki') {
+            return ref.altText ? `![[${newRefPath}|${ref.altText}]]` : `![[${newRefPath}]]`;
+        }
+        return `![${ref.altText}](${newRefPath})`;
     }
 }

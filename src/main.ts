@@ -157,6 +157,17 @@ export default class ImageManagerPlugin extends Plugin {
             })
         );
 
+        // Fix image references after Obsidian's built-in rename
+        // Obsidian's link updater strips directory paths from markdown image refs
+        this.registerEvent(
+            this.app.vault.on('rename', (file, oldPath) => {
+                if (!(file instanceof TFile) || !this.isImageFile(file)) return;
+                setTimeout(() => {
+                    void this.batchRename.fixBrokenImageRefs(oldPath, file.path);
+                }, 100);
+            })
+        );
+
         // Right-click menu: image management
         this.registerEvent(
             this.app.workspace.on('file-menu', (menu, file) => {
