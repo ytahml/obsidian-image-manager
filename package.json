@@ -7,8 +7,10 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "npm run lint && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"lint": "eslint ."
+		"lint": "eslint .",
+		"preversion": "npm run build",
+		"version": "node version-bump.mjs && git add manifest.json versions.json package.json package-lock.json",
+		"postversion": "git push origin master --follow-tags"
 	},
 	"keywords": [],
 	"license": "0-BSD",
