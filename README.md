@@ -228,7 +228,7 @@ src/
 
 ### Image Rename
 
-- Command palette → "Rename image", or right-click file → rename in file explorer
+- Image browser preview → "Rename" button, or command palette → "Rename image", or right-click file → rename in file explorer
 - Auto sync update all markdown references, preserving directory paths
 
 ### Image Resource Organization

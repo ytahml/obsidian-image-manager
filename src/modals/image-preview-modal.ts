@@ -3,6 +3,7 @@ import type ImageManagerPlugin from '../main';
 import type { ImageHostingConfig } from '../types';
 import { OrphanFinder } from '../utils/orphan-finder';
 import { formatFileSize } from '../utils/path-utils';
+import { RenameImageModal } from './rename-image';
 import { t } from '../i18n';
 
 export class ImagePreviewModal extends Modal {
@@ -102,6 +103,10 @@ export class ImagePreviewModal extends Modal {
             uploadBtn.addEventListener('click', () => void this.uploadImage(configs));
         }
 
+        // Rename
+        const renameBtn = btnsEl.createEl('button', { text: t('modal.preview.rename') });
+        renameBtn.addEventListener('click', () => void this.renameImage());
+
         // Close
         const closeBtn = btnsEl.createEl('button', { text: t('modal.preview.close') });
         closeBtn.addEventListener('click', () => this.close());
@@ -147,6 +152,28 @@ export class ImagePreviewModal extends Modal {
                 void doUpload(config);
             }).open();
         }
+    }
+
+    private renameImage() {
+        new RenameImageModal(this.app, this.file, (newName) => {
+            void (async () => {
+                try {
+                    const result = await this.plugin.batchRename.renameImage(this.file, newName);
+                    this.file = result.file;
+                    new Notice(
+                        t('notice.renameSuccess', {
+                            old: result.oldName,
+                            new: result.newName,
+                            notes: String(result.notesUpdated),
+                        })
+                    );
+                    this.contentEl.empty();
+                    await this.onOpen();
+                } catch (e) {
+                    new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+                }
+            })();
+        }).open();
     }
 
     private getImageDimensions(file: TFile): Promise<{ width: number; height: number } | null> {

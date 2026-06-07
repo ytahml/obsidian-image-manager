@@ -108,6 +108,7 @@ export const zh: Record<string, string> = {
     'modal.preview.copyRef': '复制引用',
     'modal.preview.insert': '插入编辑器',
     'modal.preview.upload': '上传到图床',
+    'modal.preview.rename': '重命名',
     'modal.preview.close': '关闭',
     'notice.refCopied': '引用已复制到剪贴板',
 

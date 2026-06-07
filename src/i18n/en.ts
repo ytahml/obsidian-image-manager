@@ -109,6 +109,7 @@ export const en: Record<string, string> = {
     'modal.preview.copyRef': 'Copy Reference',
     'modal.preview.insert': 'Insert into Editor',
     'modal.preview.upload': 'Upload to Hosting',
+    'modal.preview.rename': 'Rename',
     'modal.preview.close': 'Close',
     'notice.refCopied': 'Reference copied to clipboard',
 
