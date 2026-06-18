@@ -1,5 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { RefConverter } from './ref-converter';
+import type { ImageManagerSettings } from '../types';
 
 export interface RenameResult {
     file: TFile;
@@ -11,10 +12,12 @@ export interface RenameResult {
 export class BatchRename {
     private app: App;
     private refConverter: RefConverter;
+    private settings: ImageManagerSettings;
 
-    constructor(app: App) {
+    constructor(app: App, settings: ImageManagerSettings) {
         this.app = app;
         this.refConverter = new RefConverter(app);
+        this.settings = settings;
     }
 
     /**
@@ -110,9 +113,34 @@ export class BatchRename {
 
                 if (ref.path !== newName && ref.path.split('/').pop() !== newName) continue;
 
+                // Skip if reference already points to a valid file
+                let decodedRefPath: string;
+                try {
+                    decodedRefPath = decodeURIComponent(ref.path);
+                } catch {
+                    decodedRefPath = ref.path;
+                }
+                // Try exact path, then resolve relative to note directory
+                const noteDir = mdFile.parent?.path ?? '';
+                const resolvedPath = noteDir ? `${noteDir}/${decodedRefPath}` : decodedRefPath;
+                if (this.app.vault.getAbstractFileByPath(decodedRefPath) ||
+                    this.app.vault.getAbstractFileByPath(resolvedPath)) continue;
+
                 // Restore directory path
-                const dir = oldPath.substring(0, oldPath.lastIndexOf('/'));
-                const correctPath = dir ? `${dir}/${newName}` : newName;
+                // For moves (directory changed), use new location; for renames, use old directory
+                const oldDir = oldPath.substring(0, oldPath.lastIndexOf('/'));
+                const newDir = newPath.substring(0, newPath.lastIndexOf('/'));
+                const dir = oldDir !== newDir ? newDir : oldDir;
+                const absolutePath = dir ? `${dir}/${newName}` : newName;
+
+                // Compute correct path: relative to note if imagePathBase is 'note'
+                let correctPath = absolutePath;
+                if (this.settings.imagePathBase === 'note' && ref.format === 'markdown') {
+                    const noteDir = mdFile.parent?.path ?? '';
+                    if (noteDir) {
+                        correctPath = this.refConverter.computeRelativePath(noteDir, absolutePath);
+                    }
+                }
                 if (ref.path === correctPath) continue;
 
                 // Update alt text if it was the old filename
