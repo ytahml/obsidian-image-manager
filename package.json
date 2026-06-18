@@ -1,6 +1,6 @@
 {
 	"name": "md-image-manager",
-	"version": "1.0.7",
+	"version": "1.0.8",
 	"description": "A powerful image management plugin for Obsidian",
 	"main": "main.js",
 	"type": "module",
