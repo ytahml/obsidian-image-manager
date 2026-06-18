@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.0.8
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Fixed reorganize command using vault absolute paths instead of relative paths when `imagePathBase` is set to "note"
+- Fixed conflict with Obsidian's "Always update internal links" setting: moving images no longer converts relative paths to invalid absolute paths
+- Fixed `fixBrokenImageRefs` using old path instead of new path when restoring directory references after file moves
+
+#### Improvements
+
+- `RefConverter.computeRelativePath` is now public for reuse
+- `BatchRename` constructor now accepts settings to support relative path computation
+- Added `isReorganizing` flag to prevent `fixBrokenImageRefs` from interfering during reorganize operations
+
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 修复整理图片命令在 `imagePathBase` 为 "note" 时使用 vault 绝对路径而非相对路径的问题
+- 修复与 Obsidian "始终更新内部链接" 设置的冲突：移动图片不再将相对路径转为无效的绝对路径
+- 修复 `fixBrokenImageRefs` 在文件移动后使用旧路径而非新路径恢复目录引用
+
+#### 改进
+
+- `RefConverter.computeRelativePath` 改为 public 以便复用
+- `BatchRename` 构造函数接收 settings 以支持相对路径计算
+- 添加 `isReorganizing` 标志，防止整理操作期间 `fixBrokenImageRefs` 干扰
+
+---
+
 ## 1.0.7
 
 ### 🇺🇸 English
