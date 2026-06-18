@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Obsidian 图片管理插件（ID: `md-image-manager`），TypeScript 编写，使用 Obsidian Plugin API。当前版本 `1.0.7`，`minAppVersion: 1.12.0`。
+Obsidian 图片管理插件（ID: `md-image-manager`），TypeScript 编写，使用 Obsidian Plugin API。当前版本 `1.0.8`，`minAppVersion: 1.12.0`。
 
 **核心功能**：图片压缩、图床上传（4 种服务商）、引用格式转换（Wiki ↔ Markdown）、图片浏览器、孤立图片检测、资源整理、批量重命名。
 
@@ -24,6 +24,29 @@ npm run dev      # watch 模式开发
 npm run build    # 生产构建（tsc 检查 + esbuild 压缩）
 npm run lint     # ESLint 检查（obsidianmd 官方插件 33 条规则）
 ```
+
+## 开发工作流程
+
+### 新功能或 Bug 修复
+
+1. **创建 Issue**：在 GitHub 仓库创建 issue，描述问题或功能需求
+2. **创建分支**：基于 issue 编号创建分支（如 `fix/issue-1`、`feat/issue-2`）
+3. **开发实现**：在分支上进行开发，遵循编码规范
+4. **提交代码**：commit message 格式为 `fix: 描述` 或 `feat: 描述`，末尾添加 `Closes #issue编号`
+5. **合并到 master**：手动合并分支到 master
+6. **发布版本**：运行 `npm version patch/minor/major` 自动构建、打 tag、推送
+
+### 他人提交的 Issue
+
+省去创建 issue 步骤，直接从步骤 2 开始。
+
+### 分支命名规范
+
+| 类型 | 格式 | 示例 |
+| --- | --- | --- |
+| Bug 修复 | `fix/issue-N` | `fix/issue-1` |
+| 新功能 | `feat/issue-N` | `feat/issue-2` |
+| 其他 | `fix/描述` 或 `feat/描述` | `fix/reorganize-paths` |
 
 ## CI/CD
 
