@@ -20,13 +20,14 @@ export default class ImageManagerPlugin extends Plugin {
     refConverter: RefConverter;
     imageOptimizer: ImageOptimizer;
     batchRename: BatchRename;
+    private isReorganizing = false;
     async onload() {
         await this.loadSettings();
         setLocale(this.settings.locale);
 
         this.refConverter = new RefConverter(this.app);
         this.imageOptimizer = new ImageOptimizer(this.app);
-        this.batchRename = new BatchRename(this.app);
+        this.batchRename = new BatchRename(this.app, this.settings);
 
         // Ribbon icon
         if (this.settings.enableImageBrowser) {
@@ -166,6 +167,7 @@ export default class ImageManagerPlugin extends Plugin {
         this.registerEvent(
             this.app.vault.on('rename', (file, oldPath) => {
                 if (!(file instanceof TFile) || !this.isImageFile(file)) return;
+                if (this.isReorganizing) return;
                 window.setTimeout(() => {
                     void this.batchRename.fixBrokenImageRefs(oldPath, file.path);
                 }, 100);
@@ -590,6 +592,7 @@ export default class ImageManagerPlugin extends Plugin {
 
     private async reorganizeNote(file: TFile) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
+        this.isReorganizing = true;
         try {
             const result = await reorganizer.reorganizeNote(file, this.settings.reorganizeConvertFormat ? 'markdown' : undefined);
             new Notice(
@@ -601,11 +604,14 @@ export default class ImageManagerPlugin extends Plugin {
             );
         } catch (e) {
             new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+        } finally {
+            this.isReorganizing = false;
         }
     }
 
     private async reorganizeFolder(folderPath: string) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
+        this.isReorganizing = true;
         try {
             const result = await reorganizer.reorganizeFolder(folderPath, this.settings.reorganizeConvertFormat ? 'markdown' : undefined);
             new Notice(
@@ -617,6 +623,8 @@ export default class ImageManagerPlugin extends Plugin {
             );
         } catch (e) {
             new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+        } finally {
+            this.isReorganizing = false;
         }
     }
 

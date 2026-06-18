@@ -33,7 +33,6 @@ export class ImageReorganizer {
         let newContent = content;
         let moved = 0;
         let skipped = 0;
-        let converted = 0;
 
         // Process in reverse order to preserve indices
         for (let i = refs.length - 1; i >= 0; i--) {
@@ -66,13 +65,6 @@ export class ImageReorganizer {
             // Determine the output format: use convertFormat if provided, otherwise keep original
             const outputFormat: ReferenceFormat = convertFormat ?? ref.format;
             const needsMove = imageFile.path !== targetPath;
-            const needsFormatChange = convertFormat !== undefined && ref.format !== convertFormat;
-
-            // Skip if nothing needs to change
-            if (!needsMove && !needsFormatChange) {
-                skipped++;
-                continue;
-            }
 
             // Move file if needed
             let finalPath = imageFile.path;
@@ -89,7 +81,15 @@ export class ImageReorganizer {
                 const fileName = finalPath.split('/').pop() ?? finalPath;
                 newRef = ref.altText ? `![[${fileName}|${ref.altText}]]` : `![[${fileName}]]`;
             } else {
-                const encodedPath = encodePathSegments(finalPath);
+                // For markdown format, compute relative path if imagePathBase is 'note'
+                let refPath = finalPath;
+                if (this.settings.imagePathBase === 'note') {
+                    const noteDir = noteFile.parent?.path ?? '';
+                    if (noteDir) {
+                        refPath = this.refConverter.computeRelativePath(noteDir, finalPath);
+                    }
+                }
+                const encodedPath = encodePathSegments(refPath);
                 newRef = `![${ref.altText}](${encodedPath})`;
             }
 
@@ -98,11 +98,10 @@ export class ImageReorganizer {
                     newContent.substring(0, ref.col) +
                     newRef +
                     newContent.substring(ref.col + ref.fullMatch.length);
-                if (needsFormatChange) converted++;
             }
         }
 
-        if (moved > 0 || converted > 0) {
+        if (newContent !== content) {
             await this.app.vault.process(noteFile, () => newContent);
             if (moved > 0) {
                 await this.updateOtherNotes(noteFile);
@@ -159,12 +158,16 @@ export class ImageReorganizer {
         return this.settings.supportedExtensions.includes(file.extension.toLowerCase());
     }
 
-    private buildRefPath(vaultPath: string, format: 'wiki' | 'markdown'): string {
+    private buildRefPath(vaultPath: string, format: 'wiki' | 'markdown', noteDir?: string): string {
         if (format === 'wiki') {
             return vaultPath.split('/').pop() ?? vaultPath;
         }
-        // Markdown: URL-encode each path segment
-        return encodePathSegments(vaultPath);
+        // Markdown: compute relative path if noteDir is provided and imagePathBase is 'note'
+        let refPath = vaultPath;
+        if (noteDir && this.settings.imagePathBase === 'note') {
+            refPath = this.refConverter.computeRelativePath(noteDir, vaultPath);
+        }
+        return encodePathSegments(refPath);
     }
 
     private async ensureDirectory(dirPath: string): Promise<void> {
@@ -230,7 +233,8 @@ export class ImageReorganizer {
                 if (!match) continue;
 
                 // Build new reference
-                const newRefPath = this.buildRefPath(match.path, ref.format);
+                const noteDir = mdFile.parent?.path ?? '';
+                const newRefPath = this.buildRefPath(match.path, ref.format, noteDir);
                 let newRef: string;
                 if (ref.format === 'wiki') {
                     const fileName = match.path.split('/').pop() ?? match.path;

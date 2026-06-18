@@ -87,7 +87,7 @@ export class RefConverter {
     }
 
     /** 计算从 fromDir 到 toPath 的相对路径 */
-    private computeRelativePath(fromDir: string, toPath: string): string {
+    computeRelativePath(fromDir: string, toPath: string): string {
         const fromParts = fromDir.split('/').filter(Boolean);
         const toParts = toPath.split('/').filter(Boolean);
 
