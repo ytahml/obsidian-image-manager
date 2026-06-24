@@ -6,7 +6,32 @@ Obsidian 图片管理插件（ID: `md-image-manager`），TypeScript 编写，�
 
 **核心功能**：图片压缩、图床上传（4 种服务商）、引用格式转换（Wiki ↔ Markdown）、图片浏览器、孤立图片检测、资源整理、批量重命名。
 
-**知识库**：`/Users/imulan/workspace/pri-notes/ai-notes/obsidian-image-manager/` 按模块存储详细实现知识，新功能开发或 bug 修复时可结合 feature-dev skill 使用。
+## 开发闭环规则（强制）
+
+**每次开发或修复功能时，必须遵循以下闭环流程：**
+
+### 1. 开发前 — 阅读文档
+
+- 阅读 `.claude/skills/obsidian-image-manager/SKILL.md` 了解项目全貌
+- 根据任务类型，阅读 `references/` 下相关模块文档：
+  - 新功能：先读 `architecture.md`，再读相关模块
+  - Bug 修复：先读 `known-issues.md`，再读相关模块
+  - 代码审查：读 `eslint-rules.md` + 相关模块
+
+### 2. 开发中 — 按规范实施
+
+- 遵循 `SKILL.md` 中的编码规范和 ESLint 规则
+- 参考 `references/eslint-rules.md` 中的修复模式
+- 单文件建议 200-300 行以内（`main.ts` 为例外）
+
+### 3. 开发后 — 更新文档
+
+- 如涉及架构变更：更新 `references/architecture.md`
+- 如涉及流程变更：更新相关模块文档
+- 如修复已知问题：更新 `references/known-issues.md`
+- 如新增功能：更新 `SKILL.md` 的 Reference Index
+
+**文档是代码的一部分，代码变更必须伴随文档更新。**
 
 ## 技术约束
 
