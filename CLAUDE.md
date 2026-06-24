@@ -52,18 +52,46 @@ npm run lint     # ESLint 检查（obsidianmd 官方插件 33 条规则）
 
 ## 开发工作流程
 
-### 新功能或 Bug 修复
+### Issue 处理流程（强制）
 
-1. **创建 Issue**：在 GitHub 仓库创建 issue，描述问题或功能需求
-2. **创建分支**：基于 issue 编号创建分支（如 `fix/issue-1`、`feat/issue-2`）
-3. **开发实现**：在分支上进行开发，遵循编码规范
-4. **提交代码**：commit message 格式为 `fix: 描述` 或 `feat: 描述`，末尾添加 `Closes #issue编号`
+**无论是自己创建还是他人提交的 Issue，必须先打标签再开始开发。**
+
+#### 1. 分析 Issue 类型
+
+根据 Issue 内容判断类型：
+
+| 类型 | 标签 | 说明 |
+|------|------|------|
+| Bug 报告 | `bug` | 功能异常、崩溃、数据丢失 |
+| 新功能 | `enhancement` | 新增功能或功能改进 |
+| 文档 | `documentation` | 文档更新或补充 |
+| 问题 | `question` | 需要更多信息或确认 |
+
+#### 2. 确认标签
+
+**在打标签前，必须询问用户确认**：
+
+```
+根据 Issue 内容，建议标记为 "[标签名]"。
+是否确认？
+```
+
+#### 3. 应用标签
+
+```bash
+gh issue edit <issue-number> --add-label "<label>"
+```
+
+#### 4. 开发实现
+
+确认标签后，按以下流程开发：
+
+1. **创建分支**：基于 issue 编号创建分支（如 `fix/issue-1`、`feat/issue-2`）
+2. **开发实现**：在分支上进行开发，遵循编码规范
+3. **提交代码**：commit message 格式为 `fix: 描述` 或 `feat: 描述`，末尾添加 `Closes #issue编号`
+4. **创建 PR**：`gh pr create` 并关联 Issue
 5. **合并到 master**：手动合并分支到 master
 6. **发布版本**：运行 `npm version patch/minor/major` 自动构建、打 tag、推送
-
-### 他人提交的 Issue
-
-省去创建 issue 步骤，直接从步骤 2 开始。
 
 ### 分支命名规范
 
