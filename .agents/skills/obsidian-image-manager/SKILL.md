@@ -114,15 +114,16 @@ Other key settings:
 
 ## Coding Conventions
 
-### Build & Lint
+### Test, Build & Lint
 
 ```bash
 npm run dev      # watch mode
+npm test         # Vitest unit tests
 npm run build    # tsc check + esbuild minify
 npm run lint     # eslint-plugin-obsidianmd@0.3.0
 ```
 
-Both must pass before commit. CI runs Node 20.x/22.x matrix.
+`npm test` and `npm run build` must pass before commit. The build script includes lint, TypeScript checks, and the production bundle. CI runs on Node 22.x.
 
 ### Critical ESLint Rules
 

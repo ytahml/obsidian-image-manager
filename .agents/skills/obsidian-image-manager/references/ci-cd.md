@@ -2,16 +2,18 @@
 
 ## CI 工作流
 
-### Lint & Build（`.github/workflows/lint.yml`）
+### Test & Build（`.github/workflows/lint.yml`）
 
 ```yaml
 触发条件：push/PR 到 master
-Node 版本：20.x / 22.x（矩阵）
+Node 版本：22.x
 执行步骤：
   - npm ci
+  - npm test
   - npm run build
-  - npm run lint
 ```
+
+`npm run build` 已包含 ESLint、TypeScript 类型检查和 esbuild 生产构建，因此工作流无需再次单独运行 lint。
 
 ### Release（`.github/workflows/release.yml`）
 
@@ -131,11 +133,13 @@ git push origin master --tags
 {
     "scripts": {
         "dev": "node esbuild.config.mjs",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "build": "npm run lint && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-        "lint": "eslint src/",
+        "lint": "eslint .",
         "preversion": "npm run build",
         "version": "node version-bump.mjs && git add manifest.json versions.json package.json package-lock.json",
-        "postversion": "git push && git push --tags"
+        "postversion": "git push origin master --follow-tags"
     }
 }
 ```

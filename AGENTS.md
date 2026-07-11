@@ -1,3 +1,15 @@
+# Project agent bootstrap
+
+Before analyzing, changing, testing, or reviewing this project:
+
+1. Read `.agents/skills/obsidian-image-manager/SKILL.md` completely.
+2. Read the task-relevant files listed in its Reference Index.
+3. Treat that skill and its references as the canonical project documentation.
+4. After changing behavior, architecture, or workflows, update the relevant skill documentation.
+5. Run `npm test` and `npm run build` before committing.
+
+Do not use `CLAUDE.md` as a separate source of project facts. It is a Claude Code compatibility entrypoint to the same canonical skill.
+
 # Obsidian community plugin
 
 ## Project overview
