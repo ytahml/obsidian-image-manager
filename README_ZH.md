@@ -1,5 +1,8 @@
 # Obsidian Markdown Image Manager
 
+[![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22md-image-manager%22%5D.downloads&label=downloads&color=blue)](https://obsidian.md/plugins?id=md-image-manager)
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22md-image-manager%22%5D.version&label=version&color=green)](https://obsidian.md/plugins?id=md-image-manager)
+
 [English](README.md) | 中文
 
 Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式转换、图片浏览器等功能。
@@ -78,9 +81,9 @@ npm run lint
 
 # 版本更新
 npm run version
-```![zh.png](images/zh.png)
+```
 
-构建产物：`main.js`、`manifest.json`、`styles.css`![设置-通用-zh.png](images/设置-通用-zh.png)
+构建产物：`main.js`、`manifest.json`、`styles.css`
 
 ---
 
@@ -105,7 +108,7 @@ src/
 │   ├── rename-image.ts     # 图片重命名对话框
 │   └── image-name-prompt.ts # 粘贴时图片命名提示
 ├── uploaders/
-│   ├── uploader-base.ts    # 上传器抽象基类![zh.png](images/zh.png)
+│   ├── uploader-base.ts    # 上传器抽象基类
 │   ├── uploader-factory.ts # 上传器工厂（按类型实例化）
 │   ├── aliyun-oss.ts       # 阿里云 OSS（HMAC-SHA1 签名）
 │   ├── qiniu.ts            # 七牛云（Token 认证、区域端点）
@@ -347,6 +350,17 @@ src/
 - 图床功能需要开启「使用 Markdown 标准格式」后才能使用
 - 剪贴板操作使用 `require('electron')`，移动端不兼容
 - 图床迁移功能尚未实现
+
+---
+
+## 反馈与支持
+
+如果这个插件对你有帮助，欢迎在 GitHub 上给一个 ⭐，让更多人发现它！
+
+[![GitHub Stars](https://img.shields.io/github/stars/ytahml/obsidian-image-manager?style=social)](https://github.com/ytahml/obsidian-image-manager)
+
+- **Bug 反馈与功能建议**：[GitHub Issues](https://github.com/ytahml/obsidian-image-manager/issues)
+- **邮箱联系**：orchidsword@163.com
 
 ---
 

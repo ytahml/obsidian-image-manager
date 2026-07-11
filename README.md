@@ -1,5 +1,8 @@
 # Obsidian Markdown Image Manager
 
+[![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22md-image-manager%22%5D.downloads&label=downloads&color=blue)](https://obsidian.md/plugins?id=md-image-manager)
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22md-image-manager%22%5D.version&label=version&color=green)](https://obsidian.md/plugins?id=md-image-manager)
+
 English | [中文](README_ZH.md)
 
 Obsidian image management plugin — supports image compression, image hosting upload, reference format conversion, image browser, and more.
@@ -154,7 +157,9 @@ src/
 - **Prompt for Image Name** — Show name input dialog on paste
 
 ![设置-图片命名-en.png](images/设置-图片命名-en.png)
+
 ![设置-图片-重命名-en.png](images/设置-图片-重命名-en.png)
+
 ### Compression
 
 - **Auto Compress** — Automatically compress images on paste
@@ -295,6 +300,15 @@ src/
 - Image hosting requires "Use Markdown Standard Format" to be enabled
 - Clipboard operations use `require('electron')`, not compatible with mobile
 - Image hosting migration not yet implemented
+
+---
+
+## Feedback & Support
+
+If you find this plugin helpful, please consider giving it a ⭐ on [GitHub](https://github.com/ytahml/obsidian-image-manager) — it helps others discover it!
+
+- **Bug reports & feature requests**: [GitHub Issues](https://github.com/ytahml/obsidian-image-manager/issues)
+- **Email**: orchidsword@163.com
 
 ---
 
