@@ -79,6 +79,9 @@ npm run build
 # 代码检查
 npm run lint
 
+# 自动化测试
+npm test
+
 # 版本更新
 npm run version
 ```

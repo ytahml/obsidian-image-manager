@@ -76,6 +76,9 @@ npm run build
 # Lint
 npm run lint
 
+# Automated tests
+npm test
+
 # Version update
 npm run version
 ```
