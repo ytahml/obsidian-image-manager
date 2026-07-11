@@ -355,9 +355,7 @@ src/
 
 ## 反馈与支持
 
-如果这个插件对你有帮助，欢迎在 GitHub 上给一个 ⭐，让更多人发现它！
-
-[![GitHub Stars](https://img.shields.io/github/stars/ytahml/obsidian-image-manager?style=social)](https://github.com/ytahml/obsidian-image-manager)
+如果这个插件对你有帮助，欢迎在 [GitHub](https://github.com/ytahml/obsidian-image-manager) 上给一个 ⭐，让更多人发现它！
 
 - **Bug 反馈与功能建议**：[GitHub Issues](https://github.com/ytahml/obsidian-image-manager/issues)
 - **邮箱联系**：orchidsword@163.com
