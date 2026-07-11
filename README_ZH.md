@@ -1,7 +1,7 @@
 # Obsidian Markdown Image Manager
 
 [![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22md-image-manager%22%5D.downloads&label=downloads&color=blue)](https://obsidian.md/plugins?id=md-image-manager)
-[![Version](https://img.shields.io/github/v/release/obsidianmd/obsidian-releases)](https://obsidian.md/plugins?id=md-image-manager)
+[![Version](https://img.shields.io/github/v/release/ytahml/obsidian-image-manager)](https://github.com/ytahml/obsidian-image-manager/releases)
 
 [English](README.md) | 中文
 
