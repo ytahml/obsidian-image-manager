@@ -76,12 +76,19 @@ export class S3Uploader extends UploaderBase {
     }
 
     private buildUrl(s3Config: S3Config, key: string): string {
-        const endpoint = s3Config.endpoint.replace(/\/$/, '');
+        let endpoint = s3Config.endpoint.replace(/\/$/, '');
+        // 确保端点包含协议前缀，缺失时默认使用 https
+        if (!/^https?:\/\//.test(endpoint)) {
+            endpoint = 'https://' + endpoint;
+        }
         if (s3Config.forcePathStyle) {
-            return `${endpoint}/${s3Config.bucket}/${key}`;
+            const encodedKey = encodeURIComponent(key).replace(/%2F/g, '/');
+            return `${endpoint}/${s3Config.bucket}/${encodedKey}`;
         }
         // Virtual-hosted style
-        return `https://${s3Config.bucket}.${endpoint.replace(/^https?:\/\//, '')}/${key}`;
+        const hostPart = endpoint.replace(/^https?:\/\//, '');
+        const encodedKey = encodeURIComponent(key).replace(/%2F/g, '/');
+        return `${new URL(endpoint).protocol}//${s3Config.bucket}.${hostPart}/${encodedKey}`;
     }
 
     private async signRequest(
@@ -100,9 +107,11 @@ export class S3Uploader extends UploaderBase {
         const canonicalHeaders = `content-type:${contentType}\nhost:${requestHost}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
         const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
 
+        // Path-style 模式下 bucket 在路径中，canonical URI 必须包含 bucket
+        const canonicalUri = s3Config.forcePathStyle ? `/${s3Config.bucket}/${key}` : `/${key}`;
         const canonicalRequest = [
             method,
-            `/${key}`,
+            canonicalUri,
             '', // query string
             canonicalHeaders,
             signedHeaders,
