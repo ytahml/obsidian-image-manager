@@ -38,8 +38,9 @@ export class S3Uploader extends UploaderBase {
                 };
             }
 
+            // Path-style 模式下 urlPrefix 拼接需包含 bucket
             const publicUrl = this.config.urlPrefix
-                ? `${this.config.urlPrefix}/${targetPath}`
+                ? `${this.config.urlPrefix}/${s3Config.forcePathStyle ? s3Config.bucket + "/" : ""}${targetPath}`
                 : url;
 
             return {
