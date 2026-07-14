@@ -52,7 +52,7 @@ abstract class UploaderBase {
 
 - **协议**：PUT 请求
 - **签名**：AWS Signature V4（`AWS4-HMAC-SHA256`）
-- **路径编码**：`s3-path.ts` 对 key 逐段 URL 编码，请求 URL 与 canonical URI 必须使用相同结果
+- **路径编码**：`s3-path.ts` 按 AWS SigV4 的未保留字符集对 key 逐段编码，请求 URL 与 canonical URI 必须使用相同结果
 - **URL 风格**：
   - path-style：`https://{endpoint}/{bucket}/{key}`
   - virtual-hosted：`https://{bucket}.{endpoint}/{key}`

@@ -55,6 +55,17 @@ describe('S3 path construction', () => {
         );
         expect(buildS3CanonicalUri(config, 'folder/a b.png')).toBe('/folder/a%20b.png');
     });
+
+    it('encodes characters excluded by the AWS SigV4 unreserved set', () => {
+        const config = createS3Config();
+
+        expect(buildS3Url(config, "folder/!file'()*.png")).toBe(
+            'https://minio.example.com:9000/images/folder/%21file%27%28%29%2A.png'
+        );
+        expect(buildS3CanonicalUri(config, "folder/!file'()*.png")).toBe(
+            '/images/folder/%21file%27%28%29%2A.png'
+        );
+    });
 });
 
 describe('S3Uploader', () => {

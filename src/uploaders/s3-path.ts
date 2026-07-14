@@ -7,7 +7,12 @@ function normalizeEndpoint(endpoint: string): string {
 
 /** Encode each S3 key segment while preserving path separators. */
 export function encodeS3Key(key: string): string {
-    return key.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+    return key
+        .split('/')
+        .map((segment) => encodeURIComponent(segment).replace(/[!'()*]/g, (character) =>
+            `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+        ))
+        .join('/');
 }
 
 /** Build the request URL for path-style and virtual-hosted-style S3 endpoints. */
