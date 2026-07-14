@@ -56,6 +56,7 @@ main.ts（入口）
 ClipboardEvent/DragEvent
   → handleImagePaste/handleImageDrop（返回 boolean）
   → processImageFiles（逐文件处理）
+    → generateFileName（命名模板含 {noteName}）
     → ImageNamePromptModal（可选）
     → savePastedImage
       → resolveImagePath（模板变量：{noteName}, {notePath}, {filename}, {year}, {month}, {day}, {timestamp}）
@@ -77,6 +78,7 @@ doUpload(file, config)
     → 仅在 Markdown 边界还原 URL 路径中的 Unicode，保留敏感 ASCII 编码
   → 可选 replaceReferenceInNote（遍历所有 MD 文件）
   → 可选 trashFile（!keepLocalCopy）
+  → 直接父附件目录仍为空时永久、非递归删除该目录
 ```
 
 ### 资源整理 → 移动 + 更新引用

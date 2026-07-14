@@ -35,7 +35,7 @@ display()
 │   ├── 使用 Markdown 格式 (toggle)
 │   └── 跳过 Wiki 引用 (toggle)
 ├── renderImageNaming     // 图片命名（带 heading）
-│   ├── 命名模板 (text)
+│   ├── 命名模板 (text，支持 {noteName})
 │   └── 提示输入名称 (toggle)
 ├── renderCompression     // 压缩（带 heading）
 │   ├── 自动压缩 (toggle)
@@ -51,7 +51,7 @@ display()
     ├── 上传路径模板 (text)
     ├── 上传后自动替换 (toggle)
     ├── 粘贴时自动上传 (toggle)
-    └── 保留本地副本 (toggle)
+    └── 保留本地副本 (toggle，关闭时清理空的直接附件目录)
 ```
 
 上传路径模板按“图床专属模板 → 全局模板 → 默认模板”的顺序解析。`{sourceDir}` 表示图片相对于 Vault 根目录的父目录；使用它会将该目录结构作为远端对象 key 的一部分发送给图床服务商。

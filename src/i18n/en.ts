@@ -172,7 +172,7 @@ export const en: Record<string, string> = {
     'settings.imageNaming': 'Image Naming',
     'settings.imageNamingTemplate': 'Naming template',
     'settings.imageNamingTemplateDesc':
-        'Template for pasted/dropped image names. Variables: {date}, {time}, {timestamp}, {counter}, {year}, {month}, {day}',
+        'Template for pasted/dropped image names. Variables: {noteName}, {date}, {time}, {timestamp}, {counter}, {year}, {month}, {day}',
     'settings.promptImageName': 'Prompt for image name',
     'settings.promptImageNameDesc': 'Show a name input dialog when pasting/dropping images',
     'settings.enableImageBrowser': 'Enable image browser',
@@ -180,7 +180,7 @@ export const en: Record<string, string> = {
     'settings.autoUploadOnPaste': 'Auto upload on paste',
     'settings.autoUploadOnPasteDesc': 'Automatically upload images to hosting when pasting/dropping',
     'settings.keepLocalCopy': 'Keep local copy',
-    'settings.keepLocalCopyDesc': 'Keep a local copy of the image file after uploading to hosting',
+    'settings.keepLocalCopyDesc': 'Keep a local copy after uploading; otherwise, empty direct attachment folders are removed',
     'command.restoreLocalRefs': 'Restore local image references',
     'command.restoreLocalRefsFolder': 'Restore local image references (folder)',
     'notice.restoreLocalDone': 'Restored {count} reference(s) to local files',

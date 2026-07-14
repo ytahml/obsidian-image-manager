@@ -169,7 +169,7 @@ export const zh: Record<string, string> = {
     'settings.imageNaming': '图片命名',
     'settings.imageNamingTemplate': '命名模板',
     'settings.imageNamingTemplateDesc':
-        '粘贴/拖放图片时的命名模板。变量：{date}, {time}, {timestamp}, {counter}, {year}, {month}, {day}',
+        '粘贴/拖放图片时的命名模板。变量：{noteName}, {date}, {time}, {timestamp}, {counter}, {year}, {month}, {day}',
     'settings.promptImageName': '提示输入图片名称',
     'settings.promptImageNameDesc': '粘贴/拖放图片时弹出名称输入框',
     'settings.enableImageBrowser': '启用图片浏览器',
@@ -177,7 +177,7 @@ export const zh: Record<string, string> = {
     'settings.autoUploadOnPaste': '粘贴时自动上传',
     'settings.autoUploadOnPasteDesc': '粘贴/拖放图片时自动上传到默认图床',
     'settings.keepLocalCopy': '保留本地副本',
-    'settings.keepLocalCopyDesc': '上传图床后仍在本地保留一份图片文件',
+    'settings.keepLocalCopyDesc': '上传图床后保留本地图片；关闭时会清理图片所在的空附件目录',
     'command.restoreLocalRefs': '将图床引用替换为本地引用',
     'command.restoreLocalRefsFolder': '将图床引用替换为本地引用（文件夹）',
     'notice.restoreLocalDone': '已将 {count} 处引用替换为本地文件',

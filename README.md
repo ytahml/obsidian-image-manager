@@ -158,7 +158,7 @@ src/
 
 ### Image Naming
 
-- **Naming Template** — Supports variables: `{date}`, `{time}`, `{timestamp}`, `{counter}`, `{year}`, `{month}`, `{day}`
+- **Naming Template** — Supports variables: `{noteName}`, `{date}`, `{time}`, `{timestamp}`, `{counter}`, `{year}`, `{month}`, `{day}`
 - **Prompt for Image Name** — Show name input dialog on paste
 
 ![设置-图片命名-en.png](images/设置-图片命名-en.png)
@@ -272,6 +272,7 @@ src/
 
 | Variable | Description | Example |
 |----------|-------------|---------|
+| `{noteName}` | Current note name (without extension) | `my-note` |
 | `{date}` | Current date | `2026-05-30` |
 | `{time}` | Current time | `143025` |
 | `{timestamp}` | Unix timestamp (milliseconds) | `1748155225123` |

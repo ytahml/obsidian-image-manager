@@ -56,7 +56,8 @@ editor-paste/editor-drop event
   → check evt.defaultPrevented
   → handleImagePaste/handleImageDrop (returns boolean)
   → processImageFiles
-    → optional ImageNamePromptModal
+      → generateFileName (template vars include {noteName})
+      → optional ImageNamePromptModal
     → savePastedImage
       → resolveImagePath (template vars: {noteName}, {notePath}, {filename}, {year}, {month}, {day}, {timestamp})
       → ensureDirectory (recursive create)
@@ -77,6 +78,7 @@ doUpload(file, config)
     → Markdown URL display decodes Unicode path bytes only; reserved ASCII stays encoded
   → optional replaceReferenceInNote
   → optional trashFile (!keepLocalCopy)
+  → permanently remove the exact direct attachment folder when it is still empty
 ```
 
 ### Reorganize → Move + Update References
@@ -114,7 +116,7 @@ Other key settings:
 - `promptImageName`: show name prompt on paste/drop
 - `autoUploadOnPaste`: auto upload after paste (requires `reorganizeConvertFormat=true`)
 - `autoReplaceAfterUpload`: replace reference after upload
-- `keepLocalCopy`: keep local file after upload
+- `keepLocalCopy`: keep local file after upload; when false, auto-upload removes the exact direct attachment folder only if it is still empty
 - `skipWikiRefsOnReorganize`: skip Wiki refs during reorganize
 - `uploadPathTemplate`: global upload path fallback; supports `{sourceDir}` for the Vault-relative parent directory
 - `urlPrefix`: public access URL base for Aliyun OSS, Qiniu, and S3; may include a bucket or directory path
