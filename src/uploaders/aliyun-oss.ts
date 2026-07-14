@@ -1,5 +1,6 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
+import { encodeOSSKey } from './oss-path';
 import type { UploadResult, ImageHostingConfig, AliyunOSSConfig, UploadContext } from '../types';
 
 export class AliyunOSSUploader extends UploaderBase {
@@ -24,8 +25,10 @@ export class AliyunOSSUploader extends UploaderBase {
         const contentType = this.guessMimeType(filename);
         const region = this.parseRegion(ossConfig.region);
         const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;
-        const url = `https://${host}/${targetPath}`;
+        const encodedPath = encodeOSSKey(targetPath);
+        const url = `https://${host}/${encodedPath}`;
         const date = new Date().toUTCString();
+        // OSS V1 signs the logical object key, while the request URL uses its encoded form.
         const resourcePath = `/${ossConfig.bucket}/${targetPath}`;
         const stringToSign = `PUT\n\n${contentType}\n${date}\n${resourcePath}`;
         const signature = await this.hmacSha1Base64(stringToSign, ossConfig.accessKeySecret);
@@ -48,7 +51,7 @@ export class AliyunOSSUploader extends UploaderBase {
                 return { success: false, error: `HTTP ${resp.status}: ${resp.text}`, originalPath: filename };
             }
             const publicUrl = this.config.urlPrefix
-                ? `${this.config.urlPrefix}/${targetPath}`
+                ? `${this.config.urlPrefix}/${encodedPath}`
                 : url;
             return { success: true, url: publicUrl, originalPath: filename };
         } catch (e) {

@@ -24,6 +24,7 @@ main.ts (entry, ~995 lines)
 ├── uploaders/
 │   ├── uploader-factory.ts → 4 uploaders
 │   ├── upload-path.ts (shared template resolution)
+│   ├── oss-path.ts (Aliyun OSS URL path encoding)
 │   └── upload-queue.ts (3 concurrent, 3 retries)
 ├── utils/
 │   ├── ref-converter.ts ← constants.ts (regex)
