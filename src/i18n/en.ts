@@ -34,7 +34,7 @@ export const en: Record<string, string> = {
     'settings.deleteHostingMsg': 'Delete hosting provider "{name}"?',
     'settings.uploadPathTemplate': 'Upload path template',
     'settings.uploadPathTemplateDesc':
-        'Template for upload path. Variables: {year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}',
+        'Template for upload path. Variables: {year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}, {sourceDir}. Using {sourceDir} sends the image folder path to the hosting provider.',
     'settings.autoReplaceAfterUpload': 'Auto replace after upload',
     'settings.autoReplaceAfterUploadDesc':
         'Automatically replace local references with hosting URLs after uploading',
@@ -143,7 +143,8 @@ export const en: Record<string, string> = {
     'modal.hosting.type': 'Provider Type',
     'modal.hosting.enabled': 'Enabled',
     'modal.hosting.uploadPath': 'Upload Path',
-    'modal.hosting.uploadPathDesc': 'Override global template. Leave empty to use global setting.',
+    'modal.hosting.uploadPathDesc':
+        'Override the global template. Leave empty to use the global setting. {sourceDir} sends the image folder path to the hosting provider.',
     'modal.hosting.urlPrefix': 'URL Prefix',
     'modal.hosting.urlPrefixDesc': 'Custom domain for public URL, e.g. https://img.example.com',
     'modal.hosting.providerConfig': 'Provider Configuration',

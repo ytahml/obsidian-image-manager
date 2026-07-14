@@ -1,17 +1,25 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
-import type { UploadResult, ImageHostingConfig, AliyunOSSConfig } from '../types';
+import type { UploadResult, ImageHostingConfig, AliyunOSSConfig, UploadContext } from '../types';
 
 export class AliyunOSSUploader extends UploaderBase {
     readonly name = 'Aliyun OSS';
 
-    constructor(config: ImageHostingConfig) {
-        super(config);
+    constructor(config: ImageHostingConfig, globalUploadPathTemplate?: string) {
+        super(config, globalUploadPathTemplate);
     }
 
-    async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
+    async upload(
+        data: ArrayBuffer,
+        filename: string,
+        context?: UploadContext
+    ): Promise<UploadResult> {
         const ossConfig = this.config.config as AliyunOSSConfig;
-        const targetPath = await this.resolveUploadPath(filename, data);
+        let template = this.getUploadPathTemplate();
+        if (this.config.uploadPath && !template.includes('{filename}')) {
+            template = template.replace(/\/?$/, '/{filename}.{ext}');
+        }
+        const targetPath = await this.resolveUploadPath(filename, data, context, template);
         console.debug(`[AliyunOSS] Uploading to: ${targetPath}`);
         const contentType = this.guessMimeType(filename);
         const region = this.parseRegion(ossConfig.region);
@@ -92,34 +100,6 @@ export class AliyunOSSUploader extends UploaderBase {
         );
         const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(stringToSign));
         return btoa(String.fromCharCode(...new Uint8Array(sig)));
-    }
-
-    async resolveUploadPath(filename: string, data?: ArrayBuffer): Promise<string> {
-        const now = new Date();
-        let hash = '';
-        if (data) {
-            const hashBuf = await crypto.subtle.digest('SHA-256', data);
-            hash = Array.from(new Uint8Array(hashBuf)).map((b) => ('0' + b.toString(16)).slice(-2)).join('').substring(0, 16);
-        }
-        const vars: Record<string, string> = {
-            year: now.getFullYear().toString(),
-            month: String(now.getMonth() + 1).padStart(2, '0'),
-            day: String(now.getDate()).padStart(2, '0'),
-            filename: filename.replace(/\.[^.]+$/, ''),
-            ext: filename.split('.').pop() ?? '',
-            timestamp: Math.floor(now.getTime() / 1000).toString(),
-            hash: hash || Math.random().toString(36).substring(2, 10),
-        };
-
-        let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';
-        // Ensure filename is always included
-        if (!template.includes('{filename}')) {
-            template = template.replace(/\/?$/, '/{filename}.{ext}');
-        }
-        for (const [key, value] of Object.entries(vars)) {
-            template = template.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
-        }
-        return template.replace(/^\/+/, '').replace(/\/+/g, '/');
     }
 
     private guessMimeType(filename: string): string {
