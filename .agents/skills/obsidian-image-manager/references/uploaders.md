@@ -11,6 +11,7 @@ UploaderBase（抽象基类）
 
 createUploader(config)  ← 工厂函数
 upload-path.ts          ← 共享模板解析与优先级
+oss-path.ts             ← Aliyun OSS 对象 key URL 编码
 UploadQueue             ← 并发队列
 ```
 
@@ -45,6 +46,7 @@ abstract class UploaderBase {
 - **协议**：直接 PUT 请求
 - **签名**：HMAC-SHA1 签名 `Authorization: OSS` 头
 - **上传路径**：模板变量替换（含 SHA-256 hash）
+- **路径编码**：请求 URL 与公开 URL 按路径段编码；V1 `CanonicalizedResource` 保留原始逻辑对象 key
 - **端点**：`https://{bucket}.{region}.aliyuncs.com`
 
 ### 七牛云 (`qiniu.ts`)
