@@ -52,10 +52,12 @@ abstract class UploaderBase {
 
 - **协议**：PUT 请求
 - **签名**：AWS Signature V4（`AWS4-HMAC-SHA256`）
+- **路径编码**：`s3-path.ts` 按 AWS SigV4 的未保留字符集对 key 逐段编码，请求 URL 与 canonical URI 必须使用相同结果
 - **URL 风格**：
   - path-style：`https://{endpoint}/{bucket}/{key}`
   - virtual-hosted：`https://{bucket}.{endpoint}/{key}`
 - **配置**：`forcePathStyle` 可选
+- **公开 URL**：`urlPrefix` 完全由用户配置，不根据 `forcePathStyle` 自动追加 bucket
 
 ### 自定义 (`custom-uploader.ts`)
 

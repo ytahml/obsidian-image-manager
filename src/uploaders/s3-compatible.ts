@@ -1,5 +1,6 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
+import { buildS3CanonicalUri, buildS3Url, encodeS3Key } from './s3-path';
 import type { UploadResult, ImageHostingConfig, S3Config } from '../types';
 
 export class S3Uploader extends UploaderBase {
@@ -15,7 +16,7 @@ export class S3Uploader extends UploaderBase {
         const contentType = this.guessMimeType(filename);
 
         try {
-            const url = this.buildUrl(s3Config, targetPath);
+            const url = buildS3Url(s3Config, targetPath);
             const requestHost = new URL(url).host;
             const headers = await this.signRequest(s3Config, 'PUT', targetPath, requestHost, data, contentType);
 
@@ -39,7 +40,7 @@ export class S3Uploader extends UploaderBase {
             }
 
             const publicUrl = this.config.urlPrefix
-                ? `${this.config.urlPrefix}/${targetPath}`
+                ? `${this.config.urlPrefix.replace(/\/+$/, '')}/${encodeS3Key(targetPath)}`
                 : url;
 
             return {
@@ -60,7 +61,7 @@ export class S3Uploader extends UploaderBase {
         const s3Config = this.config.config as S3Config;
 
         try {
-            const url = this.buildUrl(s3Config, '');
+            const url = buildS3Url(s3Config, '');
             const requestHost = new URL(url).host;
             const headers = await this.signRequest(s3Config, 'GET', '', requestHost, new ArrayBuffer(0));
             const resp = await requestUrl({
@@ -73,15 +74,6 @@ export class S3Uploader extends UploaderBase {
         } catch {
             return false;
         }
-    }
-
-    private buildUrl(s3Config: S3Config, key: string): string {
-        const endpoint = s3Config.endpoint.replace(/\/$/, '');
-        if (s3Config.forcePathStyle) {
-            return `${endpoint}/${s3Config.bucket}/${key}`;
-        }
-        // Virtual-hosted style
-        return `https://${s3Config.bucket}.${endpoint.replace(/^https?:\/\//, '')}/${key}`;
     }
 
     private async signRequest(
@@ -100,9 +92,10 @@ export class S3Uploader extends UploaderBase {
         const canonicalHeaders = `content-type:${contentType}\nhost:${requestHost}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
         const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
 
+        const canonicalUri = buildS3CanonicalUri(s3Config, key);
         const canonicalRequest = [
             method,
-            `/${key}`,
+            canonicalUri,
             '', // query string
             canonicalHeaders,
             signedHeaders,
