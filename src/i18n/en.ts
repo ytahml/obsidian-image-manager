@@ -34,7 +34,7 @@ export const en: Record<string, string> = {
     'settings.deleteHostingMsg': 'Delete hosting provider "{name}"?',
     'settings.uploadPathTemplate': 'Upload path template',
     'settings.uploadPathTemplateDesc':
-        'Template for upload path. Variables: {year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}',
+        'Template for upload path. Variables: {year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}, {filePath}',
     'settings.autoReplaceAfterUpload': 'Auto replace after upload',
     'settings.autoReplaceAfterUploadDesc':
         'Automatically replace local references with hosting URLs after uploading',

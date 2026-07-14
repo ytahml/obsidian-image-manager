@@ -140,7 +140,7 @@ export class UploadQueue {
                     data = result.data;
                 }
 
-                const result = await uploader.upload(data, item.file.name);
+                const result = await uploader.upload(data, item.file.name, item.file.path);
 
                 if (result.success && result.url) {
                     item.status = 'done';

@@ -9,9 +9,9 @@ export class QiniuUploader extends UploaderBase {
         super(config);
     }
 
-    async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
+    async upload(data: ArrayBuffer, filename: string, sourcePath?: string): Promise<UploadResult> {
         const qiniuConfig = this.config.config as QiniuConfig;
-        const targetPath = await this.resolveUploadPath(filename, data);
+        const targetPath = await this.resolveUploadPath(filename, data, sourcePath);
         const token = await this.generateUploadToken(qiniuConfig, targetPath);
         const uploadUrl = this.getUploadUrl(qiniuConfig.region);
 
@@ -159,13 +159,15 @@ export class QiniuUploader extends UploaderBase {
         return result.buffer;
     }
 
-    private async resolveUploadPath(filename: string, data?: ArrayBuffer): Promise<string> {
+    private async resolveUploadPath(filename: string, data?: ArrayBuffer, sourcePath?: string): Promise<string> {
         const now = new Date();
         let hash = '';
         if (data) {
             const hashBuf = await crypto.subtle.digest('SHA-256', data);
             hash = Array.from(new Uint8Array(hashBuf)).map((b) => ('0' + b.toString(16)).slice(-2)).join('').substring(0, 16);
         }
+        // Extract file directory from sourcePath
+        const fileDir = sourcePath ? sourcePath.split('/').slice(0, -1).join('/') : '';
         const vars: Record<string, string> = {
             year: now.getFullYear().toString(),
             month: ('0' + (now.getMonth() + 1)).slice(-2),
@@ -174,6 +176,7 @@ export class QiniuUploader extends UploaderBase {
             ext: filename.split('.').pop() ?? '',
             timestamp: Math.floor(now.getTime() / 1000).toString(),
             hash: hash || Math.random().toString(36).substring(2, 10),
+            filePath: fileDir,
         };
 
         let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';

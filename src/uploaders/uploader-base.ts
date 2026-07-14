@@ -1,4 +1,4 @@
-import type { UploadResult, ImageHostingConfig } from '../types';
+﻿import type { UploadResult, ImageHostingConfig } from '../types';
 
 export abstract class UploaderBase {
     abstract readonly name: string;
@@ -9,7 +9,7 @@ export abstract class UploaderBase {
     }
 
     /** 上传图片文件 */
-    abstract upload(data: ArrayBuffer, filename: string): Promise<UploadResult>;
+    abstract upload(data: ArrayBuffer, filename: string, sourcePath?: string): Promise<UploadResult>;
 
     /** 测试图床连接 */
     abstract testConnection(): Promise<boolean>;

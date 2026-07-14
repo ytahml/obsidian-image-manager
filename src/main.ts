@@ -388,7 +388,7 @@ export default class ImageManagerPlugin extends Plugin {
             }
 
             const uploader = createUploader(hostingConfig);
-            const result = await uploader.upload(data, file.name);
+            const result = await uploader.upload(data, file.name, file.path);
 
             if (result.success && result.url) {
                 const ref = this.buildUploadedReference(file.name, result.url);
@@ -455,7 +455,7 @@ export default class ImageManagerPlugin extends Plugin {
                     }
 
                     const uploader = createUploader(hostingConfig);
-                    const result = await uploader.upload(data, imgFile.name);
+                    const result = await uploader.upload(data, imgFile.name, imgFile.path);
 
                     if (result.success && result.url) {
                         const newRef = `![${ref.altText || imgFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;
@@ -882,7 +882,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         try {
             const uploader = createUploader(hostingConfig);
-            const result = await uploader.upload(data, savedFile.name);
+            const result = await uploader.upload(data, savedFile.name, savedFile.path);
 
             if (result.success && result.url) {
                 const ref = `![${savedFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;

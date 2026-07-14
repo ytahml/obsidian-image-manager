@@ -9,16 +9,18 @@ export class AliyunOSSUploader extends UploaderBase {
         super(config);
     }
 
-    async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
+    async upload(data: ArrayBuffer, filename: string, sourcePath?: string): Promise<UploadResult> {
         const ossConfig = this.config.config as AliyunOSSConfig;
-        const targetPath = await this.resolveUploadPath(filename, data);
+        const targetPath = await this.resolveUploadPath(filename, data, sourcePath);
         console.debug(`[AliyunOSS] Uploading to: ${targetPath}`);
         const contentType = this.guessMimeType(filename);
         const region = this.parseRegion(ossConfig.region);
         const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;
-        const url = `https://${host}/${targetPath}`;
+        // OSS 瑕佹眰瀵归潪 ASCII 瀛楃杩涜 URL 缂栫爜鍚庤绠楃鍚?
+        const encodedPath = this.encodePathForOSS(targetPath);
+        const url = `https://${host}/${encodedPath}`;
         const date = new Date().toUTCString();
-        const resourcePath = `/${ossConfig.bucket}/${targetPath}`;
+        const resourcePath = `/${ossConfig.bucket}/${encodedPath}`;
         const stringToSign = `PUT\n\n${contentType}\n${date}\n${resourcePath}`;
         const signature = await this.hmacSha1Base64(stringToSign, ossConfig.accessKeySecret);
 
@@ -40,7 +42,7 @@ export class AliyunOSSUploader extends UploaderBase {
                 return { success: false, error: `HTTP ${resp.status}: ${resp.text}`, originalPath: filename };
             }
             const publicUrl = this.config.urlPrefix
-                ? `${this.config.urlPrefix}/${targetPath}`
+                ? `${this.config.urlPrefix}/${encodedPath}`
                 : url;
             return { success: true, url: publicUrl, originalPath: filename };
         } catch (e) {
@@ -94,13 +96,20 @@ export class AliyunOSSUploader extends UploaderBase {
         return btoa(String.fromCharCode(...new Uint8Array(sig)));
     }
 
-    async resolveUploadPath(filename: string, data?: ArrayBuffer): Promise<string> {
+    /** URL 缂傚倹鐗滈悥婊呮崉椤栨氨绐炲☉鎿冨幘濞堟垵袙韫囧酣鍤嬫繛鍫㈩暜缁辨繃绂掗崨顖滄そ闁活喕绶氬?ASCII 闁告粌鐬兼竟鎺戔枔婵犲倻鎽熺紒妤嬭缁辨繃绌卞┑鍫熸畬 / */
+    private encodePathForOSS(path: string): string {
+        return path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    }
+
+    async resolveUploadPath(filename: string, data?: ArrayBuffer, sourcePath?: string): Promise<string> {
         const now = new Date();
         let hash = '';
         if (data) {
             const hashBuf = await crypto.subtle.digest('SHA-256', data);
             hash = Array.from(new Uint8Array(hashBuf)).map((b) => ('0' + b.toString(16)).slice(-2)).join('').substring(0, 16);
         }
+        // Extract file directory from sourcePath
+        const fileDir = sourcePath ? sourcePath.split('/').slice(0, -1).join('/') : '';
         const vars: Record<string, string> = {
             year: now.getFullYear().toString(),
             month: String(now.getMonth() + 1).padStart(2, '0'),
@@ -109,6 +118,7 @@ export class AliyunOSSUploader extends UploaderBase {
             ext: filename.split('.').pop() ?? '',
             timestamp: Math.floor(now.getTime() / 1000).toString(),
             hash: hash || Math.random().toString(36).substring(2, 10),
+            filePath: fileDir,
         };
 
         let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';

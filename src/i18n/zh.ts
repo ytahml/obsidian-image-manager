@@ -34,7 +34,7 @@ export const zh: Record<string, string> = {
     'settings.deleteHostingMsg': '删除图床配置 "{name}"？',
     'settings.uploadPathTemplate': '上传路径模板',
     'settings.uploadPathTemplateDesc':
-        '上传路径模板。变量：{year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}',
+        '上传路径模板。变量：{year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}, {filePath}',
     'settings.autoReplaceAfterUpload': '上传后自动替换',
     'settings.autoReplaceAfterUploadDesc': '上传后自动将本地引用替换为图床 URL',
 
