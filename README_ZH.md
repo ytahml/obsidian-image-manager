@@ -113,15 +113,17 @@ src/
 ├── uploaders/
 │   ├── uploader-base.ts    # 上传器抽象基类
 │   ├── uploader-factory.ts # 上传器工厂（按类型实例化）
-│   ├── aliyun-oss.ts       # 阿里云 OSS（HMAC-SHA1 签名）
+│   ├── aliyun-oss.ts       # 阿里云 OSS（OSS V4 签名）
 │   ├── qiniu.ts            # 七牛云（Token 认证、区域端点）
 │   ├── s3-compatible.ts    # S3 兼容存储（AWS SigV4）
+│   ├── public-url.ts       # 公共访问 URL 基础路径规范化与拼接
 │   ├── custom-uploader.ts  # 自定义 HTTP 端点
 │   └── upload-queue.ts     # 并发上传队列（3 并发、3 次重试、进度回调）
 └── utils/
     ├── ref-converter.ts    # 引用格式解析与转换
     ├── image-scanner.ts    # 图片扫描、筛选、排序
     ├── path-utils.ts       # 路径工具、文件大小格式化、模板变量
+    ├── public-url.ts       # Markdown URL 的 Unicode 可读化
     ├── orphan-finder.ts    # 孤立图片检测、反向引用查询
     ├── image-optimizer.ts  # Canvas 压缩、格式转换
     ├── batch-rename.ts     # 批量重命名（全库引用同步更新）
@@ -185,8 +187,8 @@ src/
 > **注意**：图床功能需要开启「使用 Markdown 标准格式」后才能使用。
 
 - **添加图床** — 支持阿里云 OSS、七牛云、S3 兼容存储、自定义 HTTP 端点
-- **上传路径模板** — 支持 `{year}`、`{month}`、`{day}`、`{filename}`、`{ext}`、`{hash}`、`{timestamp}`
-- **URL 前缀** — 自定义域名
+- **上传路径模板** — 支持 `{year}`、`{month}`、`{day}`、`{filename}`、`{ext}`、`{hash}`、`{timestamp}`、`{sourceDir}`
+- **公共访问 URL 基础路径** — 用于访问上传对象，可包含 bucket 或目录；七牛云必须配置
 - **上传后自动替换** — 自动将本地引用替换为图床 URL
 
 ![设置-图床-zh.png](images/设置-图床-zh.png)
@@ -264,8 +266,8 @@ src/
 
 | 服务商 | 状态 | 说明 |
 |--------|------|------|
-| 阿里云 OSS | ✅ 已支持 | PUT 上传，HMAC-SHA1 签名 |
-| 七牛云 | ✅ 已支持 | Token 认证，multipart 上传 |
+| 阿里云 OSS | ✅ 已支持 | PUT 上传，OSS V4（HMAC-SHA256）签名 |
+| 七牛云 | ✅ 已支持 | Token 认证、multipart 上传，必须配置公共访问 URL 基础路径 |
 | S3 兼容存储 | ✅ 已支持 | AWS SigV4，支持 MinIO、Cloudflare R2 等 |
 | 自定义 | ✅ 已支持 | 自定义 URL、Method、Headers、字段映射 |
 
@@ -344,6 +346,9 @@ src/
 | `{ext}` | 扩展名 |
 | `{hash}` | 文件内容 SHA-256 哈希（前 16 位） |
 | `{timestamp}` | Unix 时间戳 |
+| `{sourceDir}` | 源图片相对于 Vault 根目录的父目录 |
+
+图床专属上传路径优先于全局模板。阿里云 OSS、七牛云和 S3 使用这些模板；自定义 HTTP 图床仍以响应 JSON 路径提取出的 URL 为准。
 
 ---
 

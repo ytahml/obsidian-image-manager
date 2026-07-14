@@ -12,6 +12,7 @@ UploaderBase（抽象基类）
 createUploader(config)  ← 工厂函数
 upload-path.ts          ← 共享模板解析与优先级
 oss-path.ts             ← Aliyun OSS 对象 key URL 编码
+public-url.ts           ← 公共访问 URL 基础路径规范化与拼接
 UploadQueue             ← 并发队列
 ```
 
@@ -31,7 +32,7 @@ abstract class UploaderBase {
 
 ### 上传路径模板
 
-`upload-path.ts` 统一为 Aliyun OSS、Qiniu、S3 解析模板。优先级为：
+`upload-path.ts` 统一为 Aliyun OSS、Qiniu、S3 解析模板。自定义图床不使用该模板，公开 URL 以响应 JSON 为准。优先级为：
 
 1. 图床配置 `uploadPath`
 2. 全局 `uploadPathTemplate`
@@ -44,9 +45,10 @@ abstract class UploaderBase {
 ### AliyunOSS (`aliyun-oss.ts`)
 
 - **协议**：直接 PUT 请求
-- **签名**：HMAC-SHA1 签名 `Authorization: OSS` 头
+- **签名**：OSS V4，使用 HMAC-SHA256 和 `Authorization: OSS4-HMAC-SHA256` 头
 - **上传路径**：模板变量替换（含 SHA-256 hash）
-- **路径编码**：请求 URL 与公开 URL 按路径段编码；V1 `CanonicalizedResource` 保留原始逻辑对象 key
+- **路径编码**：逻辑对象 key 保持 Unicode；请求 URL 与 V4 Canonical URI 使用相同的逐段编码结果
+- **V4 头部**：`x-oss-date`、`x-oss-content-sha256: UNSIGNED-PAYLOAD`；Canonical URI 为 `/{bucket}/{encodedKey}`；没有附加签名头时必须从 Authorization 中省略 `AdditionalHeaders` 字段，不能发送空的 `AdditionalHeaders=`；Canonical Headers 后仍需保留 OSS 规定的空字段换行，服务端 Canonical Request 在 `x-oss-date` 与 payload 之间包含 3 个 LF
 - **端点**：`https://{bucket}.{region}.aliyuncs.com`
 
 ### 七牛云 (`qiniu.ts`)
@@ -60,6 +62,8 @@ abstract class UploaderBase {
   - `na0` → 北美
   - `as0` → 东南亚
 - **上传路径**：`https://{region}.qiniup.com`
+- **特殊字符**：policy 先按 UTF-8 编码后再 Base64URL，multipart `key` 保留逻辑路径，公开 URL 按路径段编码
+- **公开 URL**：必须配置公共访问 URL 基础路径
 
 ### S3 兼容 (`s3-compatible.ts`)
 
@@ -71,6 +75,11 @@ abstract class UploaderBase {
   - virtual-hosted：`https://{bucket}.{endpoint}/{key}`
 - **配置**：`forcePathStyle` 可选
 - **公开 URL**：`urlPrefix` 完全由用户配置，不根据 `forcePathStyle` 自动追加 bucket
+
+### 公共访问 URL 与 Markdown 显示
+
+- `urlPrefix` 表示公共访问 URL 基础路径，可包含 bucket 或目录；缺少协议时补 `https://`，拼接时只清理边界斜杠。
+- 上传结果保留网络安全的编码 URL。生成 Markdown 引用时仅还原路径中的非 ASCII UTF-8 字符，空格、`#`、`?`、`%`、括号等仍保持百分号编码。
 
 ### 自定义 (`custom-uploader.ts`)
 
@@ -165,7 +174,7 @@ interface UploadHistoryEntry {
 
 ## 加密说明
 
-- **阿里云 OSS**：`crypto.subtle.importKey` + `crypto.subtle.sign`（HMAC-SHA1）
+- **阿里云 OSS**：`crypto.subtle.digest` + `crypto.subtle.sign`（SHA-256 / HMAC-SHA256，多步派生 V4 signing key）
 - **七牛云**：`crypto.subtle.importKey` + `crypto.subtle.sign`（HMAC-SHA1）
 - **S3**：`crypto.subtle.importKey` + `crypto.subtle.sign`（HMAC-SHA256）+ 多步派生
 - **自定义**：无签名，依赖用户配置的 headers

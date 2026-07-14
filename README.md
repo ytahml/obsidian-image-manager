@@ -110,15 +110,17 @@ src/
 ├── uploaders/
 │   ├── uploader-base.ts    # Uploader abstract base class
 │   ├── uploader-factory.ts # Uploader factory (instantiate by type)
-│   ├── aliyun-oss.ts       # Aliyun OSS (HMAC-SHA1 signing)
+│   ├── aliyun-oss.ts       # Aliyun OSS (OSS V4 signing)
 │   ├── qiniu.ts            # Qiniu Cloud (Token auth, region endpoints)
 │   ├── s3-compatible.ts    # S3 compatible storage (AWS SigV4)
+│   ├── public-url.ts       # Public URL base normalization and joining
 │   ├── custom-uploader.ts  # Custom HTTP endpoint
 │   └── upload-queue.ts     # Concurrent upload queue (3 concurrent, 3 retries, progress callback)
 └── utils/
     ├── ref-converter.ts    # Reference format parsing and conversion
     ├── image-scanner.ts    # Image scanning, filtering, sorting
     ├── path-utils.ts       # Path utilities, file size formatting, template variables
+    ├── public-url.ts       # Markdown-safe Unicode URL display
     ├── orphan-finder.ts    # Orphan image detection, reverse reference query
     ├── image-optimizer.ts  # Canvas compression, format conversion
     ├── batch-rename.ts     # Batch rename (sync update all vault references)
@@ -180,8 +182,8 @@ src/
 > **Note**: Image hosting requires "Use Markdown Standard Format" to be enabled.
 
 - **Add Image Hosting** — Supports Aliyun OSS, Qiniu Cloud, S3 compatible storage, custom HTTP endpoint
-- **Upload Path Template** — Supports `{year}`, `{month}`, `{day}`, `{filename}`, `{ext}`, `{hash}`, `{timestamp}`
-- **URL Prefix** — Custom domain
+- **Upload Path Template** — Supports `{year}`, `{month}`, `{day}`, `{filename}`, `{ext}`, `{hash}`, `{timestamp}`, `{sourceDir}`
+- **Public Access URL Base** — Base URL used to access uploaded objects; it can include a bucket or directory path. Required for Qiniu
 - **Auto Replace After Upload** — Automatically replace local references with hosting URL
 
 ![设置-图床-en.png](images/设置-图床-en.png)
@@ -257,8 +259,8 @@ src/
 
 | Provider | Status | Description |
 |----------|--------|-------------|
-| Aliyun OSS | ✅ Supported | PUT upload, HMAC-SHA1 signing |
-| Qiniu Cloud | ✅ Supported | Token auth, multipart upload |
+| Aliyun OSS | ✅ Supported | PUT upload, OSS V4 (HMAC-SHA256) signing |
+| Qiniu Cloud | ✅ Supported | Token auth, multipart upload; public access URL base required |
 | S3 Compatible Storage | ✅ Supported | AWS SigV4, supports MinIO, Cloudflare R2, etc. |
 | Custom | ✅ Supported | Custom URL, Method, Headers, field mapping |
 
@@ -294,6 +296,9 @@ src/
 | `{ext}` | Extension |
 | `{hash}` | File content SHA-256 hash (first 16 characters) |
 | `{timestamp}` | Unix timestamp |
+| `{sourceDir}` | Vault-relative parent directory of the source image |
+
+Provider-specific upload paths override the global template. Aliyun OSS, Qiniu, and S3 use these templates; custom HTTP uploaders continue to use the URL returned by their configured JSON response path.
 
 ---
 

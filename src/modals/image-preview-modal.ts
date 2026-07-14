@@ -2,7 +2,7 @@ import { App, Modal, Notice, TFile, SuggestModal, MarkdownView } from 'obsidian'
 import type ImageManagerPlugin from '../main';
 import type { ImageHostingConfig } from '../types';
 import { OrphanFinder } from '../utils/orphan-finder';
-import { formatFileSize } from '../utils/path-utils';
+import { encodePathSegments, formatFileSize } from '../utils/path-utils';
 import { RenameImageModal } from './rename-image';
 import { t } from '../i18n';
 
@@ -143,7 +143,7 @@ export class ImagePreviewModal extends Modal {
     }
 
     private buildReference(): string {
-        return `![${this.file.name}](${this.file.path})`;
+        return `![${this.file.name}](${encodePathSegments(this.file.path)})`;
     }
 
     private async copyReference() {

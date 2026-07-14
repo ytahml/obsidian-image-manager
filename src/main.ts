@@ -14,6 +14,7 @@ import { createUploader } from './uploaders/uploader-factory';
 import { UploadQueue } from './uploaders/upload-queue';
 import { setLocale, t } from './i18n';
 import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
+import { makePublicUrlReadable } from './utils/public-url';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -460,7 +461,11 @@ export default class ImageManagerPlugin extends Plugin {
                     });
 
                     if (result.success && result.url) {
-                        const newRef = `![${ref.altText || imgFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;
+                        const newRef = this.buildUploadedReference(
+                            imgFile.name,
+                            result.url,
+                            ref.altText || imgFile.name.replace(/\.[^.]+$/, '')
+                        );
                         newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
                         success++;
 
@@ -533,9 +538,9 @@ export default class ImageManagerPlugin extends Plugin {
         return match?.path ?? null;
     }
 
-    private buildUploadedReference(filename: string, url: string): string {
-        const baseName = filename.replace(/\.[^.]+$/, '');
-        return `![${baseName}](${url})`;
+    private buildUploadedReference(filename: string, url: string, altText?: string): string {
+        const baseName = altText || filename.replace(/\.[^.]+$/, '');
+        return `![${baseName}](${makePublicUrlReadable(url)})`;
     }
 
     private async replaceReferenceInNote(imageFile: TFile, newUrl: string, skipFile?: TFile) {
@@ -556,7 +561,11 @@ export default class ImageManagerPlugin extends Plugin {
                 const ref = refs[i]!;
                 const refName = ref.path.split('/').pop() ?? ref.path;
                 if (refName === imageName || ref.path === imagePath) {
-                    const newRef = `![${ref.altText || imageName}](${newUrl})`;
+                    const newRef = this.buildUploadedReference(
+                        imageName,
+                        newUrl,
+                        ref.altText || imageName
+                    );
                     newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
                     replaced = true;
                     totalReplaced++;
@@ -889,7 +898,7 @@ export default class ImageManagerPlugin extends Plugin {
             });
 
             if (result.success && result.url) {
-                const ref = `![${savedFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;
+                const ref = this.buildUploadedReference(savedFile.name, result.url);
 
                 // Replace the local reference we just inserted with the remote URL
                 const cursor = editor.getCursor();

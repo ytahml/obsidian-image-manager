@@ -139,6 +139,8 @@ if (reorganizeConvertFormat) {
 editor.replaceSelection(ref);
 ```
 
+`encodePathSegments` 逐段处理本地路径：保留 Unicode 和 RFC 3986 `pchar` 安全 ASCII（排除会影响 Markdown 的括号），编码其余 ASCII，包括空白、控制字符、`%`、`#`、`?`、括号、方括号、引号、尖括号、反斜杠、反引号、花括号和竖线。粘贴、图片预览插入、引用转换、图片整理和批量重命名统一使用该规则，这样上传失败保留本地引用或其他流程生成引用时，不会被 Markdown 或 URL 语义误解析。
+
 ### 6. 可选自动上传
 
 条件：`autoUploadOnPaste=true` 且 `reorganizeConvertFormat=true`

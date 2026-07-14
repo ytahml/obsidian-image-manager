@@ -9,9 +9,11 @@ main.ts（入口）
 ├── uploaders/（图床上传）
 │   ├── uploader-factory.ts → 4 个上传器
 │   ├── upload-path.ts（共享上传路径模板解析）
+│   ├── public-url.ts（公共访问 URL 基础路径拼接）
 │   └── upload-queue.ts
 ├── utils/（工具模块）
 │   ├── ref-converter.ts ← constants.ts（正则）
+│   ├── public-url.ts（Markdown URL 的 Unicode 可读化）
 │   ├── image-scanner.ts
 │   ├── orphan-finder.ts ← ref-converter.ts
 │   ├── image-optimizer.ts
@@ -72,6 +74,7 @@ doUpload(file, config)
   → readBinary + 可选压缩
   → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
   → 成功：clipboard.writeText(ref)
+    → 仅在 Markdown 边界还原 URL 路径中的 Unicode，保留敏感 ASCII 编码
   → 可选 replaceReferenceInNote（遍历所有 MD 文件）
   → 可选 trashFile（!keepLocalCopy）
 ```
