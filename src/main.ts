@@ -17,6 +17,7 @@ import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from '
 import { makePublicUrlReadable } from './utils/public-url';
 import { generateImageFileName, sanitizeImageFileName } from './utils/image-naming';
 import { removeEmptyDirectParent } from './utils/empty-folder-cleanup';
+import { shouldReplaceLocalImageReference } from './utils/upload-reference';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -561,8 +562,7 @@ export default class ImageManagerPlugin extends Plugin {
 
             for (let i = refs.length - 1; i >= 0; i--) {
                 const ref = refs[i]!;
-                const refName = ref.path.split('/').pop() ?? ref.path;
-                if (refName === imageName || ref.path === imagePath) {
+                if (shouldReplaceLocalImageReference(ref.path, imageName, imagePath)) {
                     const newRef = this.buildUploadedReference(
                         imageName,
                         newUrl,
@@ -888,7 +888,7 @@ export default class ImageManagerPlugin extends Plugin {
                 }
 
                 // Replace references in other notes
-                await this.replaceReferenceInNote(savedFile, result.url);
+                await this.replaceReferenceInNote(savedFile, result.url, currentFile ?? undefined);
 
                 // Delete local file if user doesn't want to keep it
                 if (!this.settings.keepLocalCopy) {

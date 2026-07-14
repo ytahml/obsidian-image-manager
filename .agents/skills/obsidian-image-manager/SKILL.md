@@ -77,6 +77,8 @@ doUpload(file, config)
   → success: clipboard.writeText(ref)
     → Markdown URL display decodes Unicode path bytes only; reserved ASCII stays encoded
   → optional replaceReferenceInNote
+    → skip the current editor note when it was already updated in memory
+    → replace local references only; never rewrite remote URL references
   → optional trashFile (!keepLocalCopy)
   → permanently remove the exact direct attachment folder when it is still empty
 ```

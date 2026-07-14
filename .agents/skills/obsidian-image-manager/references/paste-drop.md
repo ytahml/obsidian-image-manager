@@ -151,7 +151,7 @@ editor.replaceSelection(ref);
 2. 使用全局上传路径模板创建上传器
 3. 上传数据并传入 `savedFile.path`，供 `{sourceDir}` 解析
 4. 替换刚插入的本地引用为远程 URL
-5. 更新其他笔记中的引用
+5. 更新其他笔记中的本地引用；跳过已由 Editor 更新的当前笔记，并忽略所有带 URL scheme 或 `//` 的远程引用
 6. 可选删除本地文件（`!keepLocalCopy`）
 7. 仅当图片的直接父目录仍是保存时捕获的同一 `TFolder`、不是 Vault 根目录且当前为空时，永久、非递归删除该目录；清理失败不改变上传成功状态
 
