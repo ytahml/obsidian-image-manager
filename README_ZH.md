@@ -13,7 +13,22 @@ Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式
 
 ---
 
-因为 wiki 格式本身不利于对图片进行一个良好的管理，因此更推荐使用标准的 MD 标准图片引用格式：
+## 反馈与支持
+
+发现问题或有功能建议？请优先[提交 GitHub Issue](https://github.com/ytahml/obsidian-image-manager/issues)，方便持续跟踪和讨论。
+
+为了更快定位问题，请尽量提供：
+
+- Obsidian 版本和插件版本
+- 可复现步骤，以及预期行为和实际行为
+- 相关错误信息、日志或截图；提交前请移除笔记库中的敏感信息
+
+如需私下沟通，可发送邮件至 **orchidsword@163.com**。如果插件对你有帮助，也欢迎为 [GitHub 项目点亮 ⭐](https://github.com/ytahml/obsidian-image-manager)。
+
+---
+
+Wiki 格式不利于统一管理图片路径和引用，因此更推荐使用标准 Markdown 图片引用格式：
+
 ![zh-使用wiki格式的弊端.png](images/zh-使用wiki格式的弊端.png)
 
 ## 功能概览
@@ -50,7 +65,7 @@ Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式
 | HTTP | Obsidian `requestUrl` |
 | 国际化 | 自研 i18n（中/英） |
 | Lint | ESLint + typescript-eslint + obsidianmd 插件 |
-| CI | GitHub Actions（Node 20.x / 22.x） |
+| CI | GitHub Actions（Node 22.x） |
 
 **零外部运行时依赖** — 仅依赖 `obsidian` 包本身。
 
@@ -58,9 +73,9 @@ Obsidian 图片管理插件 — 支持图片压缩、图床上传、引用格式
 
 ## 安装
 
-1. 在 Obsidian 社区插件中搜索 "Markdown Image Manager" 安装
-2. 或手动下载 release 包，解压到 `.obsidian/plugins/md-image-manager/`
-3. 在设置中启用插件
+1. 在 Obsidian 中打开 **设置 → 第三方插件**，搜索并安装 "Markdown Image Manager"
+2. 或下载 Release 安装包，解压到 `.obsidian/plugins/md-image-manager/`
+3. 如有需要，重新加载 Obsidian，然后在 **设置 → 第三方插件** 中启用插件
 
 ---
 
@@ -359,15 +374,6 @@ src/
 - 图床功能需要开启「使用 Markdown 标准格式」后才能使用
 - 剪贴板操作使用 `require('electron')`，移动端不兼容
 - 图床迁移功能尚未实现
-
----
-
-## 反馈与支持
-
-如果这个插件对你有帮助，欢迎在 [GitHub](https://github.com/ytahml/obsidian-image-manager) 上给一个 ⭐，让更多人发现它！
-
-- **Bug 反馈与功能建议**：[GitHub Issues](https://github.com/ytahml/obsidian-image-manager/issues)
-- **邮箱联系**：orchidsword@163.com
 
 ---
 

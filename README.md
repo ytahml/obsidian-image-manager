@@ -13,6 +13,20 @@ Obsidian image management plugin — supports image compression, image hosting u
 
 ---
 
+## Feedback & Support
+
+Found a bug or have an idea? [Open a GitHub issue](https://github.com/ytahml/obsidian-image-manager/issues) so it can be tracked and discussed.
+
+To help diagnose problems quickly, include:
+
+- Obsidian and plugin versions
+- Steps to reproduce, plus the expected and actual behavior
+- Relevant error messages, logs, or screenshots with sensitive vault information removed
+
+For private questions, contact **orchidsword@163.com**. If you find the plugin useful, consider giving the [project a ⭐](https://github.com/ytahml/obsidian-image-manager).
+
+---
+
 ## Feature Overview
 
 | Feature | Status |
@@ -47,7 +61,7 @@ Obsidian image management plugin — supports image compression, image hosting u
 | HTTP | Obsidian `requestUrl` |
 | i18n | Custom i18n (Chinese/English) |
 | Lint | ESLint + typescript-eslint + obsidianmd plugin |
-| CI | GitHub Actions (Node 20.x / 22.x) |
+| CI | GitHub Actions (Node 22.x) |
 
 **Zero external runtime dependencies** — only depends on the `obsidian` package itself.
 
@@ -55,9 +69,9 @@ Obsidian image management plugin — supports image compression, image hosting u
 
 ## Installation
 
-1. Search "Markdown Image Manager" in Obsidian Community Plugins to install
-2. Or manually download the release package and extract to `.obsidian/plugins/md-image-manager/`
-3. Enable the plugin in settings
+1. Open **Settings → Community plugins** in Obsidian and search for "Markdown Image Manager"
+2. Alternatively, download a release package and extract it to `.obsidian/plugins/md-image-manager/`
+3. Reload Obsidian if needed, then enable the plugin under **Settings → Community plugins**
 
 ---
 
@@ -309,15 +323,6 @@ Provider-specific upload paths override the global template. Aliyun OSS, Qiniu, 
 - Image hosting requires "Use Markdown Standard Format" to be enabled
 - Clipboard operations use `require('electron')`, not compatible with mobile
 - Image hosting migration not yet implemented
-
----
-
-## Feedback & Support
-
-If you find this plugin helpful, please consider giving it a ⭐ on [GitHub](https://github.com/ytahml/obsidian-image-manager) — it helps others discover it!
-
-- **Bug reports & feature requests**: [GitHub Issues](https://github.com/ytahml/obsidian-image-manager/issues)
-- **Email**: orchidsword@163.com
 
 ---
 

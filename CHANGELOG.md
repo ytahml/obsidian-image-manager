@@ -1,5 +1,60 @@
 # Changelog
 
+## 1.0.9
+
+### 🇺🇸 English
+
+#### New features
+
+- Added `{noteName}` for image filename templates
+- Added `{sourceDir}` for preserving the source image's Vault-relative directory in upload path templates ([PR #9](https://github.com/ytahml/obsidian-image-manager/pull/9))
+- Added Aliyun OSS Signature V4 support with HMAC-SHA256 signing ([PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15))
+
+#### Improvements
+
+- Unified upload path template resolution for Aliyun OSS, Qiniu, and S3: provider template, then global template, then the default template ([PR #9](https://github.com/ytahml/obsidian-image-manager/pull/9))
+- Expanded the public access URL base to support scheme normalization and bucket or directory prefixes; Qiniu now requires this setting ([PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15))
+- Improved public image URL generation for Unicode paths, reserved characters, and nested directory prefixes ([PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15))
+- Hid upload path and public URL settings that do not apply to custom HTTP uploaders ([PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15))
+- Automatically remove the exact direct attachment folder after auto-upload when local copies are disabled and the folder is empty
+- Added Vitest coverage for reference conversion, upload paths, hosting providers, image naming, and cleanup, and integrated tests into CI
+
+#### Fixes
+
+- Fixed S3-compatible and MinIO path-style URL construction and SigV4 canonical path encoding ([PR #7](https://github.com/ytahml/obsidian-image-manager/pull/7))
+- Fixed Aliyun OSS request path encoding so uploaded object paths match their signatures ([PR #11](https://github.com/ytahml/obsidian-image-manager/pull/11))
+- Fixed Qiniu upload tokens and public URLs for Unicode and special-character object paths ([PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15))
+- Fixed local Markdown image paths containing spaces, reserved characters, or invalid percent escapes across paste, preview, conversion, reorganization, and batch rename flows ([PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15))
+- Prevented upload replacement from rewriting remote image URLs or updating the current note twice after automatic uploads
+
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 图片文件名模板新增 `{noteName}` 变量
+- 上传路径模板新增 `{sourceDir}` 变量，用于保留源图片在 Vault 中的相对目录（[PR #9](https://github.com/ytahml/obsidian-image-manager/pull/9)）
+- 阿里云 OSS 新增基于 HMAC-SHA256 的 V4 签名支持（[PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15)）
+
+#### 改进
+
+- 统一阿里云 OSS、七牛云和 S3 的上传路径模板解析优先级：图床专属模板、全局模板、默认模板（[PR #9](https://github.com/ytahml/obsidian-image-manager/pull/9)）
+- 扩展公共访问 URL 基础路径，支持自动补全协议及保留 bucket 或目录前缀；七牛云现在必须配置此项（[PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15)）
+- 改进公共图片 URL 生成，正确处理 Unicode 路径、保留字符和多级目录前缀（[PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15)）
+- 自定义 HTTP 图床不再显示不适用的上传路径和公共 URL 设置（[PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15)）
+- 关闭保留本地副本时，自动上传完成后安全清理对应的空直属附件目录
+- 新增引用转换、上传路径、图床、图片命名和目录清理的 Vitest 测试，并将测试接入 CI
+
+#### 修复
+
+- 修复 S3 兼容存储和 MinIO 的路径样式 URL 构建及 SigV4 规范路径编码（[PR #7](https://github.com/ytahml/obsidian-image-manager/pull/7)）
+- 修复阿里云 OSS 请求路径编码，确保上传对象路径与签名一致（[PR #11](https://github.com/ytahml/obsidian-image-manager/pull/11)）
+- 修复七牛云上传令牌和公共 URL 无法正确处理 Unicode 及特殊字符对象路径的问题（[PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15)）
+- 修复粘贴、预览、引用转换、图片整理和批量重命名流程中，本地 Markdown 图片路径的空格、保留字符及无效百分号编码问题（[PR #15](https://github.com/ytahml/obsidian-image-manager/pull/15)）
+- 修复上传替换错误改写远程图片 URL，以及自动上传后重复更新当前笔记的问题
+
+---
+
 ## 1.0.8
 
 ### 🇺🇸 English
