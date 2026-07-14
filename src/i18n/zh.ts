@@ -146,9 +146,7 @@ export const zh: Record<string, string> = {
         '覆盖全局模板，留空则使用全局设置。{sourceDir} 会将图片所在目录发送给图床服务商。',
     'modal.hosting.urlPrefix': '公共访问 URL 基础路径',
     'modal.hosting.urlPrefixDesc':
-        '上传成功后用于生成图片的公开访问 URL，可包含 bucket 或目录，如 https://img.example.com/my-bucket',
-    'modal.hosting.urlPrefixDescQiniu':
-        '七牛云必填。上传成功后用于生成图片的公开访问 URL，可包含 bucket 或目录，如 https://img.example.com/my-bucket',
+        '公开访问图片URL的基础路径，可包含bucket，例如https://img.example.com 或https://minio.example.com/obsidian',
     'modal.hosting.providerConfig': '服务商配置',
     'modal.hosting.save': '保存',
     'modal.hosting.forcePathStyleDesc': '使用 path-style URL（如 MinIO）',

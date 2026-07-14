@@ -147,9 +147,7 @@ export const en: Record<string, string> = {
         'Override the global template. Leave empty to use the global setting. {sourceDir} sends the image folder path to the hosting provider.',
     'modal.hosting.urlPrefix': 'Public access URL base',
     'modal.hosting.urlPrefixDesc':
-        'Used to generate the public image URL after upload. It can include a bucket or directory, e.g. https://img.example.com/my-bucket',
-    'modal.hosting.urlPrefixDescQiniu':
-        'Required for Qiniu. Used to generate the public image URL after upload and can include a bucket or directory.',
+        'Base path for publicly accessible image URLs. It can include a bucket, for example https://img.example.com or https://minio.example.com/obsidian',
     'modal.hosting.providerConfig': 'Provider Configuration',
     'modal.hosting.save': 'Save',
     'modal.hosting.forcePathStyleDesc': 'Use path-style URLs (e.g. for MinIO)',
