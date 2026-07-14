@@ -147,9 +147,7 @@ export const en: Record<string, string> = {
         'Override the global template. Leave empty to use the global setting. {sourceDir} sends the image folder path to the hosting provider.',
     'modal.hosting.urlPrefix': 'Public access URL base',
     'modal.hosting.urlPrefixDesc':
-        'Used to generate the public image URL after upload. It can include a bucket or directory, e.g. https://img.example.com/my-bucket',
-    'modal.hosting.urlPrefixDescQiniu':
-        'Required for Qiniu. Used to generate the public image URL after upload and can include a bucket or directory.',
+        'Base path for publicly accessible image URLs. It can include a bucket, for example https://img.example.com or https://minio.example.com/obsidian',
     'modal.hosting.providerConfig': 'Provider Configuration',
     'modal.hosting.save': 'Save',
     'modal.hosting.forcePathStyleDesc': 'Use path-style URLs (e.g. for MinIO)',
@@ -174,7 +172,7 @@ export const en: Record<string, string> = {
     'settings.imageNaming': 'Image Naming',
     'settings.imageNamingTemplate': 'Naming template',
     'settings.imageNamingTemplateDesc':
-        'Template for pasted/dropped image names. Variables: {date}, {time}, {timestamp}, {counter}, {year}, {month}, {day}',
+        'Template for pasted/dropped image names. Variables: {noteName}, {date}, {time}, {timestamp}, {counter}, {year}, {month}, {day}',
     'settings.promptImageName': 'Prompt for image name',
     'settings.promptImageNameDesc': 'Show a name input dialog when pasting/dropping images',
     'settings.enableImageBrowser': 'Enable image browser',
@@ -182,7 +180,7 @@ export const en: Record<string, string> = {
     'settings.autoUploadOnPaste': 'Auto upload on paste',
     'settings.autoUploadOnPasteDesc': 'Automatically upload images to hosting when pasting/dropping',
     'settings.keepLocalCopy': 'Keep local copy',
-    'settings.keepLocalCopyDesc': 'Keep a local copy of the image file after uploading to hosting',
+    'settings.keepLocalCopyDesc': 'Keep a local copy after uploading; otherwise, empty direct attachment folders are removed',
     'command.restoreLocalRefs': 'Restore local image references',
     'command.restoreLocalRefsFolder': 'Restore local image references (folder)',
     'notice.restoreLocalDone': 'Restored {count} reference(s) to local files',

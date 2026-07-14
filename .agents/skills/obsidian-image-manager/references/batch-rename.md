@@ -172,3 +172,4 @@ new ButtonComponent(buttonContainerEl)
 3. **alt 文本更新**：如果 alt 文本是旧文件名，同步更新为新文件名
 4. **延迟修复**：Obsidian 内置重命名后的修复需要延迟 100ms
 5. **IME 兼容**：RenameImageModal 的 keydown 事件检查 `isComposing`
+6. **上传引用隔离**：图床上传后的引用替换只处理本地路径；远程 URL 不参与文件名匹配，避免同名远程图片被二次改写

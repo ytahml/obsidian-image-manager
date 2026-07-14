@@ -83,9 +83,7 @@ export class HostingConfigModal extends Modal {
             // Public access URL base
             new Setting(contentEl)
                 .setName(t('modal.hosting.urlPrefix'))
-                .setDesc(t(this.config.type === 'qiniu'
-                    ? 'modal.hosting.urlPrefixDescQiniu'
-                    : 'modal.hosting.urlPrefixDesc'))
+                .setDesc(t('modal.hosting.urlPrefixDesc'))
                 .addText((text) =>
                     text
                         .setPlaceholder('Img.example.com/bucket')
