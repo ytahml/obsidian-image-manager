@@ -1,5 +1,6 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
+import { encodePublicPath, joinPublicUrl, normalizePublicUrlBase } from './public-url';
 import type { UploadResult, ImageHostingConfig, QiniuConfig, UploadContext } from '../types';
 
 export class QiniuUploader extends UploaderBase {
@@ -15,6 +16,14 @@ export class QiniuUploader extends UploaderBase {
         context?: UploadContext
     ): Promise<UploadResult> {
         const qiniuConfig = this.config.config as QiniuConfig;
+        const publicUrlBase = normalizePublicUrlBase(this.config.urlPrefix);
+        if (!publicUrlBase) {
+            return {
+                success: false,
+                error: 'Public access URL base is required for Qiniu',
+                originalPath: filename,
+            };
+        }
         const targetPath = await this.resolveUploadPath(filename, data, context);
         const token = await this.generateUploadToken(qiniuConfig, targetPath);
         const uploadUrl = this.getUploadUrl(qiniuConfig.region);
@@ -44,11 +53,7 @@ export class QiniuUploader extends UploaderBase {
 
             const json = resp.json as { key?: string; error?: string };
             if (json.key) {
-                let domain = (this.config.urlPrefix || '').trim().replace(/\/+$/, '');
-                if (domain && !domain.startsWith('http://') && !domain.startsWith('https://')) {
-                    domain = `https://${domain}`;
-                }
-                const publicUrl = domain ? `${domain}/${json.key}` : `${uploadUrl}${json.key}`;
+                const publicUrl = joinPublicUrl(publicUrlBase, encodePublicPath(json.key));
                 return {
                     success: true,
                     url: publicUrl,
@@ -94,14 +99,15 @@ export class QiniuUploader extends UploaderBase {
         const policyStr = JSON.stringify(policy);
         const encodedPolicy = this.base64UrlEncode(policyStr);
         const sign = await this.hmacSha1(secretKey, encodedPolicy);
-        const encodedSign = this.base64UrlEncode(String.fromCharCode(...new Uint8Array(sign)));
+        const encodedSign = this.base64UrlEncode(new Uint8Array(sign));
         const token = `${accessKey}:${encodedSign}:${encodedPolicy}`;
 
         return token;
     }
 
-    private base64UrlEncode(input: string): string {
-        return btoa(input).replace(/\+/g, '-').replace(/\//g, '_');
+    private base64UrlEncode(input: string | Uint8Array): string {
+        const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
+        return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
     }
 
     private getUploadUrl(region: string): string {

@@ -25,14 +25,16 @@ main.ts (entry, ~995 lines)
 │   ├── uploader-factory.ts → 4 uploaders
 │   ├── upload-path.ts (shared template resolution)
 │   ├── oss-path.ts (Aliyun OSS URL path encoding)
+│   ├── public-url.ts (public URL base normalization and joining)
 │   └── upload-queue.ts (3 concurrent, 3 retries)
 ├── utils/
 │   ├── ref-converter.ts ← constants.ts (regex)
+│   ├── public-url.ts (Markdown-safe Unicode URL display)
 │   ├── image-scanner.ts
 │   ├── orphan-finder.ts ← ref-converter.ts
 │   ├── image-optimizer.ts (Canvas API)
 │   ├── image-reorganizer.ts ← ref-converter.ts + path-utils.ts
-│   ├── batch-rename.ts ← ref-converter.ts
+│   ├── batch-rename.ts ← ref-converter.ts + path-utils.ts
 │   └── path-utils.ts
 ├── types.ts (DEFAULT_SETTINGS)
 └── i18n/ (zh/en, ~180 keys)
@@ -72,6 +74,7 @@ doUpload(file, config)
   → readBinary + optional compression
   → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
   → success: clipboard.writeText(ref)
+    → Markdown URL display decodes Unicode path bytes only; reserved ASCII stays encoded
   → optional replaceReferenceInNote
   → optional trashFile (!keepLocalCopy)
 ```
@@ -114,6 +117,7 @@ Other key settings:
 - `keepLocalCopy`: keep local file after upload
 - `skipWikiRefsOnReorganize`: skip Wiki refs during reorganize
 - `uploadPathTemplate`: global upload path fallback; supports `{sourceDir}` for the Vault-relative parent directory
+- `urlPrefix`: public access URL base for Aliyun OSS, Qiniu, and S3; may include a bucket or directory path
 
 ## Coding Conventions
 

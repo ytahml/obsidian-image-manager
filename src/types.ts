@@ -36,6 +36,7 @@ export interface ImageHostingConfig {
     enabled: boolean;
     config: AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig;
     uploadPath: string;
+    /** Public access URL base, optionally including a bucket or directory path. */
     urlPrefix: string;
 }
 

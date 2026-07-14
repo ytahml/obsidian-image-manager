@@ -1,6 +1,7 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
 import { buildS3CanonicalUri, buildS3Url, encodeS3Key } from './s3-path';
+import { joinPublicUrl } from './public-url';
 import type { UploadResult, ImageHostingConfig, S3Config, UploadContext } from '../types';
 
 export class S3Uploader extends UploaderBase {
@@ -44,7 +45,7 @@ export class S3Uploader extends UploaderBase {
             }
 
             const publicUrl = this.config.urlPrefix
-                ? `${this.config.urlPrefix.replace(/\/+$/, '')}/${encodeS3Key(targetPath)}`
+                ? joinPublicUrl(this.config.urlPrefix, encodeS3Key(targetPath))
                 : url;
 
             return {

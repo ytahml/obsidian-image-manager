@@ -1,6 +1,7 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
 import { encodeOSSKey } from './oss-path';
+import { joinPublicUrl } from './public-url';
 import type { UploadResult, ImageHostingConfig, AliyunOSSConfig, UploadContext } from '../types';
 
 export class AliyunOSSUploader extends UploaderBase {
@@ -27,19 +28,14 @@ export class AliyunOSSUploader extends UploaderBase {
         const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;
         const encodedPath = encodeOSSKey(targetPath);
         const url = `https://${host}/${encodedPath}`;
-        const date = new Date().toUTCString();
-        // OSS V1 signs the logical object key, while the request URL uses its encoded form.
-        const resourcePath = `/${ossConfig.bucket}/${targetPath}`;
-        const stringToSign = `PUT\n\n${contentType}\n${date}\n${resourcePath}`;
-        const signature = await this.hmacSha1Base64(stringToSign, ossConfig.accessKeySecret);
+        const headers = await this.signRequest(ossConfig, 'PUT', targetPath, contentType);
 
         try {
             const resp = await requestUrl({
                 url,
                 method: 'PUT',
                 headers: {
-                    Authorization: `OSS ${ossConfig.accessKeyId}:${signature}`,
-                    Date: date,
+                    ...headers,
                     'Content-Type': contentType,
                 },
                 body: data,
@@ -50,9 +46,7 @@ export class AliyunOSSUploader extends UploaderBase {
                 console.error(`[AliyunOSS] Upload failed: HTTP ${resp.status}`, resp.text);
                 return { success: false, error: `HTTP ${resp.status}: ${resp.text}`, originalPath: filename };
             }
-            const publicUrl = this.config.urlPrefix
-                ? `${this.config.urlPrefix}/${encodedPath}`
-                : url;
+            const publicUrl = this.config.urlPrefix ? joinPublicUrl(this.config.urlPrefix, encodedPath) : url;
             return { success: true, url: publicUrl, originalPath: filename };
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Upload failed';
@@ -64,19 +58,13 @@ export class AliyunOSSUploader extends UploaderBase {
         const ossConfig = this.config.config as AliyunOSSConfig;
         const region = this.parseRegion(ossConfig.region);
         const host = `${ossConfig.bucket}.oss-${region}.aliyuncs.com`;
-        const date = new Date().toUTCString();
-        const resourcePath = `/${ossConfig.bucket}/`;
-        const stringToSign = `GET\n\n\n${date}\n${resourcePath}`;
-        const signature = await this.hmacSha1Base64(stringToSign, ossConfig.accessKeySecret);
+        const headers = await this.signRequest(ossConfig, 'GET', '');
 
         try {
             const resp = await requestUrl({
                 url: `https://${host}/`,
                 method: 'GET',
-                headers: {
-                    Authorization: `OSS ${ossConfig.accessKeyId}:${signature}`,
-                    Date: date,
-                },
+                headers,
                 throw: false,
             });
             return resp.status === 200;
@@ -92,17 +80,76 @@ export class AliyunOSSUploader extends UploaderBase {
         return r;
     }
 
-    private async hmacSha1Base64(stringToSign: string, secret: string): Promise<string> {
-        const encoder = new TextEncoder();
-        const key = await crypto.subtle.importKey(
+    private async signRequest(
+        config: AliyunOSSConfig,
+        method: string,
+        objectKey: string,
+        contentType?: string
+    ): Promise<Record<string, string>> {
+        const timestamp = this.formatTimestamp(new Date());
+        const dateStamp = timestamp.slice(0, 8);
+        const region = this.parseRegion(config.region);
+        const canonicalUri = objectKey
+            ? `/${config.bucket}/${encodeOSSKey(objectKey)}`
+            : `/${config.bucket}/`;
+        const canonicalHeaders = [
+            ...(contentType ? [`content-type:${contentType}`] : []),
+            'x-oss-content-sha256:UNSIGNED-PAYLOAD',
+            `x-oss-date:${timestamp}`,
+        ].join('\n') + '\n';
+        const additionalHeaders = '';
+        const canonicalRequest = `${method}\n${canonicalUri}\n\n${canonicalHeaders}${additionalHeaders}\n\nUNSIGNED-PAYLOAD`;
+        const credentialScope = `${dateStamp}/${region}/oss/aliyun_v4_request`;
+        const stringToSign = [
+            'OSS4-HMAC-SHA256',
+            timestamp,
+            credentialScope,
+            await this.sha256Hex(canonicalRequest),
+        ].join('\n');
+        const signingKey = await this.getSigningKey(config.accessKeySecret, dateStamp, region);
+        const signature = await this.hmacSha256Hex(signingKey, stringToSign);
+
+        return {
+            Authorization: `OSS4-HMAC-SHA256 Credential=${config.accessKeyId}/${credentialScope}, Signature=${signature}`,
+            'x-oss-content-sha256': 'UNSIGNED-PAYLOAD',
+            'x-oss-date': timestamp,
+        };
+    }
+
+    private formatTimestamp(date: Date): string {
+        return date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+    }
+
+    private async sha256Hex(value: string): Promise<string> {
+        const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+        return Array.from(new Uint8Array(hash))
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    private async getSigningKey(secret: string, date: string, region: string): Promise<ArrayBuffer> {
+        const dateKey = await this.hmacSha256(new TextEncoder().encode(`aliyun_v4${secret}`), date);
+        const regionKey = await this.hmacSha256(dateKey, region);
+        const serviceKey = await this.hmacSha256(regionKey, 'oss');
+        return this.hmacSha256(serviceKey, 'aliyun_v4_request');
+    }
+
+    private async hmacSha256(key: ArrayBuffer | Uint8Array, value: string): Promise<ArrayBuffer> {
+        const cryptoKey = await crypto.subtle.importKey(
             'raw',
-            encoder.encode(secret),
-            { name: 'HMAC', hash: 'SHA-1' },
+            key,
+            { name: 'HMAC', hash: 'SHA-256' },
             false,
-            ['sign'],
+            ['sign']
         );
-        const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(stringToSign));
-        return btoa(String.fromCharCode(...new Uint8Array(sig)));
+        return crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(value));
+    }
+
+    private async hmacSha256Hex(key: ArrayBuffer | Uint8Array, value: string): Promise<string> {
+        const signature = await this.hmacSha256(key, value);
+        return Array.from(new Uint8Array(signature))
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join('');
     }
 
     private guessMimeType(filename: string): string {

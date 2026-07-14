@@ -41,7 +41,7 @@ interface ImageHostingConfig {
     enabled: boolean;
     config: AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig;
     uploadPath: string;  // 上传路径模板
-    urlPrefix: string;   // URL 前缀
+    urlPrefix: string;   // 公共访问 URL 基础路径，可包含 bucket 或目录
 }
 
 interface UploadContext {

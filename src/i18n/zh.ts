@@ -34,7 +34,7 @@ export const zh: Record<string, string> = {
     'settings.deleteHostingMsg': '删除图床配置 "{name}"？',
     'settings.uploadPathTemplate': '上传路径模板',
     'settings.uploadPathTemplateDesc':
-        '上传路径模板。变量：{year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}, {sourceDir}。使用 {sourceDir} 会将图片所在目录发送给图床服务商。',
+        '阿里云 OSS、七牛云和 S3 的上传路径模板。变量：{year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}, {sourceDir}。',
     'settings.autoReplaceAfterUpload': '上传后自动替换',
     'settings.autoReplaceAfterUploadDesc': '上传后自动将本地引用替换为图床 URL',
 
@@ -144,8 +144,11 @@ export const zh: Record<string, string> = {
     'modal.hosting.uploadPath': '上传路径',
     'modal.hosting.uploadPathDesc':
         '覆盖全局模板，留空则使用全局设置。{sourceDir} 会将图片所在目录发送给图床服务商。',
-    'modal.hosting.urlPrefix': 'URL 前缀',
-    'modal.hosting.urlPrefixDesc': '自定义域名，如 https://img.example.com',
+    'modal.hosting.urlPrefix': '公共访问 URL 基础路径',
+    'modal.hosting.urlPrefixDesc':
+        '上传成功后用于生成图片的公开访问 URL，可包含 bucket 或目录，如 https://img.example.com/my-bucket',
+    'modal.hosting.urlPrefixDescQiniu':
+        '七牛云必填。上传成功后用于生成图片的公开访问 URL，可包含 bucket 或目录，如 https://img.example.com/my-bucket',
     'modal.hosting.providerConfig': '服务商配置',
     'modal.hosting.save': '保存',
     'modal.hosting.forcePathStyleDesc': '使用 path-style URL（如 MinIO）',

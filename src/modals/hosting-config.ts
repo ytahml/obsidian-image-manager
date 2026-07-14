@@ -66,31 +66,35 @@ export class HostingConfigModal extends Modal {
                 })
             );
 
-        // Upload path
-        new Setting(contentEl)
-            .setName(t('modal.hosting.uploadPath'))
-            .setDesc(t('modal.hosting.uploadPathDesc'))
-            .addText((text) =>
-                text
-                    .setPlaceholder('images/{year}/{month}/{filename}.{ext}')
-                    .setValue(this.config.uploadPath)
-                    .onChange((v) => {
-                        this.config.uploadPath = v;
-                    })
-            );
+        if (this.config.type !== 'custom') {
+            // Upload path
+            new Setting(contentEl)
+                .setName(t('modal.hosting.uploadPath'))
+                .setDesc(t('modal.hosting.uploadPathDesc'))
+                .addText((text) =>
+                    text
+                        .setPlaceholder('images/{year}/{month}/{filename}.{ext}')
+                        .setValue(this.config.uploadPath)
+                        .onChange((v) => {
+                            this.config.uploadPath = v;
+                        })
+                );
 
-        // URL prefix
-        new Setting(contentEl)
-            .setName(t('modal.hosting.urlPrefix'))
-            .setDesc(t('modal.hosting.urlPrefixDesc'))
-            .addText((text) =>
-                text
-                    .setPlaceholder('https://img.example.com')
-                    .setValue(this.config.urlPrefix)
-                    .onChange((v) => {
-                        this.config.urlPrefix = v;
-                    })
-            );
+            // Public access URL base
+            new Setting(contentEl)
+                .setName(t('modal.hosting.urlPrefix'))
+                .setDesc(t(this.config.type === 'qiniu'
+                    ? 'modal.hosting.urlPrefixDescQiniu'
+                    : 'modal.hosting.urlPrefixDesc'))
+                .addText((text) =>
+                    text
+                        .setPlaceholder('Img.example.com/bucket')
+                        .setValue(this.config.urlPrefix)
+                        .onChange((v) => {
+                            this.config.urlPrefix = v;
+                        })
+                );
+        }
 
         // Provider-specific fields
         contentEl.createEl('h3', { text: t('modal.hosting.providerConfig') });

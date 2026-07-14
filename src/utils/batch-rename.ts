@@ -1,6 +1,7 @@
 import { App, TFile } from 'obsidian';
 import { RefConverter } from './ref-converter';
 import type { ImageManagerSettings } from '../types';
+import { decodePathSegments, encodePathSegments } from './path-utils';
 
 export interface RenameResult {
     file: TFile;
@@ -67,10 +68,18 @@ export class BatchRename {
             // Process in reverse order to preserve indices
             for (let i = refs.length - 1; i >= 0; i--) {
                 const ref = refs[i]!;
-                const refName = ref.path.split('/').pop() ?? ref.path;
+                const logicalRefPath = ref.format === 'markdown'
+                    ? decodePathSegments(ref.path)
+                    : ref.path;
+                const refName = logicalRefPath.split('/').pop() ?? logicalRefPath;
 
-                if (refName === oldName || ref.path === oldPath || ref.path === oldName) {
-                    const newRef = this.buildUpdatedRef(ref, oldName, newName, oldPath);
+                if (refName === oldName || logicalRefPath === oldPath || logicalRefPath === oldName) {
+                    const newRef = this.buildUpdatedRef(
+                        { ...ref, path: logicalRefPath },
+                        oldName,
+                        newName,
+                        oldPath
+                    );
                     newContent =
                         newContent.substring(0, ref.col) +
                         newRef +
@@ -114,12 +123,9 @@ export class BatchRename {
                 if (ref.path !== newName && ref.path.split('/').pop() !== newName) continue;
 
                 // Skip if reference already points to a valid file
-                let decodedRefPath: string;
-                try {
-                    decodedRefPath = decodeURIComponent(ref.path);
-                } catch {
-                    decodedRefPath = ref.path;
-                }
+                const decodedRefPath = ref.format === 'markdown'
+                    ? decodePathSegments(ref.path)
+                    : ref.path;
                 // Try exact path, then resolve relative to note directory
                 const noteDir = mdFile.parent?.path ?? '';
                 const resolvedPath = noteDir ? `${noteDir}/${decodedRefPath}` : decodedRefPath;
@@ -141,7 +147,7 @@ export class BatchRename {
                         correctPath = this.refConverter.computeRelativePath(noteDir, absolutePath);
                     }
                 }
-                if (ref.path === correctPath) continue;
+                if (decodedRefPath === correctPath) continue;
 
                 // Update alt text if it was the old filename
                 let altText = ref.altText;
@@ -154,7 +160,7 @@ export class BatchRename {
                         ? altText
                             ? `![[${correctPath}|${altText}]]`
                             : `![[${correctPath}]]`
-                        : `![${altText}](${correctPath})`;
+                        : `![${altText}](${encodePathSegments(correctPath)})`;
 
                 newContent =
                     newContent.substring(0, ref.col) +
@@ -193,6 +199,6 @@ export class BatchRename {
         if (ref.format === 'wiki') {
             return ref.altText ? `![[${newRefPath}|${ref.altText}]]` : `![[${newRefPath}]]`;
         }
-        return `![${ref.altText}](${newRefPath})`;
+        return `![${ref.altText}](${encodePathSegments(newRefPath)})`;
     }
 }

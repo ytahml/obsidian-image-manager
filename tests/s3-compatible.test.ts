@@ -101,6 +101,16 @@ describe('S3Uploader', () => {
         );
     });
 
+    it('normalizes a scheme-less public access base and preserves its path', async () => {
+        const uploader = new S3Uploader(
+            createHostingConfig(createS3Config(), 'cdn.example.com/public-bucket/')
+        );
+
+        const result = await uploader.upload(new ArrayBuffer(0), 'photo.png');
+
+        expect(result.url).toBe('https://cdn.example.com/public-bucket/uploads/photo.png');
+    });
+
     it('uses the global template and sourceDir when the provider template is empty', async () => {
         const hostingConfig = createHostingConfig(createS3Config());
         hostingConfig.uploadPath = '';

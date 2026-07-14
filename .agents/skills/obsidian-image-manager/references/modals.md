@@ -36,6 +36,8 @@
   - 重命名
   - 关闭
 
+复制和插入生成标准 Markdown 引用，路径通过 `encodePathSegments` 编码敏感 ASCII，同时保留中文等 Unicode 可读。
+
 **引用计数**：
 - 1.0.7 修复：统计所有引用而非仅去重笔记数
 - 显示格式：`5 reference(s) in 1 note(s)`
@@ -68,6 +70,8 @@
 
 **特性**：
 - 根据 `HostingType` 动态渲染字段
+- 阿里云 OSS、七牛和 S3 显示上传路径与公共访问 URL 基础路径；基础路径可包含 bucket 或目录
+- 自定义图床隐藏上述两个无效字段，保留已有配置数据，公开 URL 继续从响应 JSON 提取
 - 支持 4 种服务商：
   - 阿里云 OSS：region、accessKeyId、accessKeySecret、bucket
   - 七牛云：accessKey、secretKey、bucket、region
