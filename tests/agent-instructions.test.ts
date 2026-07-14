@@ -32,4 +32,12 @@ describe('agent instruction entrypoints', () => {
         expect(claudeInstructions.split('\n').length).toBeLessThan(30);
         expect(claudeInstructions).not.toContain('.claude/skills/');
     });
+
+    it('declares the ES2017 library required by production source APIs', async () => {
+        const tsconfig = JSON.parse(await readProjectFile('tsconfig.json')) as {
+            compilerOptions?: { lib?: string[] };
+        };
+
+        expect(tsconfig.compilerOptions?.lib).toContain('ES2017');
+    });
 });

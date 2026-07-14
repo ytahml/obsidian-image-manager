@@ -5,6 +5,7 @@
 - 插件：`eslint-plugin-obsidianmd@0.3.0`
 - 配置：`obsidianmd.configs.recommended`
 - 内含：`typescript-eslint` 的 `recommendedTypeChecked` 规则集
+- TypeScript `lib`：显式包含 `DOM` 与 `ES2017`，覆盖源码使用的 `Object.entries`、`String.padStart` 等 API，避免官方审查环境将其解析为 error type 并级联产生 `no-unsafe-*` 警告
 
 ## 关键规则速查
 
