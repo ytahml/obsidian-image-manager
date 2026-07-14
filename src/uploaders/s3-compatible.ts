@@ -1,5 +1,6 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
+import { buildS3CanonicalUri, buildS3Url, encodeS3Key } from './s3-path';
 import type { UploadResult, ImageHostingConfig, S3Config } from '../types';
 
 export class S3Uploader extends UploaderBase {
@@ -15,7 +16,7 @@ export class S3Uploader extends UploaderBase {
         const contentType = this.guessMimeType(filename);
 
         try {
-            const url = this.buildUrl(s3Config, targetPath);
+            const url = buildS3Url(s3Config, targetPath);
             const requestHost = new URL(url).host;
             const headers = await this.signRequest(s3Config, 'PUT', targetPath, requestHost, data, contentType);
 
@@ -38,9 +39,8 @@ export class S3Uploader extends UploaderBase {
                 };
             }
 
-            // Path-style 模式下 urlPrefix 拼接需包含 bucket
             const publicUrl = this.config.urlPrefix
-                ? `${this.config.urlPrefix}/${s3Config.forcePathStyle ? s3Config.bucket + "/" : ""}${targetPath}`
+                ? `${this.config.urlPrefix.replace(/\/+$/, '')}/${encodeS3Key(targetPath)}`
                 : url;
 
             return {
@@ -61,7 +61,7 @@ export class S3Uploader extends UploaderBase {
         const s3Config = this.config.config as S3Config;
 
         try {
-            const url = this.buildUrl(s3Config, '');
+            const url = buildS3Url(s3Config, '');
             const requestHost = new URL(url).host;
             const headers = await this.signRequest(s3Config, 'GET', '', requestHost, new ArrayBuffer(0));
             const resp = await requestUrl({
@@ -74,22 +74,6 @@ export class S3Uploader extends UploaderBase {
         } catch {
             return false;
         }
-    }
-
-    private buildUrl(s3Config: S3Config, key: string): string {
-        let endpoint = s3Config.endpoint.replace(/\/$/, '');
-        // 确保端点包含协议前缀，缺失时默认使用 https
-        if (!/^https?:\/\//.test(endpoint)) {
-            endpoint = 'https://' + endpoint;
-        }
-        if (s3Config.forcePathStyle) {
-            const encodedKey = encodeURIComponent(key).replace(/%2F/g, '/');
-            return `${endpoint}/${s3Config.bucket}/${encodedKey}`;
-        }
-        // Virtual-hosted style
-        const hostPart = endpoint.replace(/^https?:\/\//, '');
-        const encodedKey = encodeURIComponent(key).replace(/%2F/g, '/');
-        return `${new URL(endpoint).protocol}//${s3Config.bucket}.${hostPart}/${encodedKey}`;
     }
 
     private async signRequest(
@@ -108,8 +92,7 @@ export class S3Uploader extends UploaderBase {
         const canonicalHeaders = `content-type:${contentType}\nhost:${requestHost}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
         const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
 
-        // Path-style 模式下 bucket 在路径中，canonical URI 必须包含 bucket
-        const canonicalUri = s3Config.forcePathStyle ? `/${s3Config.bucket}/${key}` : `/${key}`;
+        const canonicalUri = buildS3CanonicalUri(s3Config, key);
         const canonicalRequest = [
             method,
             canonicalUri,
