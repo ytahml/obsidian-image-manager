@@ -23,6 +23,7 @@ main.ts (entry, ~995 lines)
 ├── modals/ (7 Modal components)
 ├── uploaders/
 │   ├── uploader-factory.ts → 4 uploaders
+│   ├── upload-path.ts (shared template resolution)
 │   └── upload-queue.ts (3 concurrent, 3 retries)
 ├── utils/
 │   ├── ref-converter.ts ← constants.ts (regex)
@@ -68,7 +69,7 @@ editor-paste/editor-drop event
 ```
 doUpload(file, config)
   → readBinary + optional compression
-  → createUploader(config).upload(data, filename)
+  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
   → success: clipboard.writeText(ref)
   → optional replaceReferenceInNote
   → optional trashFile (!keepLocalCopy)
@@ -111,6 +112,7 @@ Other key settings:
 - `autoReplaceAfterUpload`: replace reference after upload
 - `keepLocalCopy`: keep local file after upload
 - `skipWikiRefsOnReorganize`: skip Wiki refs during reorganize
+- `uploadPathTemplate`: global upload path fallback; supports `{sourceDir}` for the Vault-relative parent directory
 
 ## Coding Conventions
 

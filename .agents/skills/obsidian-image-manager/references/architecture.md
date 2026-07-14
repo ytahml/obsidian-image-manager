@@ -8,6 +8,7 @@ main.ts（入口）
 ├── modals/（7 个 Modal）
 ├── uploaders/（图床上传）
 │   ├── uploader-factory.ts → 4 个上传器
+│   ├── upload-path.ts（共享上传路径模板解析）
 │   └── upload-queue.ts
 ├── utils/（工具模块）
 │   ├── ref-converter.ts ← constants.ts（正则）
@@ -69,7 +70,7 @@ ClipboardEvent/DragEvent
 ```
 doUpload(file, config)
   → readBinary + 可选压缩
-  → createUploader(config).upload(data, filename)
+  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
   → 成功：clipboard.writeText(ref)
   → 可选 replaceReferenceInNote（遍历所有 MD 文件）
   → 可选 trashFile（!keepLocalCopy）

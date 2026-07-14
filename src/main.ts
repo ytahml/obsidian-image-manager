@@ -387,8 +387,8 @@ export default class ImageManagerPlugin extends Plugin {
                 data = result.data;
             }
 
-            const uploader = createUploader(hostingConfig);
-            const result = await uploader.upload(data, file.name);
+            const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
+            const result = await uploader.upload(data, file.name, { sourcePath: file.path });
 
             if (result.success && result.url) {
                 const ref = this.buildUploadedReference(file.name, result.url);
@@ -454,8 +454,10 @@ export default class ImageManagerPlugin extends Plugin {
                         data = result.data;
                     }
 
-                    const uploader = createUploader(hostingConfig);
-                    const result = await uploader.upload(data, imgFile.name);
+                    const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
+                    const result = await uploader.upload(data, imgFile.name, {
+                        sourcePath: imgFile.path,
+                    });
 
                     if (result.success && result.url) {
                         const newRef = `![${ref.altText || imgFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;
@@ -881,8 +883,10 @@ export default class ImageManagerPlugin extends Plugin {
         const notice = new Notice(t('notice.autoUploading'), 0);
 
         try {
-            const uploader = createUploader(hostingConfig);
-            const result = await uploader.upload(data, savedFile.name);
+            const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
+            const result = await uploader.upload(data, savedFile.name, {
+                sourcePath: savedFile.path,
+            });
 
             if (result.success && result.url) {
                 const ref = `![${savedFile.name.replace(/\.[^.]+$/, '')}](${result.url})`;

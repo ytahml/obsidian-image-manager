@@ -43,6 +43,10 @@ interface ImageHostingConfig {
     uploadPath: string;  // 上传路径模板
     urlPrefix: string;   // URL 前缀
 }
+
+interface UploadContext {
+    sourcePath?: string; // 图片相对于 Vault 根目录的路径
+}
 ```
 
 ### 图床配置类型
@@ -167,7 +171,7 @@ const DEFAULT_SETTINGS: ImageManagerSettings = {
     promptImageName: false,
     hostingConfigs: [],
     defaultHostingId: '',
-    uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',
+    uploadPathTemplate: DEFAULT_UPLOAD_PATH_TEMPLATE,
     autoReplaceAfterUpload: false,
     reorganizeConvertFormat: true,
     skipWikiRefsOnReorganize: true,

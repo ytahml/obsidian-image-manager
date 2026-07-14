@@ -10,6 +10,7 @@ UploaderBase（抽象基类）
 └── CustomUploader
 
 createUploader(config)  ← 工厂函数
+upload-path.ts          ← 共享模板解析与优先级
 UploadQueue             ← 并发队列
 ```
 
@@ -22,10 +23,20 @@ abstract class UploaderBase {
 
     constructor(config: ImageHostingConfig);
 
-    abstract upload(data: ArrayBuffer, filename: string): Promise<UploadResult>;
+    abstract upload(data: ArrayBuffer, filename: string, context?: UploadContext): Promise<UploadResult>;
     abstract testConnection(): Promise<boolean>;
 }
 ```
+
+### 上传路径模板
+
+`upload-path.ts` 统一为 Aliyun OSS、Qiniu、S3 解析模板。优先级为：
+
+1. 图床配置 `uploadPath`
+2. 全局 `uploadPathTemplate`
+3. `DEFAULT_UPLOAD_PATH_TEMPLATE`
+
+支持 `{year}`、`{month}`、`{day}`、`{filename}`、`{hash}`、`{ext}`、`{timestamp}` 和 `{sourceDir}`。`{sourceDir}` 是图片相对于 Vault 根目录的父目录；根目录图片解析为空且不会产生重复斜杠。只有显式使用该变量时，Vault 目录名才会进入远端对象 key。
 
 ## 4 种上传器实现
 

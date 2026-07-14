@@ -83,7 +83,7 @@ export class UploadQueue {
      * 开始处理队列
      */
     async start(hostingConfig: ImageHostingConfig): Promise<UploadHistoryEntry[]> {
-        const uploader = createUploader(hostingConfig);
+        const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
         const history: UploadHistoryEntry[] = [];
 
         // Start workers
@@ -140,7 +140,9 @@ export class UploadQueue {
                     data = result.data;
                 }
 
-                const result = await uploader.upload(data, item.file.name);
+                const result = await uploader.upload(data, item.file.name, {
+                    sourcePath: item.file.path,
+                });
 
                 if (result.success && result.url) {
                     item.status = 'done';

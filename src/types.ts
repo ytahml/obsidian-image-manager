@@ -39,6 +39,12 @@ export interface ImageHostingConfig {
     urlPrefix: string;
 }
 
+/** 上传调用上下文 */
+export interface UploadContext {
+    /** 图片文件相对于 Vault 根目录的路径 */
+    sourcePath?: string;
+}
+
 /** 阿里云 OSS 配置 */
 export interface AliyunOSSConfig {
     region: string;
@@ -136,6 +142,8 @@ export interface ImageManagerSettings {
     keepLocalCopy: boolean;
 }
 
+export const DEFAULT_UPLOAD_PATH_TEMPLATE = 'images/{year}/{month}/{hash}.{ext}';
+
 export const DEFAULT_SETTINGS: ImageManagerSettings = {
     locale: 'en',
     imagePathTemplate: 'attachments',
@@ -148,7 +156,7 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     promptImageName: false,
     hostingConfigs: [],
     defaultHostingId: '',
-    uploadPathTemplate: 'images/{year}/{month}/{hash}.{ext}',
+    uploadPathTemplate: DEFAULT_UPLOAD_PATH_TEMPLATE,
     autoReplaceAfterUpload: false,
     reorganizeConvertFormat: true,
     skipWikiRefsOnReorganize: true,

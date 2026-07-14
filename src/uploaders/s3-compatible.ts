@@ -1,18 +1,22 @@
 import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
 import { buildS3CanonicalUri, buildS3Url, encodeS3Key } from './s3-path';
-import type { UploadResult, ImageHostingConfig, S3Config } from '../types';
+import type { UploadResult, ImageHostingConfig, S3Config, UploadContext } from '../types';
 
 export class S3Uploader extends UploaderBase {
     readonly name = 'S3 Compatible';
 
-    constructor(config: ImageHostingConfig) {
-        super(config);
+    constructor(config: ImageHostingConfig, globalUploadPathTemplate?: string) {
+        super(config, globalUploadPathTemplate);
     }
 
-    async upload(data: ArrayBuffer, filename: string): Promise<UploadResult> {
+    async upload(
+        data: ArrayBuffer,
+        filename: string,
+        context?: UploadContext
+    ): Promise<UploadResult> {
         const s3Config = this.config.config as S3Config;
-        const targetPath = await this.resolveUploadPath(filename, data);
+        const targetPath = await this.resolveUploadPath(filename, data, context);
         const contentType = this.guessMimeType(filename);
 
         try {
@@ -168,30 +172,6 @@ export class S3Uploader extends UploaderBase {
 
     private formatDateStamp(date: Date): string {
         return date.toISOString().slice(0, 10).replace(/-/g, '');
-    }
-
-    private async resolveUploadPath(filename: string, data?: ArrayBuffer): Promise<string> {
-        const now = new Date();
-        let hash = '';
-        if (data) {
-            const hashBuf = await crypto.subtle.digest('SHA-256', data);
-            hash = Array.from(new Uint8Array(hashBuf)).map((b) => ('0' + b.toString(16)).slice(-2)).join('').substring(0, 16);
-        }
-        const vars: Record<string, string> = {
-            year: now.getFullYear().toString(),
-            month: ('0' + (now.getMonth() + 1)).slice(-2),
-            day: ('0' + now.getDate()).slice(-2),
-            filename: filename.replace(/\.[^.]+$/, ''),
-            ext: filename.split('.').pop() ?? '',
-            timestamp: Math.floor(now.getTime() / 1000).toString(),
-            hash: hash || Math.random().toString(36).substring(2, 10),
-        };
-
-        let template = this.config.uploadPath || 'images/{year}/{month}/{filename}.{ext}';
-        for (const [key, value] of Object.entries(vars)) {
-            template = template.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
-        }
-        return template;
     }
 
     private guessMimeType(filename: string): string {

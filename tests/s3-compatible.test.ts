@@ -7,6 +7,7 @@ vi.mock('obsidian', () => ({ requestUrl }));
 
 import { S3Uploader } from '../src/uploaders/s3-compatible';
 import { buildS3CanonicalUri, buildS3Url } from '../src/uploaders/s3-path';
+import { createUploader } from '../src/uploaders/uploader-factory';
 
 function createS3Config(overrides: Partial<S3Config> = {}): S3Config {
     return {
@@ -97,6 +98,26 @@ describe('S3Uploader', () => {
 
         expect(result.url).toBe(
             'https://cdn.example.com/root/uploads/%E4%B8%AD%E6%96%87%20%E5%9B%BE.png'
+        );
+    });
+
+    it('uses the global template and sourceDir when the provider template is empty', async () => {
+        const hostingConfig = createHostingConfig(createS3Config());
+        hostingConfig.uploadPath = '';
+        const uploader = createUploader(
+            hostingConfig,
+            'global/{sourceDir}/{filename}.{ext}'
+        );
+
+        const result = await uploader.upload(new ArrayBuffer(0), '图 1.png', {
+            sourcePath: 'Projects/A/图 1.png',
+        });
+
+        expect(requestUrl).toHaveBeenCalledWith(expect.objectContaining({
+            url: 'https://minio.example.com:9000/images/global/Projects/A/%E5%9B%BE%201.png',
+        }));
+        expect(result.url).toBe(
+            'https://minio.example.com:9000/images/global/Projects/A/%E5%9B%BE%201.png'
         );
     });
 });
