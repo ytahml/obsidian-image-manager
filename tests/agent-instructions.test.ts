@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -31,6 +31,22 @@ describe('agent instruction entrypoints', () => {
         expect(claudeInstructions).toContain(`@${canonicalSkillPath}`);
         expect(claudeInstructions.split('\n').length).toBeLessThan(30);
         expect(claudeInstructions).not.toContain('.claude/skills/');
+    });
+
+    it('does not keep a duplicate Claude-specific project skill', async () => {
+        await expect(access(resolve(projectRoot, '.claude/skills/obsidian-image-manager')))
+            .rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('indexes the canonical design documentation from the project skill', async () => {
+        const skill = await readProjectFile(canonicalSkillPath);
+        const designIndex = await readProjectFile('docs/design/README.md');
+        const issue17Design = await readProjectFile('docs/design/issue-17-remote-image-management.md');
+
+        expect(skill).toContain('../../../docs/design/README.md');
+        expect(skill).toContain('../../../docs/design/issue-17-remote-image-management.md');
+        expect(designIndex).toContain('Issue #17 图床远程对象管理');
+        expect(issue17Design).toContain('**状态：已完成。**');
     });
 
     it('declares the ES2017 library required by production source APIs', async () => {

@@ -268,8 +268,11 @@ Detailed documentation for each module:
 | ESLint rules | [eslint-rules.md](references/eslint-rules.md) | Fixing lint errors, code review |
 | CI/CD | [ci-cd.md](references/ci-cd.md) | Modifying release flow, troubleshooting CI |
 | Known issues | [known-issues.md](references/known-issues.md) | Troubleshooting similar bugs, avoiding repeated pitfalls |
+| Design documentation | [docs/design/README.md](../../../docs/design/README.md) | Creating or updating feature designs and tracking architectural decisions |
+| Issue #17 remote management plan | [issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md) | Planning or implementing remote image hosting browsing, reference status, preview, or deletion |
 
 ## Pending Features
 
 - **Image hosting migration**: Command registered (`migrate-images`), types defined, shows "not implemented"
 - **Restore local refs**: Translation keys exist, no implementation code
+- **Remote image hosting management (Issue #17)**: G0 is complete; the S3-first phased plan is maintained in [docs/design/issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md), and implementation has not started
