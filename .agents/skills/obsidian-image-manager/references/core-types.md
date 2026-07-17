@@ -202,6 +202,19 @@ IMAGE_MIME_TYPES: {
 }
 ```
 
+## 远程对象公共类型
+
+文件：`src/remote/types.ts`、`src/remote/provider.ts`、`src/remote/provider-factory.ts`
+
+- `RemoteCapability`：`list | preview | delete`，每个 Provider 只公布已实现的能力。
+- `RemoteObject`：只保存规范化的对象元数据，必须包含 `hostingId`、逻辑 `key`、`size`。
+- `RemoteListRequest` / `RemoteListPage`：公共分页契约；`cursor` 是 Provider 拥有的不透明字符串，禁止公共层解析或二次编码。
+- `RemoteDeleteResult`：保留 permanent、delete-marker 或 unknown 语义，不将服务商删除结果压缩为单一布尔值。
+- `RemoteObjectProvider`：远程 list/preview/delete 接口，不继承也不修改 `UploaderBase`。
+- `RemoteProviderFactoryResult`：`ready` / `unsupported` 判别联合；尚未实现的图床返回空能力集和结构化原因，调用者无需捕获异常。
+
+这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
+
 ## 新增设置项流程
 
 1. 在 `ImageManagerSettings` 接口添加字段
