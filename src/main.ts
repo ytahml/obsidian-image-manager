@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, TFolder, MarkdownView, SuggestModal, normalizePath } from 'obsidian';
+import { Notice, Plugin, TAbstractFile, TFile, TFolder, MarkdownView, SuggestModal, normalizePath } from 'obsidian';
 import { ImageManagerSettings, DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { ImageManagerSettingTab } from './settings';
 import { ImageBrowserModal } from './modals/image-browser';
@@ -18,12 +18,14 @@ import { makePublicUrlReadable } from './utils/public-url';
 import { generateImageFileName, sanitizeImageFileName } from './utils/image-naming';
 import { removeEmptyDirectParent } from './utils/empty-folder-cleanup';
 import { shouldReplaceLocalImageReference } from './utils/upload-reference';
+import { RemoteReferenceIndex } from './remote/reference-index';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
     refConverter: RefConverter;
     imageOptimizer: ImageOptimizer;
     batchRename: BatchRename;
+    remoteReferenceIndex: RemoteReferenceIndex;
     private isReorganizing = false;
     async onload() {
         await this.loadSettings();
@@ -32,6 +34,7 @@ export default class ImageManagerPlugin extends Plugin {
         this.refConverter = new RefConverter(this.app);
         this.imageOptimizer = new ImageOptimizer(this.app);
         this.batchRename = new BatchRename(this.app, this.settings);
+        this.remoteReferenceIndex = new RemoteReferenceIndex(this.app, this.refConverter);
 
         // Ribbon icon
         if (this.settings.enableImageBrowser) {
@@ -170,6 +173,7 @@ export default class ImageManagerPlugin extends Plugin {
         // Obsidian's link updater strips directory paths from markdown image refs
         this.registerEvent(
             this.app.vault.on('rename', (file, oldPath) => {
+                this.invalidateRemoteReferenceIndex(file);
                 if (!(file instanceof TFile) || !this.isImageFile(file)) return;
                 if (this.isReorganizing) return;
                 window.setTimeout(() => {
@@ -177,6 +181,9 @@ export default class ImageManagerPlugin extends Plugin {
                 }, 100);
             })
         );
+        this.registerEvent(this.app.vault.on('create', (file) => this.invalidateRemoteReferenceIndex(file)));
+        this.registerEvent(this.app.vault.on('modify', (file) => this.invalidateRemoteReferenceIndex(file)));
+        this.registerEvent(this.app.vault.on('delete', (file) => this.invalidateRemoteReferenceIndex(file)));
 
         // Right-click menu: image management
         this.registerEvent(
@@ -213,6 +220,12 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     onunload() {}
+
+    private invalidateRemoteReferenceIndex(file: TAbstractFile) {
+        if (file instanceof TFile && file.extension === 'md') {
+            this.remoteReferenceIndex.invalidate();
+        }
+    }
 
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<ImageManagerSettings>);

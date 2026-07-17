@@ -2,7 +2,7 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：G0 产品契约与 G1 远程 Provider 公共底座已完成，尚未实现具体 Provider 列表能力。
+> 文档状态：G0 产品契约、G1 远程 Provider 公共底座与 G2 Vault 远程引用索引已完成，尚未实现具体 Provider 列表能力。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
@@ -315,6 +315,8 @@ MinIO 专项：
 - 新增 factory、错误映射、游标透传单元测试。
 
 ### G2：Vault 远程引用索引与对象匹配
+
+**状态：已完成。**
 
 **阶段目标**
 
@@ -924,7 +926,7 @@ P0 计划文件
 | P0 | 创建持续实施计划 | 已完成 | 无 | 本文创建 |
 | G0 | 需求冻结、交互草图与测试矩阵 | 已完成 | P0 | 2026-07-16：S3-first 产品契约、文字线框、空前缀确认和 R2/MinIO 测试矩阵；`npm test` 75/75、`npm run build`、`git diff --check` 通过 |
 | G1 | 远程对象公共接口与测试底座 | 已完成 | G0 | 2026-07-17：G 系列共用分支 `feat/issue-17-g-series` 本地变更，关联 #19；新增公共类型、factory、错误脱敏、可 mock 请求边界和 opaque cursor 测试；`npm test` 94/94、`npm run build`、`git diff --check` 通过 |
-| G2 | Vault 远程引用索引与对象匹配 | 未开始 | G1 | |
+| G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；`.canvas` 显式未覆盖且未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
 | G3 | 远程图片浏览器外壳与元数据分页 | 未开始 | G1 | |
 | G4 | 按需预览与流量控制 | 未开始 | G3 | |
 | G5 | 删除安全框架 | 未开始 | G2、G3 | |
@@ -1013,6 +1015,7 @@ P0 计划文件
 | 2026-07-16 | `.canvas` 不阻塞 list-only，但在删除开放前必须纳入引用扫描 | 先交付低风险元数据列表，同时不降低删除安全门槛 | G0、G2、G5 |
 | 2026-07-17 | 远程 Provider factory 使用可注册 builder 与显式 `ready` / `unsupported` 结果 | 让各 Provider 按阶段接入，同时避免 UI 用未捕获异常判断能力 | G1、全部 Provider |
 | 2026-07-17 | Issue #17 按阶段系列共用开发分支，G1–G7 使用 `feat/issue-17-g-series` | 减少分支与 PR 数量，同时保留 G、S3 等系列边界 | 全部阶段 |
+| 2026-07-17 | G2 保持纯索引层，仅扫描 `.md`，扫描状态 UI 延后至 G3 | 避免在没有远程浏览器视图时提前扩张 Modal；删除开放前仍必须补齐 `.canvas` | G2、G3、G5 |
 
 ## 15. 变更记录
 
@@ -1021,6 +1024,7 @@ P0 计划文件
 | 2026-07-15 | 创建 Issue #17 持续实施计划，覆盖公共阶段与四种图床专项阶段。 |
 | 2026-07-16 | 完成 G0 产品契约：冻结 S3-first、R2/MinIO、空前缀确认、交互线框、引用状态与测试矩阵。 |
 | 2026-07-17 | 完成 G1：建立独立远程 Provider 公共类型、显式 unsupported factory、脱敏错误模型、可 mock `requestUrl` 边界与 opaque cursor 契约；上传 API 保持不变。 |
+| 2026-07-17 | 完成 G2：建立按需 Vault Markdown 远程引用索引、URL/object key 保守匹配、扫描取消/原子发布与 Markdown 文件变更失效；不请求远程服务，不扫描 `.canvas`。 |
 
 ## 16. 服务商官方参考
 

@@ -47,3 +47,32 @@ export interface RemoteDeleteResult {
     error?: string;
     deletionKind?: 'permanent' | 'delete-marker' | 'unknown';
 }
+
+/** Public URL bases that can resolve to object keys for one hosting config. */
+export interface RemoteUrlMapping {
+    hostingId: string;
+    urlPrefix: string;
+    publicUrlAliases: readonly string[];
+    ignoredQueryParameters?: readonly string[];
+}
+
+/** Scope and counters for one completed Vault reference scan. */
+export interface RemoteReferenceScanSummary {
+    scannedAt: number;
+    markdownFileCount: number;
+    referencedCount: number;
+    possiblyReferencedCount: number;
+    unmappableCount: number;
+    canvasIncluded: false;
+}
+
+/** Lifecycle state for the in-memory Vault reference index. */
+export type RemoteReferenceIndexState =
+    | { status: 'empty' }
+    | { status: 'fresh'; summary: RemoteReferenceScanSummary }
+    | { status: 'stale'; summary: RemoteReferenceScanSummary };
+
+/** Maps provider objects to conservative Vault reference states. */
+export interface RemoteObjectReferenceLookup {
+    classify(object: RemoteObject): RemoteReferenceState;
+}

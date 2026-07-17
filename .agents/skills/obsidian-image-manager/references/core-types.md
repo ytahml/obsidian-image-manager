@@ -212,6 +212,9 @@ IMAGE_MIME_TYPES: {
 - `RemoteDeleteResult`：保留 permanent、delete-marker 或 unknown 语义，不将服务商删除结果压缩为单一布尔值。
 - `RemoteObjectProvider`：远程 list/preview/delete 接口，不继承也不修改 `UploaderBase`。
 - `RemoteProviderFactoryResult`：`ready` / `unsupported` 判别联合；尚未实现的图床返回空能力集和结构化原因，调用者无需捕获异常。
+- `RemoteUrlMapping`：一个 hosting 的 `urlPrefix`、CDN/source aliases 和 Provider 允许忽略的查询参数名；G2 仅作为运行时匹配输入，不写入设置。
+- `RemoteReferenceScanSummary` / `RemoteReferenceIndexState`：提供 Markdown 扫描时间、计数、`.canvas` 覆盖状态和 `empty | fresh | stale` 生命周期。
+- `RemoteObjectReferenceLookup`：按 `referenced`、`possibly-referenced`、`unmappable`、`not-referenced-in-current-vault` 的保守顺序分类对象；未扫描或 stale 时不产生未引用结论。
 
 这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
 

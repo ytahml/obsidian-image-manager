@@ -16,7 +16,9 @@ main.ts（入口）
 │   ├── provider.ts（与 Provider 无关的能力接口）
 │   ├── provider-factory.ts（适配器注册与 unsupported 状态）
 │   ├── request.ts（可注入的 `requestUrl` 边界）
-│   └── errors.ts（错误分类与敏感信息脱敏）
+│   ├── errors.ts（错误分类与敏感信息脱敏）
+│   ├── reference-index.ts（按需 Markdown 远程引用索引）
+│   └── object-reference-matcher.ts（受管 URL 到 object key 的保守匹配）
 ├── utils/（工具模块）
 │   ├── ref-converter.ts ← constants.ts（正则）
 │   ├── public-url.ts（Markdown URL 的 Unicode 可读化）
@@ -62,6 +64,8 @@ main.ts（入口）
 - `RemoteRequestClient` 封装 Obsidian `requestUrl`，允许 Provider 测试注入脱敏 mock。
 - `RemoteProviderError` 只保留分类、HTTP 状态和去掉账号、query、fragment 的 endpoint，不保留上游错误文本或请求头。
 - `RemoteListRequest.cursor` 属于 Provider 的不透明字符串，公共层只原样透传。
+- `RemoteReferenceIndex` 只在调用方显式扫描时读取 `.md`，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，也不包含 `.canvas`。
+- `RemoteObjectReferenceLookup` 将标准 Markdown 图片引用标记为 `referenced`，受管原始 URL 标记为 `possibly-referenced`；未完成或已失效索引一律不返回“未检测到引用”。
 
 ## 关键数据流
 
