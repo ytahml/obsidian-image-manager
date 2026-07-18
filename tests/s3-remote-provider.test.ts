@@ -9,6 +9,7 @@ import {
     S3RemoteObjectProvider,
     buildListQuery,
     buildS3ReferenceMapping,
+    parseS3ListFolders,
     parseS3ListObjectsV2,
     type S3XmlDocumentParser,
 } from '../src/remote/providers/s3-compatible-remote';
@@ -111,6 +112,36 @@ describe('S3 ListObjectsV2 parsing', () => {
     });
 });
 
+describe('S3 virtual-folder parsing', () => {
+    it('decodes CommonPrefixes once and preserves the opaque cursor', () => {
+        expect(parseS3ListFolders(`
+            <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                <EncodingType>url</EncodingType>
+                <IsTruncated>true</IsTruncated>
+                <NextContinuationToken>next+/=&amp;opaque</NextContinuationToken>
+                <CommonPrefixes><Prefix>images/2026/</Prefix></CommonPrefixes>
+                <CommonPrefixes><Prefix>images/%E4%B8%AD%E6%96%87%20%252F/</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `, parseXml)).toEqual({
+            prefixes: ['images/2026', 'images/中文 %2F'],
+            nextCursor: 'next+/=&opaque',
+            isTruncated: true,
+        });
+    });
+
+    it('accepts an empty folder page and rejects malformed prefixes', () => {
+        expect(parseS3ListFolders(
+            '<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>',
+            parseXml
+        )).toEqual({ prefixes: [], isTruncated: false });
+        expect(() => parseS3ListFolders(`
+            <ListBucketResult><IsTruncated>false</IsTruncated>
+            <CommonPrefixes><Prefix>images/not-a-folder</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `, parseXml)).toThrow('Remote provider response could not be parsed');
+    });
+});
+
 describe('S3 remote provider', () => {
     it('requests one directory-scoped page with an encoded opaque cursor', async () => {
         const execute = vi.fn(async (_request: RequestUrlParam) => response(200, `
@@ -134,6 +165,48 @@ describe('S3 remote provider', () => {
             'https://minio.example.com:9000/proxy/s3/images/?continuation-token=token%2B%2F%3D%252520%26value&delimiter=%2F&encoding-type=url&list-type=2&max-keys=1000&prefix=images%2F2026%2F'
         );
         expect(request?.headers?.Authorization).not.toContain('secret-key');
+    });
+
+    it('lists one level of virtual folders with delimiter and pagination', async () => {
+        const execute = vi.fn(async (_request: RequestUrlParam) => response(200, `
+            <ListBucketResult>
+                <EncodingType>url</EncodingType>
+                <IsTruncated>false</IsTruncated>
+                <CommonPrefixes><Prefix>images/2026/</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `));
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml,
+            () => new Date('2026-07-18T04:05:06.000Z')
+        );
+
+        await expect(provider.listFolders({
+            prefix: 'images',
+            cursor: 'folder+/=&cursor',
+            limit: 200,
+        })).resolves.toEqual({
+            prefixes: ['images/2026'],
+            isTruncated: false,
+        });
+
+        expect(execute.mock.calls[0]?.[0].url).toBe(
+            'https://minio.example.com:9000/proxy/s3/images/?continuation-token=folder%2B%2F%3D%26cursor&delimiter=%2F&encoding-type=url&list-type=2&max-keys=200&prefix=images%2F'
+        );
+    });
+
+    it('rejects a folder response outside the requested level', async () => {
+        const execute = vi.fn(async () => response(200, `
+            <ListBucketResult>
+                <IsTruncated>false</IsTruncated>
+                <CommonPrefixes><Prefix>other/sibling/</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `));
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml
+        );
+
+        await expect(provider.listFolders({ prefix: 'images', limit: 200 }))
+            .rejects.toMatchObject({ code: 'parsing' });
     });
 
     it.each([

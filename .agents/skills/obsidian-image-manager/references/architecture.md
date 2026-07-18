@@ -79,6 +79,7 @@ main.ts（入口）
 - `RemoteObjectReferenceLookup` 将标准 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和原始 URL 中可可靠映射的地址统一标记为 `referenced`，并保留笔记路径与行号供远程预览跳转；未完成、已失效或存在映射歧义的索引一律不返回“孤立图片”。
 - `RemoteBrowseSession` 只在用户明确扫描、继续或刷新时调用 `listObjects()`；扫描内部以 1000 项为请求批次自动追踪 opaque cursor，每最多 10 次请求暂停并等待用户继续。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
 - S3-compatible 已注册首个真实 list Provider：共享 SigV4 层保证请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和结果分页在本地对已扫描集合执行。
+- S3 Provider 额外提供 `folders` 能力：目录选择器使用独立的 `ListObjectsV2(prefix, delimiter='/')` 请求解析 `CommonPrefixes`，按 opaque cursor 加载更多虚拟文件夹；选择结果只更新管理前缀，递归对象扫描仍走原有无 delimiter 流程。
 - 远程浏览器初始不请求列表或图片；用户明确扫描后以响应式卡片展示结果。进入可视区域前约 200px 的支持图片自动加载，URL 解析最多 4 并发；首批渲染 60 张卡片，滚动时渐进追加，搜索/排序/引用状态筛选作用于完整扫描集合。私有模式使用 300 秒 presigned GET，公开模式只使用明确配置的 `urlPrefix`；点击缩略图仍打开独立大图 Modal。关闭或范围变化会清空会话 URL 并隔离迟到结果。当前不支持 OSS、七牛和 Custom 的列表能力。
 - S3 删除随远程对象管理启用，不增加独立开关；仍只有 fresh Markdown 索引中的 `not-referenced-in-current-vault`、当前 hosting、当前前缀和当前扫描对象可选择，UI 将该状态显示为“孤立图片 / Orphan image”。最终确认要求输入数量并勾选不可撤销确认，每批最多 20 项、最多 2 并发且无自动重试。用户结果统一显示“请求成功”，底层仍保留 `delete-marker | unknown` 供脱敏审计；接受请求后列表/预览/选择失效。
 - 每个删除结果完成后通过串行 writer 写入 `ImageManagerSettings.remoteDeleteHistory`，按完成时间倒序最多保留 200 条；只含时间、hostingId、key、状态和稳定结果码，不含 endpoint、URL、凭据或响应正文。

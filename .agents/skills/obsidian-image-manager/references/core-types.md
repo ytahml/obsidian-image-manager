@@ -230,6 +230,7 @@ IMAGE_MIME_TYPES: {
 - `RemoteUrlMapping`：一个 hosting 的 `urlPrefix`、CDN/source aliases 和 Provider 允许忽略的查询参数名；G2 仅作为运行时匹配输入，不写入设置。
 - `RemoteReferenceScanSummary` / `RemoteReferenceIndexState`：提供 Markdown 扫描时间、计数和 `empty | fresh | stale` 生命周期；远程引用管理不扩展到非 Markdown 文件。
 - `RemoteObjectReferenceLookup`：任何可可靠映射的 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹或原始 URL 都分类为 `referenced`；同时通过 `getReferences()` 返回笔记路径、0-based 行号和语法来源。完全未命中才返回 `not-referenced-in-current-vault`，未扫描、stale 或映射歧义仍返回 `unmappable`。`possibly-referenced` 仅作为旧公共类型兼容值，不再由当前索引产生。
+- `RemoteFolderListRequest` / `RemoteFolderListPage`：Provider 无关的单层虚拟目录分页契约；返回完整规范化前缀并保留不透明 cursor。S3 的实现只从 `CommonPrefixes` 生成目录，不把 `Contents` 猜测为文件夹。
 
 这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
 

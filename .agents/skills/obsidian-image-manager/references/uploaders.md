@@ -78,6 +78,7 @@ abstract class UploaderBase {
 - **共享签名层**：`src/s3/sigv4.ts` 同时服务 PUT 上传和远程 ListObjectsV2；请求 URL、endpoint base path、Canonical URI、Canonical Query 与实际发送 headers 从同一结果生成
 - **查询编码**：query 名称和值分别按 AWS 规则编码，编码后排序，空格使用 `%20`；opaque continuation token 只编码一次
 - **连接测试**：使用 `ListObjectsV2` 的 `max-keys=1` 非破坏请求，不自动遍历 Bucket
+- **虚拟目录**：远程管理的文件夹选择器发送 `delimiter=/` 并解析 `CommonPrefixes`；每次只读取当前层级且按 continuation token 加载更多，不影响递归图片扫描
 - **R2 region**：配置非空时原样使用；R2 endpoint 的空 region 规范化为 `auto`，其他 S3 endpoint 仍要求显式 region
 - **MinIO region 提示**：保持 region 显式配置；设置界面提示 MinIO 通常使用 `us-east-1`，实际值仍须与服务端配置一致
 - **缩略图与大图预览**：私有模式使用同一请求目标和 signing key 派生逻辑生成 300 秒 SigV4 presigned GET，只签 `host` 并使用 `UNSIGNED-PAYLOAD`；公开模式只用 `urlPrefix + encoded key`，不受 `forcePathStyle` 影响且不会从签名失败回退

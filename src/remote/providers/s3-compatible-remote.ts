@@ -6,6 +6,8 @@ import type { RemoteObjectProvider } from '../provider';
 import type {
     RemoteDeleteFailureCode,
     RemoteDeleteResult,
+    RemoteFolderListPage,
+    RemoteFolderListRequest,
     RemoteListPage,
     RemoteListRequest,
     RemoteObject,
@@ -27,7 +29,12 @@ import {
 
 export type S3XmlDocumentParser = (xml: string) => Document;
 
-const S3_CAPABILITIES = new Set<'list' | 'preview' | 'delete'>(['list', 'preview', 'delete']);
+const S3_CAPABILITIES = new Set<'list' | 'folders' | 'preview' | 'delete'>([
+    'list',
+    'folders',
+    'preview',
+    'delete',
+]);
 
 /** Metadata-only S3-compatible remote provider. */
 export class S3RemoteObjectProvider implements RemoteObjectProvider {
@@ -47,6 +54,21 @@ export class S3RemoteObjectProvider implements RemoteObjectProvider {
 
     async listObjects(request: RemoteListRequest): Promise<RemoteListPage> {
         const query = buildListQuery(request);
+        const xml = await this.requestList(query);
+        return parseS3ListObjectsV2(xml, this.hostingConfig.id, this.parseXml);
+    }
+
+    async listFolders(request: RemoteFolderListRequest): Promise<RemoteFolderListPage> {
+        const query = buildListQuery({ ...request, delimiter: '/' });
+        const xml = await this.requestList(query);
+        const page = parseS3ListFolders(xml, this.parseXml);
+        if (page.prefixes.some((prefix) => !isDirectChildPrefix(prefix, request.prefix))) {
+            throw new RemoteProviderError('parsing');
+        }
+        return page;
+    }
+
+    private async requestList(query: S3QueryParameter[]): Promise<string> {
         let signedRequest;
         try {
             signedRequest = await signS3Request({
@@ -78,11 +100,7 @@ export class S3RemoteObjectProvider implements RemoteObjectProvider {
             );
         }
 
-        return parseS3ListObjectsV2(
-            response.text,
-            this.hostingConfig.id,
-            this.parseXml
-        );
+        return response.text;
     }
 
     async createPreviewUrl(object: RemoteObject): Promise<RemotePreviewUrl> {
@@ -251,6 +269,42 @@ export function parseS3ListObjectsV2(
     };
 }
 
+export function parseS3ListFolders(
+    xml: string,
+    parseXml: S3XmlDocumentParser = parseXmlDocument
+): RemoteFolderListPage {
+    const document = parseS3Document(xml, parseXml);
+    const root = document.documentElement;
+    if (!root || root.localName !== 'ListBucketResult') throw new RemoteProviderError('parsing');
+
+    const encodingType = readDirectText(root, 'EncodingType');
+    if (encodingType !== undefined && encodingType !== 'url') {
+        throw new RemoteProviderError('parsing');
+    }
+
+    const truncatedValue = readDirectText(root, 'IsTruncated');
+    if (truncatedValue !== 'true' && truncatedValue !== 'false') {
+        throw new RemoteProviderError('parsing');
+    }
+    const isTruncated = truncatedValue === 'true';
+    const nextCursor = readDirectText(root, 'NextContinuationToken');
+    if (isTruncated && !nextCursor) throw new RemoteProviderError('parsing');
+
+    const prefixes = directChildren(root, 'CommonPrefixes').map((element) => {
+        const rawPrefix = readRequiredText(element, 'Prefix');
+        const decoded = decodeS3ListValue(rawPrefix, encodingType);
+        if (!decoded.endsWith('/')) throw new RemoteProviderError('parsing');
+        const normalized = decoded.replace(/^\/+|\/+$/g, '');
+        if (!normalized) throw new RemoteProviderError('parsing');
+        return normalized;
+    });
+    return {
+        prefixes: [...new Set(prefixes)],
+        isTruncated,
+        ...(nextCursor ? { nextCursor } : {}),
+    };
+}
+
 export function buildS3ReferenceMapping(config: ImageHostingConfig): RemoteUrlMapping {
     const settings = getRemoteManagementConfig(config);
     const s3Config = config.config as S3Config;
@@ -276,14 +330,7 @@ export function buildS3ReferenceMapping(config: ImageHostingConfig): RemoteUrlMa
 
 function parseS3Object(element: Element, hostingId: string, encodingType: string | undefined): RemoteObject {
     const rawKey = readRequiredText(element, 'Key');
-    let key = rawKey;
-    if (encodingType === 'url') {
-        try {
-            key = decodeURIComponent(rawKey);
-        } catch {
-            throw new RemoteProviderError('parsing');
-        }
-    }
+    const key = decodeS3ListValue(rawKey, encodingType);
 
     const sizeText = readRequiredText(element, 'Size');
     if (!/^\d+$/.test(sizeText)) throw new RemoteProviderError('parsing');
@@ -307,6 +354,23 @@ function parseS3Object(element: Element, hostingId: string, encodingType: string
         ...(etag !== undefined ? { etag } : {}),
         ...(storageClass !== undefined ? { storageClass } : {}),
     };
+}
+
+function decodeS3ListValue(value: string, encodingType: string | undefined): string {
+    if (encodingType !== 'url') return value;
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        throw new RemoteProviderError('parsing');
+    }
+}
+
+function isDirectChildPrefix(prefix: string, parent: string): boolean {
+    const normalizedParent = parent.trim().replace(/^\/+|\/+$/g, '');
+    const base = normalizedParent ? `${normalizedParent}/` : '';
+    if (!prefix.startsWith(base)) return false;
+    const relative = prefix.slice(base.length);
+    return Boolean(relative) && !relative.includes('/');
 }
 
 function mapS3ResponseError(

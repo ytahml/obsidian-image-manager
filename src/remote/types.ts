@@ -1,5 +1,5 @@
 /** Capabilities that a remote object provider can expose independently. */
-export type RemoteCapability = 'list' | 'preview' | 'delete';
+export type RemoteCapability = 'list' | 'folders' | 'preview' | 'delete';
 
 /** Explicit access contract for one manually requested remote preview. */
 export type RemotePreviewAccess = 'presigned' | 'public';
@@ -51,6 +51,20 @@ export interface RemoteListRequest {
 /** One provider-normalized page of remote object metadata. */
 export interface RemoteListPage {
     objects: RemoteObject[];
+    nextCursor?: string;
+    isTruncated: boolean;
+}
+
+/** Request for one level of provider-defined virtual folders. */
+export interface RemoteFolderListRequest {
+    prefix: string;
+    cursor?: string;
+    limit: number;
+}
+
+/** One page of full, normalized virtual-folder prefixes. */
+export interface RemoteFolderListPage {
+    prefixes: string[];
     nextCursor?: string;
     isTruncated: boolean;
 }

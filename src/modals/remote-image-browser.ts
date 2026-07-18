@@ -33,6 +33,7 @@ import { getRemoteDeleteUnavailableReason } from '../remote/delete-policy';
 import { RemoteDeleteConfirmModal } from './remote-delete-confirm';
 import { RemoteDeleteResultsModal } from './remote-delete-results';
 import { RemoteImageGrid } from './remote-image-grid';
+import { RemoteFolderPickerModal } from './remote-folder-picker';
 
 const REMOTE_SCAN_REQUESTS_PER_BATCH = 10;
 
@@ -58,6 +59,7 @@ export class RemoteImageBrowserView {
     private previewCountEl: HTMLElement | null = null;
     private activePreviewModal: RemoteImagePreviewModal | null = null;
     private activeDeleteResultsModal: RemoteDeleteResultsModal | null = null;
+    private activeFolderPicker: RemoteFolderPickerModal | null = null;
     private removeIndexInvalidationListener: (() => void) | null = null;
     private deleteSummaryEl: HTMLElement | null = null;
     private deleteButton: HTMLButtonElement | null = null;
@@ -94,6 +96,8 @@ export class RemoteImageBrowserView {
         this.deleteSession.clear();
         this.activeDeleteResultsModal?.close();
         this.activeDeleteResultsModal = null;
+        this.activeFolderPicker?.close();
+        this.activeFolderPicker = null;
         this.removeIndexInvalidationListener?.();
         this.removeIndexInvalidationListener = null;
         this.pageResultsEl = null;
@@ -142,6 +146,8 @@ export class RemoteImageBrowserView {
         }
         configSelect.value = config.id;
         configSelect.addEventListener('change', () => {
+            this.activeFolderPicker?.close();
+            this.activeFolderPicker = null;
             this.selectedHostingId = configSelect.value;
             this.keyword = '';
             this.referenceFilter = 'all';
@@ -154,7 +160,12 @@ export class RemoteImageBrowserView {
         });
 
         const prefixInput = controls.createEl('input', {
-            attr: { type: 'text', placeholder: t('modal.imageBrowser.remotePrefix') },
+            attr: {
+                type: 'text',
+                placeholder: t('modal.imageBrowser.remotePrefix'),
+                'aria-label': t('modal.imageBrowser.remotePrefix'),
+                title: t('modal.imageBrowser.remotePrefixManualHint'),
+            },
             value: settings.prefix,
         });
 
@@ -163,27 +174,33 @@ export class RemoteImageBrowserView {
             text: t('modal.imageBrowser.remoteRange', { scope: getScope(config, settings.prefix) }),
         });
         prefixInput.addEventListener('input', () => {
-            const remote = getRemoteManagementConfig(config);
-            const prefix = normalizeRemotePrefix(prefixInput.value);
-            if (prefix === remote.prefix) return;
-            remote.prefix = prefix;
-            config.remoteManagement = remote;
-            this.keyword = '';
-            this.referenceFilter = 'all';
-            this.emptyPrefixConfirmed.clear();
-            this.invalidatePreview();
-            this.deleteViewGeneration++;
-            this.deleteSession.clear();
-            this.session.invalidate();
-            if (this.pageResultsEl) this.renderPageResults(config, this.pageResultsEl);
-            range.textContent = t('modal.imageBrowser.remoteRange', {
-                scope: getScope(config, prefix),
-            });
-            this.scheduleSettingsSave();
+            this.applyPrefix(config, prefixInput.value, prefixInput, range);
         });
         if (providerResult.status === 'unsupported' || !providerResult.provider.capabilities.has('list')) {
             this.containerEl.createDiv({ cls: 'remote-image-browser-message', text: t('modal.imageBrowser.remoteUnsupported') });
             return;
+        }
+        if (providerResult.provider.capabilities.has('folders') && providerResult.provider.listFolders) {
+            const chooseFolder = controls.createEl('button', {
+                text: t('modal.imageBrowser.remoteChooseFolder'),
+                attr: { title: t('modal.imageBrowser.remoteChooseFolderHint') },
+            });
+            chooseFolder.addEventListener('click', () => {
+                this.activeFolderPicker?.close();
+                let picker: RemoteFolderPickerModal;
+                picker = new RemoteFolderPickerModal(
+                    this.app,
+                    providerResult.provider,
+                    getRemoteManagementConfig(config).prefix,
+                    getBucket(config) || config.name || config.type,
+                    (prefix) => this.applyPrefix(config, prefix, prefixInput, range, true),
+                    () => {
+                        if (this.activeFolderPicker === picker) this.activeFolderPicker = null;
+                    }
+                );
+                this.activeFolderPicker = picker;
+                picker.open();
+            });
         }
 
         const actions = this.containerEl.createDiv({ cls: 'remote-image-browser-actions' });
@@ -488,6 +505,33 @@ export class RemoteImageBrowserView {
         if (this.searchDebounceTimer === null) return;
         window.clearTimeout(this.searchDebounceTimer);
         this.searchDebounceTimer = null;
+    }
+
+    private applyPrefix(
+        config: ImageHostingConfig,
+        value: string,
+        input: HTMLInputElement,
+        range: HTMLElement,
+        updateInput = false
+    ): void {
+        const remote = getRemoteManagementConfig(config);
+        const prefix = normalizeRemotePrefix(value);
+        if (updateInput) input.value = prefix;
+        range.textContent = t('modal.imageBrowser.remoteRange', {
+            scope: getScope(config, prefix),
+        });
+        if (prefix === remote.prefix) return;
+        remote.prefix = prefix;
+        config.remoteManagement = remote;
+        this.keyword = '';
+        this.referenceFilter = 'all';
+        this.emptyPrefixConfirmed.clear();
+        this.invalidatePreview();
+        this.deleteViewGeneration++;
+        this.deleteSession.clear();
+        this.session.invalidate();
+        if (this.pageResultsEl) this.renderPageResults(config, this.pageResultsEl);
+        this.scheduleSettingsSave();
     }
 
     private scheduleSettingsSave() {
