@@ -188,6 +188,7 @@ export const zh: Record<string, string> = {
         '公开访问图片URL的基础路径，可包含bucket，例如https://img.example.com 或https://minio.example.com/obsidian',
     'modal.hosting.providerConfig': '服务商配置',
     'modal.hosting.save': '保存',
+    'modal.hosting.s3RegionDesc': '必须与 S3 服务端配置一致；MinIO 通常填写 us-east-1。',
     'modal.hosting.forcePathStyleDesc': '使用 path-style URL（如 MinIO）',
     'modal.hosting.jsonPathDesc': '响应 JSON 中 URL 的路径，如 data.url',
     'modal.hosting.qiniuRegionDesc': '选择存储区域，需与七牛云后台一致',

@@ -189,6 +189,7 @@ export const en: Record<string, string> = {
         'Base path for publicly accessible image URLs. It can include a bucket, for example https://img.example.com or https://minio.example.com/obsidian',
     'modal.hosting.providerConfig': 'Provider Configuration',
     'modal.hosting.save': 'Save',
+    'modal.hosting.s3RegionDesc': 'Must match the S3 server configuration. MinIO typically uses us-east-1.',
     'modal.hosting.forcePathStyleDesc': 'Use path-style URLs (e.g. for MinIO)',
     'modal.hosting.jsonPathDesc': 'Dot-separated path to URL in response JSON, e.g. data.url',
     'modal.hosting.qiniuRegionDesc': 'Select storage region, must match your Qiniu dashboard setting',

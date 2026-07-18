@@ -266,6 +266,7 @@ export class HostingConfigModal extends Modal {
             );
         new Setting(container)
             .setName('Region')
+            .setDesc(t('modal.hosting.s3RegionDesc'))
             .addText((text) =>
                 text.setValue(cfg.region).onChange((v) => {
                     cfg.region = v;
