@@ -159,6 +159,14 @@ export class RemoteImageBrowserView {
             this.render();
         });
 
+        const chooseFolder = providerResult.status === 'ready' &&
+            providerResult.provider.capabilities.has('folders') &&
+            providerResult.provider.listFolders
+            ? controls.createEl('button', {
+                text: t('modal.imageBrowser.remoteChooseFolder'),
+                attr: { title: t('modal.imageBrowser.remoteChooseFolderHint') },
+            })
+            : undefined;
         const prefixInput = controls.createEl('input', {
             attr: {
                 type: 'text',
@@ -180,11 +188,7 @@ export class RemoteImageBrowserView {
             this.containerEl.createDiv({ cls: 'remote-image-browser-message', text: t('modal.imageBrowser.remoteUnsupported') });
             return;
         }
-        if (providerResult.provider.capabilities.has('folders') && providerResult.provider.listFolders) {
-            const chooseFolder = controls.createEl('button', {
-                text: t('modal.imageBrowser.remoteChooseFolder'),
-                attr: { title: t('modal.imageBrowser.remoteChooseFolderHint') },
-            });
+        if (chooseFolder) {
             chooseFolder.addEventListener('click', () => {
                 this.activeFolderPicker?.close();
                 let picker: RemoteFolderPickerModal;

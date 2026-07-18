@@ -272,6 +272,9 @@
 .remote-image-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    align-items: start;
     gap: 12px;
     height: 100%;
     max-height: none;
@@ -416,9 +419,34 @@
     overflow-wrap: anywhere;
 }
 
-.remote-image-preview-status {
+.remote-image-preview-media {
+    position: relative;
+    display: flex;
+    min-height: 240px;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: var(--radius-m);
+    background: var(--background-secondary);
+}
+
+.remote-image-preview-media.is-loaded {
+    min-height: 0;
+    background: transparent;
+}
+
+.remote-image-preview-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
     color: var(--text-muted);
     text-align: center;
+}
+
+.remote-image-preview-media.is-error {
+    flex-direction: column;
 }
 
 .remote-image-preview-img {
@@ -427,6 +455,11 @@
     max-height: 65vh;
     margin: 0 auto;
     object-fit: contain;
+    visibility: hidden;
+}
+
+.remote-image-preview-media.is-loaded .remote-image-preview-img {
+    visibility: visible;
 }
 
 .remote-image-preview-info,
@@ -440,6 +473,11 @@
 .remote-image-preview-info {
     color: var(--text-muted);
     font-size: 0.85em;
+}
+
+.remote-image-preview-media .remote-image-preview-actions {
+    justify-content: center;
+    padding-bottom: 20px;
 }
 
 .image-browser-controls {
@@ -478,6 +516,9 @@
 .image-browser-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    align-items: start;
     gap: 12px;
     flex: 1;
     min-height: 0;

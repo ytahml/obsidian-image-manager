@@ -162,7 +162,6 @@ export const zh: Record<string, string> = {
     'modal.remoteFolder.error': '无法读取文件夹，请检查图床配置、区域和列举权限后重试。',
     'modal.remotePreview.title': '远程图片预览',
     'modal.remotePreview.loading': '正在加载预览…',
-    'modal.remotePreview.loaded': '预览已加载。',
     'modal.remotePreview.loadFailed': '预览加载失败。',
     'modal.remotePreview.configurationError': '预览配置不完整。',
     'modal.remotePreview.unsupported': '当前服务商不支持预览。',

@@ -163,7 +163,6 @@ export const en: Record<string, string> = {
     'modal.remoteFolder.error': 'Folders could not be loaded. Check the hosting configuration, region, and list permission, then retry.',
     'modal.remotePreview.title': 'Remote image preview',
     'modal.remotePreview.loading': 'Loading preview...',
-    'modal.remotePreview.loaded': 'Preview loaded.',
     'modal.remotePreview.loadFailed': 'The preview could not be loaded.',
     'modal.remotePreview.configurationError': 'Preview configuration is incomplete.',
     'modal.remotePreview.unsupported': 'This provider does not support preview.',

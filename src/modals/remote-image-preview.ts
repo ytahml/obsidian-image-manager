@@ -43,7 +43,8 @@ export class RemoteImagePreviewModal extends Modal {
     private async load(force: boolean): Promise<void> {
         const generation = ++this.generation;
         this.cleanupImage();
-        this.renderShell(t('modal.remotePreview.loading'));
+        this.renderShell();
+        this.renderPreviewState(t('modal.remotePreview.loading'), true);
         this.renderReferences();
 
         try {
@@ -56,18 +57,18 @@ export class RemoteImagePreviewModal extends Modal {
         }
     }
 
-    private renderShell(status: string): HTMLElement {
+    private renderShell(): void {
         this.contentEl.empty();
         new Setting(this.contentEl)
             .setName(t('modal.remotePreview.title'))
             .setHeading();
         this.contentEl.createDiv({ cls: 'remote-image-preview-key', text: this.object.key });
-        return this.contentEl.createDiv({ cls: 'remote-image-preview-status', text: status });
     }
 
     private renderImage(preview: RemotePreviewUrl, generation: number): void {
-        const status = this.renderShell(t('modal.remotePreview.loading'));
-        const image = this.contentEl.createEl('img', {
+        this.renderShell();
+        const media = this.renderPreviewState(t('modal.remotePreview.loading'), true);
+        const image = media.createEl('img', {
             cls: 'remote-image-preview-img',
             attr: {
                 alt: this.object.key,
@@ -77,7 +78,8 @@ export class RemoteImagePreviewModal extends Modal {
         this.imageEl = image;
         this.imageLoadHandler = () => {
             if (this.closed || generation !== this.generation) return;
-            status.textContent = t('modal.remotePreview.loaded');
+            media.addClass('is-loaded');
+            media.querySelector('.remote-image-preview-state')?.remove();
         };
         this.imageErrorHandler = () => {
             if (this.closed || generation !== this.generation) return;
@@ -96,26 +98,42 @@ export class RemoteImagePreviewModal extends Modal {
                     : '—',
             }),
         });
-        this.renderReferences();
         info.createSpan({
             text: preview.access === 'presigned'
                 ? t('modal.remotePreview.privateAccess')
                 : t('modal.remotePreview.publicAccess'),
         });
+        this.renderReferences();
 
         this.onImageRequest();
         image.src = preview.url;
     }
 
     private renderFailure(error?: unknown): void {
-        this.renderShell(getPreviewErrorMessage(error));
-        const buttons = this.contentEl.createDiv({ cls: 'remote-image-preview-actions' });
+        this.renderShell();
+        const media = this.renderPreviewState(getPreviewErrorMessage(error), false);
+        media.addClass('is-error');
+        const buttons = media.createDiv({ cls: 'remote-image-preview-actions' });
         const retry = buttons.createEl('button', {
             cls: 'mod-cta',
             text: t('modal.remotePreview.retry'),
         });
         retry.addEventListener('click', () => void this.load(true));
         this.renderReferences();
+    }
+
+    private renderPreviewState(message: string, loading: boolean): HTMLElement {
+        const media = this.contentEl.createDiv({
+            cls: 'remote-image-preview-media',
+            attr: { 'aria-busy': String(loading) },
+        });
+        const state = media.createDiv({
+            cls: 'remote-image-preview-state',
+            attr: { role: 'status', 'aria-live': 'polite' },
+        });
+        if (loading) state.createDiv({ cls: 'remote-image-browser-spinner' });
+        state.createSpan({ text: message });
+        return media;
     }
 
     private cleanupImage(): void {
