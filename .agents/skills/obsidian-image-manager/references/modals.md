@@ -85,6 +85,10 @@ S3 扫描失败只影响当前浏览会话，结构化错误码在 UI 中映射�
 **功能**：图床配置表单
 
 **特性**：
+- 顶部固定名称、服务商类型和启用状态；桌面端三列、移动端单列
+- “连接配置 / 上传与访问 / 远程管理”三个页签只展示当前任务所需字段，切换时保留尚未保存的输入
+- 当前页签内容独立滚动，底部保存/取消操作固定可见；桌面端服务商字段两列排列，移动端自动单列
+- 远程管理关闭时折叠目录、预览和 URL alias 字段
 - 根据 `HostingType` 动态渲染字段
 - 阿里云 OSS、七牛和 S3 显示上传路径与公共访问 URL 基础路径；基础路径可包含 bucket 或目录
 - 自定义图床隐藏上述两个无效字段，保留已有配置数据，公开 URL 继续从响应 JSON 提取
@@ -93,7 +97,6 @@ S3 扫描失败只影响当前浏览会话，结构化错误码在 UI 中映射�
   - 七牛云：accessKey、secretKey、bucket、region
   - S3：endpoint、region、accessKeyId、secretAccessKey、bucket、forcePathStyle
   - 自定义：uploadUrl、method、headers、fileFieldName、jsonPath、extraBody
-- 测试连接按钮
 - 保存/取消
 
 ## 6. ConfirmDialog (`confirm-dialog.ts`)

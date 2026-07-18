@@ -933,13 +933,155 @@
 }
 
 /* Hosting Config Modal */
+.hosting-config-dialog {
+    width: min(820px, 92vw);
+    max-width: 92vw;
+    height: min(760px, 84vh);
+    max-height: 84vh;
+}
+
+.hosting-config-dialog .modal-content,
+.hosting-config-modal {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.hosting-config-dialog .modal-content {
+    height: 100%;
+    overflow: hidden;
+}
+
+.hosting-config-modal {
+    height: 100%;
+}
+
+.hosting-config-header {
+    flex: 0 0 auto;
+}
+
+.hosting-config-header > .setting-item {
+    padding-top: 0;
+}
+
+.hosting-config-basic {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(110px, 0.6fr);
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.hosting-config-basic-item,
+.hosting-config-field-grid > .setting-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    background: var(--background-secondary);
+}
+
+.hosting-config-basic-item .setting-item-control,
+.hosting-config-field-grid > .setting-item .setting-item-control {
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.hosting-config-basic-item input,
+.hosting-config-basic-item select,
+.hosting-config-field-grid input,
+.hosting-config-field-grid select {
+    width: 100%;
+}
+
+.hosting-config-basic-item.is-toggle .setting-item-control {
+    min-height: var(--input-height);
+    align-items: center;
+}
+
+.hosting-config-tabs {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.hosting-config-tabs button {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: var(--radius-s) var(--radius-s) 0 0;
+    background: transparent;
+    color: var(--text-muted);
+}
+
+.hosting-config-tabs button:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.hosting-config-tabs button.is-active {
+    box-shadow: inset 0 -2px 0 var(--interactive-accent);
+    color: var(--text-normal);
+}
+
+.hosting-config-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px 4px 4px;
+    overflow-y: auto;
+}
+
+.hosting-config-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.hosting-config-field-grid > .setting-item.is-wide {
+    grid-column: 1 / -1;
+}
+
+.hosting-config-remote-aliases {
+    width: 100%;
+    resize: vertical;
+}
+
 .hosting-config-buttons {
     display: flex;
+    flex: 0 0 auto;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 16px;
+    margin-top: 8px;
     padding-top: 12px;
     border-top: 1px solid var(--background-modifier-border);
+}
+
+@media (max-width: 600px) {
+    .hosting-config-dialog {
+        width: calc(100vw - 16px);
+        max-width: calc(100vw - 16px);
+        height: calc(100vh - 24px);
+        height: calc(100dvh - 24px);
+        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
+    }
+
+    .hosting-config-basic,
+    .hosting-config-field-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hosting-config-field-grid > .setting-item.is-wide {
+        grid-column: auto;
+    }
+
+    .hosting-config-tabs button {
+        padding-inline: 10px;
+    }
 }
 
 /* Extra Body Fields */
