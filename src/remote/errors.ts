@@ -1,6 +1,8 @@
 export type RemoteProviderErrorCode =
+    | 'configuration'
     | 'authentication'
     | 'permission'
+    | 'not-found'
     | 'rate-limit'
     | 'network'
     | 'parsing'
@@ -20,8 +22,10 @@ interface RemoteProviderErrorContext {
 }
 
 const ERROR_MESSAGES: Readonly<Record<RemoteProviderErrorCode, string>> = {
+    configuration: 'Remote provider configuration is invalid.',
     authentication: 'Remote provider authentication failed.',
     permission: 'Remote provider permission was denied.',
+    'not-found': 'Remote provider bucket was not found.',
     'rate-limit': 'Remote provider rate limit was reached.',
     network: 'Remote provider network request failed.',
     parsing: 'Remote provider response could not be parsed.',
@@ -80,6 +84,7 @@ export function toRemoteProviderError(
 export function codeForHttpStatus(status: number): RemoteProviderErrorCode {
     if (status === 401) return 'authentication';
     if (status === 403) return 'permission';
+    if (status === 404) return 'not-found';
     if (status === 429) return 'rate-limit';
     if (status >= 500) return 'service';
     return 'unknown';

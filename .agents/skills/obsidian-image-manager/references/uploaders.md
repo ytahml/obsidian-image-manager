@@ -75,6 +75,11 @@ abstract class UploaderBase {
   - virtual-hosted：`https://{bucket}.{endpoint}/{key}`
 - **配置**：`forcePathStyle` 可选
 - **公开 URL**：`urlPrefix` 完全由用户配置，不根据 `forcePathStyle` 自动追加 bucket
+- **共享签名层**：`src/s3/sigv4.ts` 同时服务 PUT 上传和远程 ListObjectsV2；请求 URL、endpoint base path、Canonical URI、Canonical Query 与实际发送 headers 从同一结果生成
+- **查询编码**：query 名称和值分别按 AWS 规则编码，编码后排序，空格使用 `%20`；opaque continuation token 只编码一次
+- **连接测试**：使用 `ListObjectsV2` 的 `max-keys=1` 非破坏请求，不自动遍历 Bucket
+- **R2 region**：配置非空时原样使用；R2 endpoint 的空 region 规范化为 `auto`，其他 S3 endpoint 仍要求显式 region
+- **MinIO region 提示**：保持 region 显式配置；设置界面提示 MinIO 通常使用 `us-east-1`，实际值仍须与服务端配置一致
 
 ### 公共访问 URL 与 Markdown 显示
 

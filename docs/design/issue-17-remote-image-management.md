@@ -2,7 +2,7 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：G0 产品契约、G1 远程 Provider 公共底座与 G2 Vault 远程引用索引已完成，尚未实现具体 Provider 列表能力。
+> 文档状态：G0–G3 已完成；Issue #23 已实现 S3-compatible 列表与浏览器接入的代码和自动化测试，等待 Cloudflare R2、MinIO 人工兼容性验收。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
@@ -344,7 +344,7 @@ MinIO 专项：
 
 ### G3：远程图片浏览器外壳与元数据分页
 
-**状态：进行中（代码与自动化验证已完成，等待 Obsidian 手动验收）。**
+**状态：已完成。**
 
 **阶段目标**
 
@@ -376,7 +376,8 @@ MinIO 专项：
 - 在共享 G 系列分支新增每图床远程管理配置、`RemoteBrowseSession`、本地/图床切换和独立 metadata-only 远程视图；旧配置默认关闭。
 - 生产 registry 尚无真实 list Provider，因此已配置图床显示明确 unsupported 状态，不显示无效扫描按钮；真实 Cloudflare R2/MinIO 列举人工验收留给 S3-1/S3-2。
 - 会话使用 generation 隔离迟到响应；停止可取消本地引用扫描并忽略远程迟到响应，但由于公共 Provider 接口未接受取消信号，不承诺中断已发出的 HTTP 请求。
-- `npm test` 109/109、`npm run build`、`git diff --check` 通过；仍需按本文件的 G3 独立手动验收清单确认本地浏览器回归、零网络请求和 unsupported UI 后才能标记完成。
+- `npm test` 109/109、`npm run build`、`git diff --check` 通过，作为 G3 自动化与构建证据。
+- 2026-07-18：用户完成 Obsidian 基本验收，确认本地浏览器回归、零自动远程请求和 unsupported UI；真实 Provider 列举行为继续由 Issue #23 与 S3 专项验收覆盖。
 
 ### G4：按需预览与流量控制
 
@@ -936,7 +937,7 @@ P0 计划文件
 | G0 | 需求冻结、交互草图与测试矩阵 | 已完成 | P0 | 2026-07-16：S3-first 产品契约、文字线框、空前缀确认和 R2/MinIO 测试矩阵；`npm test` 75/75、`npm run build`、`git diff --check` 通过 |
 | G1 | 远程对象公共接口与测试底座 | 已完成 | G0 | 2026-07-17：G 系列共用分支 `feat/issue-17-g-series` 本地变更，关联 #19；新增公共类型、factory、错误脱敏、可 mock 请求边界和 opaque cursor 测试；`npm test` 94/94、`npm run build`、`git diff --check` 通过 |
 | G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；`.canvas` 显式未覆盖且未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
-| G3 | 远程图片浏览器外壳与元数据分页 | 进行中 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；真实 Provider 列举与 R2/MinIO 人工验收留给 S3-1/S3-2；`npm test` 109/109、`npm run build`、`git diff --check` 通过，等待 G3 Obsidian 手动验收 |
+| G3 | 远程图片浏览器外壳与元数据分页 | 已完成 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；`npm test` 109/109、`npm run build`、`git diff --check` 通过，用户已完成 Obsidian 基本验收；真实 Provider 列举由 Issue #23 覆盖 |
 | G4 | 按需预览与流量控制 | 未开始 | G3 | |
 | G5 | 删除安全框架 | 未开始 | G2、G3 | |
 | G6 | 统一上传结果与持久化上传清单 | 未开始 | G1 | |
@@ -951,8 +952,8 @@ P0 计划文件
 | QN-3 | 七牛按需预览 | 未开始 | G4、QN-2 | |
 | QN-4 | 七牛资源删除 | 未开始 | G5、QN-2 | |
 | QN-5 | 七牛加固与文档 | 未开始 | QN-3、QN-4 | |
-| S3-1 | SigV4 与 ListObjectsV2 | 未开始 | G1 | |
-| S3-2 | 兼容性探测、URL 映射与 UI | 未开始 | G2、G3、S3-1 | |
+| S3-1 | SigV4 与 ListObjectsV2 | 进行中 | G1 | Issue #23：共享 SigV4、ListObjectsV2、XML 解析和自动化测试已实现；`npm test` 126/126、`npm run build`、`git diff --check` 通过，等待 R2/MinIO 人工分页验收 |
+| S3-2 | 兼容性探测、URL 映射与 UI | 进行中 | G2、G3、S3-1 | Issue #23：生产 registry、结构化错误、URL bases 与 metadata-only UI 已接入；开发依赖未进入生产 bundle，等待 R2/MinIO 人工兼容性验收 |
 | S3-3 | S3 presigned GET 预览 | 未开始 | G4、S3-2 | |
 | S3-4 | S3 DeleteObject | 未开始 | G5、S3-2 | |
 | S3-5 | S3-compatible 兼容矩阵与文档 | 未开始 | S3-3、S3-4 | |
@@ -1026,6 +1027,7 @@ P0 计划文件
 | 2026-07-17 | Issue #17 按阶段系列共用开发分支，G1–G7 使用 `feat/issue-17-g-series` | 减少分支与 PR 数量，同时保留 G、S3 等系列边界 | 全部阶段 |
 | 2026-07-17 | G2 保持纯索引层，仅扫描 `.md`，扫描状态 UI 延后至 G3 | 避免在没有远程浏览器视图时提前扩张 Modal；删除开放前仍必须补齐 `.canvas` | G2、G3、G5 |
 | 2026-07-18 | G3 在无真实 Provider 时交付 metadata-only 浏览器外壳和可注入分页会话；unsupported 图床不显示扫描操作 | 保持 UI、安全边界和测试可先行，避免把假列表能力当成 Provider 支持 | G3、S3-1、S3-2 |
+| 2026-07-18 | Issue #23 合并交付 S3 SigV4/ListObjectsV2 与浏览器接入；非空管理前缀作为目录范围在请求时追加 `/` | 形成可独立验收的 S3 metadata-only 纵向能力，并避免相邻前缀越界 | S3-1、S3-2 |
 
 ## 15. 变更记录
 
@@ -1036,6 +1038,7 @@ P0 计划文件
 | 2026-07-17 | 完成 G1：建立独立远程 Provider 公共类型、显式 unsupported factory、脱敏错误模型、可 mock `requestUrl` 边界与 opaque cursor 契约；上传 API 保持不变。 |
 | 2026-07-17 | 完成 G2：建立按需 Vault Markdown 远程引用索引、URL/object key 保守匹配、扫描取消/原子发布与 Markdown 文件变更失效；不请求远程服务，不扫描 `.canvas`。 |
 | 2026-07-18 | 推进 G3：图片浏览器支持本地/图床切换；图床视图仅展示元数据，手动分页会话缓存已访问页并隔离迟到响应；旧配置默认关闭，未实现 Provider 明确显示 unsupported；等待 Obsidian 手动验收。 |
+| 2026-07-18 | 完成 G3 基本人工验收；推进 Issue #23：实现共享 S3 SigV4、ListObjectsV2 Provider、XML 元数据解析、结构化错误、引用 URL bases 和生产浏览器接入；`npm test` 126/126、`npm run build`、`git diff --check` 通过，等待 R2/MinIO 人工验收。 |
 
 ## 16. 服务商官方参考
 

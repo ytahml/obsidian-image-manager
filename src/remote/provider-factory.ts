@@ -1,6 +1,7 @@
 import type { HostingType, ImageHostingConfig } from '../types';
 import type { RemoteCapability } from './types';
 import type { RemoteObjectProvider } from './provider';
+import { S3RemoteObjectProvider } from './providers/s3-compatible-remote';
 
 export type RemoteProviderUnsupportedReason =
     | 'not-implemented'
@@ -25,6 +26,10 @@ export type RemoteProviderBuilder = (
 
 export type RemoteProviderRegistry = Partial<Record<HostingType, RemoteProviderBuilder>>;
 
+export const DEFAULT_REMOTE_PROVIDER_REGISTRY: RemoteProviderRegistry = {
+    s3: (config) => new S3RemoteObjectProvider(config),
+};
+
 const NO_CAPABILITIES: ReadonlySet<RemoteCapability> = new Set<RemoteCapability>();
 const KNOWN_HOSTING_TYPES: ReadonlySet<string> = new Set<HostingType>([
     'aliyun-oss',
@@ -40,7 +45,7 @@ const KNOWN_HOSTING_TYPES: ReadonlySet<string> = new Set<HostingType>([
  */
 export function createRemoteObjectProvider(
     config: ImageHostingConfig,
-    registry: RemoteProviderRegistry = {}
+    registry: RemoteProviderRegistry = DEFAULT_REMOTE_PROVIDER_REGISTRY
 ): RemoteProviderFactoryResult {
     const builder = registry[config.type];
     if (builder) {

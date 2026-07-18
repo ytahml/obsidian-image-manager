@@ -3,6 +3,7 @@ import type { ImageHostingConfig } from '../src/types';
 import { RemoteBrowseSession } from '../src/remote/browse-session';
 import type { RemoteObjectProvider } from '../src/remote/provider';
 import type { RemoteListPage, RemoteListRequest } from '../src/remote/types';
+import { RemoteProviderError } from '../src/remote/errors';
 
 function config(prefix = 'vault-a'): ImageHostingConfig {
     return {
@@ -83,6 +84,22 @@ describe('remote browse session', () => {
         const session = new RemoteBrowseSession();
 
         await expect(session.scan(provider, config())).resolves.toBe(false);
-        expect(session.getSnapshot()).toMatchObject({ status: 'error', error: 'invalid-cursor' });
+        expect(session.getSnapshot()).toMatchObject({ status: 'error', error: { code: 'invalid-cursor' } });
+    });
+
+    it('publishes only structured provider errors to the browser', async () => {
+        const provider: RemoteObjectProvider = {
+            capabilities: new Set(['list']),
+            listObjects: vi.fn(async () => {
+                throw new RemoteProviderError('permission', { status: 403 });
+            }),
+        };
+        const session = new RemoteBrowseSession();
+
+        await expect(session.scan(provider, config())).resolves.toBe(false);
+        expect(session.getSnapshot()).toMatchObject({
+            status: 'error',
+            error: { code: 'permission', status: 403 },
+        });
     });
 });

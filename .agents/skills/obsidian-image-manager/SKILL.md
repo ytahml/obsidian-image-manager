@@ -275,4 +275,4 @@ Detailed documentation for each module:
 
 - **Image hosting migration**: Command registered (`migrate-images`), types defined, shows "not implemented"
 - **Restore local refs**: Translation keys exist, no implementation code
-- **Remote image hosting management (Issue #17)**: G0–G2 are complete and G3 implementation awaits Obsidian manual acceptance on the shared G-series branch; the S3-first phased plan is maintained in [docs/design/issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md), with S3-1 as the next provider stage
+- **Remote image hosting management (Issue #17)**: G0–G3 are complete. Issue #23 implements the first real list Provider for S3-compatible storage; automated coverage is complete while Cloudflare R2 and MinIO manual compatibility acceptance remains required before S3 list support is marked complete. The phased plan is maintained in [docs/design/issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md)
