@@ -1,12 +1,15 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, DropdownComponent, Modal, Setting, TextComponent } from 'obsidian';
 import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, CustomConfig } from '../types';
 import { t } from '../i18n';
-import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePageSize, normalizeRemotePrefix } from '../remote/management-settings';
+import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePrefix } from '../remote/management-settings';
+
+type HostingConfigTab = 'connection' | 'remote';
 
 export class HostingConfigModal extends Modal {
     private config: ImageHostingConfig;
     private onSave: (config: ImageHostingConfig) => void;
     private isNew: boolean;
+    private activeTab: HostingConfigTab = 'connection';
 
     constructor(app: App, config: ImageHostingConfig, onSave: (config: ImageHostingConfig) => void) {
         super(app);
@@ -26,83 +29,131 @@ export class HostingConfigModal extends Modal {
     private renderForm() {
         const { contentEl } = this;
         contentEl.empty();
+        this.modalEl.addClass('hosting-config-dialog');
         contentEl.addClass('hosting-config-modal');
 
-        contentEl.createEl('h2', {
-            text: this.isNew ? t('modal.hosting.addTitle') : t('modal.hosting.editTitle'),
-        });
-
-        // Name
-        new Setting(contentEl)
-            .setName(t('modal.hosting.name'))
-            .addText((text) =>
-                text.setValue(this.config.name).onChange((v) => {
-                    this.config.name = v;
-                })
-            );
-
-        // Type
-        new Setting(contentEl)
-            .setName(t('modal.hosting.type'))
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption('aliyun-oss', 'Aliyun oss')
-                    .addOption('qiniu', 'Qiniu')
-                    .addOption('s3', 'S3 compatible')
-                    .addOption('custom', 'Custom')
-                    .setValue(this.config.type)
-                    .onChange((v: string) => {
-                        this.config.type = v as HostingType;
-                        this.config.config = this.getDefaultProviderConfig(v as HostingType);
-                        this.renderForm();
-                    })
-            );
-
-        // Enabled
-        new Setting(contentEl)
-            .setName(t('modal.hosting.enabled'))
-            .addToggle((toggle) =>
-                toggle.setValue(this.config.enabled).onChange((v) => {
-                    this.config.enabled = v;
-                })
-            );
-
+        const header = contentEl.createDiv({ cls: 'hosting-config-header' });
+        new Setting(header)
+            .setName(this.isNew ? t('modal.hosting.addTitle') : t('modal.hosting.editTitle'))
+            .setHeading();
+        this.renderBasicFields(header);
         if (this.config.type !== 'custom') {
-            // Upload path
-            new Setting(contentEl)
-                .setName(t('modal.hosting.uploadPath'))
-                .setDesc(t('modal.hosting.uploadPathDesc'))
-                .addText((text) =>
-                    text
-                        .setPlaceholder('images/{year}/{month}/{filename}.{ext}')
-                        .setValue(this.config.uploadPath)
-                        .onChange((v) => {
-                            this.config.uploadPath = v;
-                        })
-                );
+            this.renderUploadFields(header);
+        }
+        this.renderTabs(contentEl);
 
-            // Public access URL base
-            new Setting(contentEl)
-                .setName(t('modal.hosting.urlPrefix'))
-                .setDesc(t('modal.hosting.urlPrefixDesc'))
-                .addText((text) =>
-                    text
-                        .setPlaceholder('Img.example.com/bucket')
-                        .setValue(this.config.urlPrefix)
-                        .onChange((v) => {
-                            this.config.urlPrefix = v;
-                        })
-                );
+        const body = contentEl.createDiv({
+            cls: 'hosting-config-body',
+            attr: { role: 'tabpanel' },
+        });
+        switch (this.activeTab) {
+            case 'connection':
+                this.renderConnectionFields(body);
+                break;
+            case 'remote':
+                this.renderRemoteManagementFields(body);
+                break;
         }
 
-        this.renderRemoteManagementFields(contentEl);
+        this.renderButtons(contentEl);
+    }
 
-        // Provider-specific fields
-        contentEl.createEl('h3', { text: t('modal.hosting.providerConfig') });
-        this.renderProviderFields(contentEl);
+    private renderBasicFields(container: HTMLElement) {
+        const basic = container.createDiv({ cls: 'hosting-config-basic' });
 
-        // Buttons
-        const buttons = contentEl.createDiv({ cls: 'hosting-config-buttons' });
+        const nameId = `hosting-config-name-${this.config.id || 'new'}`;
+        const nameRow = basic.createDiv({ cls: 'hosting-config-basic-row' });
+        nameRow.createEl('label', {
+            cls: 'hosting-config-basic-label',
+            text: t('modal.hosting.name'),
+            attr: { for: nameId },
+        });
+        const nameControl = nameRow.createDiv({ cls: 'hosting-config-basic-control' });
+        const nameInput = new TextComponent(nameControl).setValue(this.config.name).onChange((value) => {
+            this.config.name = value;
+        });
+        nameInput.inputEl.id = nameId;
+
+        const typeId = `hosting-config-type-${this.config.id || 'new'}`;
+        const typeRow = basic.createDiv({ cls: 'hosting-config-basic-row' });
+        typeRow.createEl('label', {
+            cls: 'hosting-config-basic-label',
+            text: t('modal.hosting.type'),
+            attr: { for: typeId },
+        });
+        const typeControl = typeRow.createDiv({ cls: 'hosting-config-basic-control' });
+        const typeDropdown = new DropdownComponent(typeControl)
+            .addOption('aliyun-oss', 'Aliyun oss')
+            .addOption('qiniu', 'Qiniu')
+            .addOption('s3', 'S3 compatible')
+            .addOption('custom', 'Custom')
+            .setValue(this.config.type)
+            .onChange((value: string) => {
+                this.config.type = value as HostingType;
+                this.config.config = this.getDefaultProviderConfig(value as HostingType);
+                this.activeTab = 'connection';
+                this.renderForm();
+            });
+        typeDropdown.selectEl.id = typeId;
+    }
+
+    private renderTabs(container: HTMLElement) {
+        const section = container.createDiv({ cls: 'hosting-config-tabs-section' });
+        const tabs = section.createDiv({
+            cls: 'hosting-config-tabs',
+            attr: { role: 'tablist', 'aria-label': t('modal.hosting.sections') },
+        });
+        for (const [value, label] of [
+            ['connection', t('modal.hosting.tabConnection')],
+            ['remote', t('modal.hosting.tabRemote')],
+        ] as const) {
+            const button = tabs.createEl('button', {
+                text: label,
+                cls: value === this.activeTab ? 'is-active' : '',
+                attr: {
+                    role: 'tab',
+                    'aria-selected': String(value === this.activeTab),
+                },
+            });
+            button.addEventListener('click', () => {
+                if (this.activeTab === value) return;
+                this.activeTab = value;
+                this.renderForm();
+            });
+        }
+    }
+
+    private renderUploadFields(container: HTMLElement) {
+        const fields = container.createDiv({ cls: 'hosting-config-field-grid hosting-config-upload-fields' });
+        const uploadPath = new Setting(fields)
+            .setName(t('modal.hosting.uploadPath'))
+            .setDesc(t('modal.hosting.uploadPathDesc'))
+            .addText((text) =>
+                text
+                    .setPlaceholder('images/{year}/{month}/{filename}.{ext}')
+                    .setValue(this.config.uploadPath)
+                    .onChange((v) => {
+                        this.config.uploadPath = v;
+                    })
+            );
+        uploadPath.settingEl.addClass('hosting-config-upload-item');
+
+        const urlPrefix = new Setting(fields)
+            .setName(t('modal.hosting.urlPrefix'))
+            .setDesc(t('modal.hosting.urlPrefixDesc'))
+            .addText((text) =>
+                text
+                    .setPlaceholder('Img.example.com/bucket')
+                    .setValue(this.config.urlPrefix)
+                    .onChange((v) => {
+                        this.config.urlPrefix = v;
+                    })
+            );
+        urlPrefix.settingEl.addClass('hosting-config-upload-item');
+    }
+
+    private renderButtons(container: HTMLElement) {
+        const buttons = container.createDiv({ cls: 'hosting-config-buttons' });
 
         const cancelBtn = buttons.createEl('button', { text: t('modal.confirm.cancel') });
         cancelBtn.addEventListener('click', () => this.close());
@@ -121,15 +172,16 @@ export class HostingConfigModal extends Modal {
         const remote = getRemoteManagementConfig(this.config);
         this.config.remoteManagement = remote;
 
-        new Setting(container).setName(t('modal.hosting.remoteManagement')).setHeading();
         new Setting(container)
             .setName(t('modal.hosting.remoteManagementEnabled'))
             .setDesc(t('modal.hosting.remoteManagementEnabledDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(remote.enabled).onChange((value) => {
                     remote.enabled = value;
+                    this.renderForm();
                 })
             );
+        if (!remote.enabled) return;
         new Setting(container)
             .setName(t('modal.hosting.remotePrefix'))
             .setDesc(t('modal.hosting.remotePrefixDesc'))
@@ -138,45 +190,67 @@ export class HostingConfigModal extends Modal {
                     remote.prefix = normalizeRemotePrefix(value);
                 })
             );
-        new Setting(container)
-            .setName(t('modal.hosting.remotePageSize'))
-            .setDesc(t('modal.hosting.remotePageSizeDesc'))
-            .addText((text) => {
-                text.inputEl.type = 'number';
-                text.inputEl.min = '1';
-                text.inputEl.max = '1000';
-                text.setValue(String(remote.pageSize)).onChange((value) => {
-                    remote.pageSize = normalizeRemotePageSize(Number(value));
+        if (this.config.type === 's3') {
+            new Setting(container)
+                .setName(t('modal.hosting.remotePreviewAccess'))
+                .setDesc(t('modal.hosting.remotePreviewAccessDesc'))
+                .addDropdown((dropdown) =>
+                    dropdown
+                        .addOption('presigned', t('modal.hosting.remotePreviewPresigned'))
+                        .addOption('public', t('modal.hosting.remotePreviewPublic'))
+                        .setValue(remote.previewAccess)
+                        .onChange((value) => {
+                            remote.previewAccess = value === 'public' ? 'public' : 'presigned';
+                            this.renderForm();
+                        })
+                );
+            if (remote.previewAccess === 'public' && !this.config.urlPrefix.trim()) {
+                container.createDiv({
+                    cls: 'setting-item-description mod-warning',
+                    text: t('modal.hosting.remotePreviewPublicWarning'),
                 });
-            });
+            }
+        }
         new Setting(container)
             .setName(t('modal.hosting.remoteAliases'))
-            .setDesc(t('modal.hosting.remoteAliasesDesc'));
-        const aliasesInput = container.createEl('textarea', {
-            cls: 'hosting-config-remote-aliases',
-        });
-        aliasesInput.rows = 3;
-        aliasesInput.value = remote.publicUrlAliases.join('\n');
-        aliasesInput.addEventListener('change', () => {
-            remote.publicUrlAliases = normalizePublicUrlAliases(aliasesInput.value.split('\n'));
-        });
+            .setDesc(t('modal.hosting.remoteAliasesDesc'))
+            .addTextArea((text) => {
+                text.inputEl.classList.add('hosting-config-remote-aliases');
+                text.inputEl.rows = 3;
+                text.setValue(remote.publicUrlAliases.join('\n')).onChange((value) => {
+                    remote.publicUrlAliases = normalizePublicUrlAliases(value.split('\n'));
+                });
+            });
     }
 
-    private renderProviderFields(container: HTMLElement) {
+    private renderConnectionFields(container: HTMLElement) {
+        this.renderSectionLabel(container, t('modal.hosting.providerConfig'));
+        const fields = container.createDiv({ cls: 'hosting-config-field-grid' });
         switch (this.config.type) {
             case 'aliyun-oss':
-                this.renderAliyunFields(container);
+                this.renderAliyunFields(fields);
                 break;
             case 'qiniu':
-                this.renderQiniuFields(container);
+                this.renderQiniuFields(fields);
                 break;
             case 's3':
-                this.renderS3Fields(container);
+                this.renderS3Fields(fields);
                 break;
             case 'custom':
-                this.renderCustomFields(container);
+                this.renderCustomConnectionFields(fields);
                 break;
         }
+        if (this.config.type === 'custom') {
+            this.renderCustomUploadFields(container);
+        }
+    }
+
+    private renderSectionLabel(container: HTMLElement, text: string) {
+        container.createDiv({
+            cls: 'hosting-config-section-label',
+            text,
+            attr: { role: 'heading', 'aria-level': '3' },
+        });
     }
 
     private renderAliyunFields(container: HTMLElement) {
@@ -256,7 +330,7 @@ export class HostingConfigModal extends Modal {
 
     private renderS3Fields(container: HTMLElement) {
         const cfg = this.config.config as S3Config;
-        new Setting(container)
+        const endpoint = new Setting(container)
             .setName('Endpoint')
             .setDesc('e.g. https://s3.amazonaws.com')
             .addText((text) =>
@@ -264,6 +338,7 @@ export class HostingConfigModal extends Modal {
                     cfg.endpoint = v;
                 })
             );
+        endpoint.settingEl.addClass('is-wide');
         new Setting(container)
             .setName('Region')
             .setDesc(t('modal.hosting.s3RegionDesc'))
@@ -304,15 +379,16 @@ export class HostingConfigModal extends Modal {
             );
     }
 
-    private renderCustomFields(container: HTMLElement) {
+    private renderCustomConnectionFields(container: HTMLElement) {
         const cfg = this.config.config as CustomConfig;
-        new Setting(container)
+        const uploadUrl = new Setting(container)
             .setName('Upload URL')
             .addText((text) =>
                 text.setValue(cfg.uploadUrl).onChange((v) => {
                     cfg.uploadUrl = v;
                 })
             );
+        uploadUrl.settingEl.addClass('is-wide');
         new Setting(container)
             .setName('Method')
             .addDropdown((dropdown) =>
@@ -324,14 +400,19 @@ export class HostingConfigModal extends Modal {
                         cfg.method = v as 'POST' | 'PUT';
                     })
             );
-        new Setting(container)
+    }
+
+    private renderCustomUploadFields(container: HTMLElement) {
+        const cfg = this.config.config as CustomConfig;
+        const fields = container.createDiv({ cls: 'hosting-config-field-grid' });
+        new Setting(fields)
             .setName('File field name')
             .addText((text) =>
                 text.setValue(cfg.fileFieldName).onChange((v) => {
                     cfg.fileFieldName = v;
                 })
             );
-        new Setting(container)
+        new Setting(fields)
             .setName('Response JSON path')
             .setDesc(t('modal.hosting.jsonPathDesc'))
             .addText((text) =>
@@ -342,7 +423,7 @@ export class HostingConfigModal extends Modal {
                         cfg.jsonPath = v;
                     })
             );
-        new Setting(container)
+        const headers = new Setting(fields)
             .setName('Headers (JSON)')
             .addText((text) => {
                 text.inputEl.classList.add('hosting-config-monospace');
@@ -354,13 +435,12 @@ export class HostingConfigModal extends Modal {
                     }
                 });
             });
+        headers.settingEl.addClass('is-wide');
 
-        // Extra body fields (key-value pairs)
-        new Setting(container)
+        const extraBody = new Setting(container)
             .setName(t('modal.hosting.extraBody'))
             .setDesc(t('modal.hosting.extraBodyDesc'));
-
-        const extraBodyContainer = container.createDiv({ cls: 'extra-body-container' });
+        const extraBodyContainer = extraBody.controlEl.createDiv({ cls: 'extra-body-container' });
         this.renderExtraBodyFields(extraBodyContainer, cfg);
     }
 

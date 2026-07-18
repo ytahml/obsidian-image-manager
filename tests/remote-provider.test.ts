@@ -60,7 +60,8 @@ describe('remote provider factory', () => {
 
         expect(result.status).toBe('ready');
         if (result.status === 'ready') {
-            expect([...result.provider.capabilities]).toEqual(['list']);
+            expect([...result.provider.capabilities]).toEqual(['list', 'folders', 'preview', 'delete']);
+            expect(result.provider.listFolders).toBeTypeOf('function');
         }
     });
 
@@ -123,8 +124,8 @@ describe('remote management settings', () => {
             enabled: false,
             prefix: '',
             pageSize: 100,
-            previewMode: 'manual',
-            deleteEnabled: false,
+            previewMode: 'viewport',
+            previewAccess: 'presigned',
             publicUrlAliases: [],
         });
     });

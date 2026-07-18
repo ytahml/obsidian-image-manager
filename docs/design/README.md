@@ -25,7 +25,7 @@
 
 | 文档 | 状态 | 关联 Issue | 说明 |
 |------|------|------------|------|
-| [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中（G0–G3、S3-1、S3-2 已完成） | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3 列表与浏览器已验收；下一阶段为按需预览 |
+| [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中（Issue #26 承接剩余 S3 工作） | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3 列表、公开/私有预览已完成；远程视图已重构为可视区域懒加载卡片网格，正等待 R2/MinIO 缩略图与安全删除联合验收 |
 
 ## 新建设计文档模板
 

@@ -34,20 +34,20 @@ function reference(url: string, kind: IndexedRemoteReference['kind']): IndexedRe
 describe('remote object reference matcher', () => {
     it('matches normalized primary and alias URLs without basename guessing', () => {
         const lookup = createRemoteObjectReferenceLookup(mapping, [
-            reference('HTTPS://CDN.EXAMPLE.COM:443/vault-a/nested/%E4%B8%AD%E6%96%87%20image.png#preview', 'referenced'),
-            reference('https://origin.example.com/bucket/vault-a/nested/other.png', 'possibly-referenced'),
+            reference('HTTPS://CDN.EXAMPLE.COM:443/vault-a/nested/%E4%B8%AD%E6%96%87%20image.png#preview', 'markdown-image'),
+            reference('https://origin.example.com/bucket/vault-a/nested/other.png', 'url'),
         ], { isComplete: true });
 
         expect(lookup.classify(object('nested/中文 image.png'))).toBe('referenced');
-        expect(lookup.classify(object('nested/other.png'))).toBe('possibly-referenced');
+        expect(lookup.classify(object('nested/other.png'))).toBe('referenced');
         expect(lookup.classify(object('other.png'))).toBe('not-referenced-in-current-vault');
         expect(lookup.classify(object('nested/other.png', 'other-hosting'))).toBe('unmappable');
     });
 
     it('keeps encoded slashes and double-encoded percent values distinct', () => {
         const lookup = createRemoteObjectReferenceLookup(mapping, [
-            reference('https://cdn.example.com/vault-a/a%2Fb.png', 'referenced'),
-            reference('https://cdn.example.com/vault-a/file%2520name.png', 'referenced'),
+            reference('https://cdn.example.com/vault-a/a%2Fb.png', 'markdown-image'),
+            reference('https://cdn.example.com/vault-a/file%2520name.png', 'markdown-image'),
         ], { isComplete: true });
 
         expect(lookup.classify(object('a%2Fb.png'))).toBe('referenced');
@@ -56,20 +56,24 @@ describe('remote object reference matcher', () => {
         expect(lookup.classify(object('file name.png'))).toBe('not-referenced-in-current-vault');
     });
 
-    it('treats unapproved query parameters and malformed managed paths as unmappable', () => {
+    it('treats a mapped URL as referenced regardless of syntax or query parameters', () => {
         const lookup = createRemoteObjectReferenceLookup(mapping, [
-            reference('https://cdn.example.com/vault-a/private.png?token=secret', 'possibly-referenced'),
-            reference('https://cdn.example.com/vault-a/broken%ZZ.png', 'possibly-referenced'),
+            reference('https://cdn.example.com/vault-a/private.png?token=secret', 'url'),
         ], { isComplete: true });
 
-        expect(lookup.classify(object('private.png'))).toBe('unmappable');
-        expect(lookup.classify(object('another.png'))).toBe('unmappable');
+        expect(lookup.classify(object('private.png'))).toBe('referenced');
+        expect(lookup.classify(object('another.png'))).toBe('not-referenced-in-current-vault');
+
+        const malformed = createRemoteObjectReferenceLookup(mapping, [
+            reference('https://cdn.example.com/vault-a/broken%ZZ.png', 'url'),
+        ], { isComplete: true });
+        expect(malformed.classify(object('another.png'))).toBe('unmappable');
     });
 
     it('accepts explicitly ignored query names and rejects path-prefix lookalikes', () => {
         const lookup = createRemoteObjectReferenceLookup(mapping, [
-            reference('https://cdn.example.com/vault-a/image%23%3F%25%28x%29.png?token=secret', 'referenced'),
-            reference('https://cdn.example.com/vault-a-extra/not-a-match.png', 'referenced'),
+            reference('https://cdn.example.com/vault-a/image%23%3F%25%28x%29.png?token=secret', 'markdown-image'),
+            reference('https://cdn.example.com/vault-a-extra/not-a-match.png', 'markdown-image'),
         ], { isComplete: true });
 
         expect(lookup.classify(object('image#?%(x).png'))).toBe('referenced');
@@ -85,7 +89,7 @@ describe('remote object reference matcher', () => {
     it('keeps query parameter names but never query values in indexed references', () => {
         const indexed = reference(
             'https://cdn.example.com/vault-a/image.png?token=secret-value&X-Amz-Signature=signature-value',
-            'possibly-referenced'
+            'url'
         );
 
         expect([...indexed.queryParameterNames]).toEqual(['token', 'X-Amz-Signature']);
@@ -113,12 +117,15 @@ function createIndex(
     const refConverter = {
         parseReferences(text: string) {
             const match = /!\[[^\]]*\]\(([^)]+)\)/g;
-            const references: Array<{ format: 'markdown'; path: string; col: number; fullMatch: string }> = [];
+            const references: Array<{
+                format: 'markdown'; path: string; line: number; col: number; fullMatch: string;
+            }> = [];
             let result: RegExpExecArray | null;
             while ((result = match.exec(text)) !== null) {
                 references.push({
                     format: 'markdown',
                     path: result[1] ?? '',
+                    line: text.slice(0, result.index).split('\n').length - 1,
                     col: result.index,
                     fullMatch: result[0],
                 });
@@ -136,7 +143,7 @@ function createIndex(
 }
 
 describe('remote reference index', () => {
-    it('scans Markdown-only references and never retains signed query values', async () => {
+    it('treats every reliably mapped URL syntax as referenced and records its location', async () => {
         const { index } = createIndex({
             'one.md': [
                 '![image](https://cdn.example.com/vault-a/definite.png)',
@@ -144,6 +151,7 @@ describe('remote reference index', () => {
                 '[plain](https://cdn.example.com/vault-a/link.png)',
                 'https://cdn.example.com/vault-a/raw.png',
                 '![[local.png]]',
+                '![angle](<https://cdn.example.com/vault-a/angle.png>)',
             ].join('\n'),
             'two.md': 'https://outside.example.com/image.png',
         });
@@ -151,17 +159,20 @@ describe('remote reference index', () => {
         await expect(index.scan()).resolves.toEqual({
             scannedAt: 12345,
             markdownFileCount: 2,
-            referencedCount: 1,
-            possiblyReferencedCount: 4,
+            referencedCount: 6,
+            possiblyReferencedCount: 0,
             unmappableCount: 0,
-            canvasIncluded: false,
         });
 
         const lookup = index.createLookup(mapping);
         expect(lookup.classify(object('definite.png'))).toBe('referenced');
-        expect(lookup.classify(object('html.png'))).toBe('possibly-referenced');
-        expect(lookup.classify(object('link.png'))).toBe('possibly-referenced');
-        expect(lookup.classify(object('raw.png'))).toBe('possibly-referenced');
+        expect(lookup.classify(object('html.png'))).toBe('referenced');
+        expect(lookup.classify(object('link.png'))).toBe('referenced');
+        expect(lookup.classify(object('raw.png'))).toBe('referenced');
+        expect(lookup.classify(object('angle.png'))).toBe('referenced');
+        expect(lookup.getReferences(object('html.png'))).toEqual([{
+            path: 'one.md', line: 1, syntax: 'url',
+        }]);
         expect(lookup.classify(object('local.png'))).toBe('not-referenced-in-current-vault');
         expect(index.getState()).toMatchObject({ status: 'fresh' });
     });

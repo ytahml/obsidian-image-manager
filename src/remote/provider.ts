@@ -1,9 +1,12 @@
 import type {
     RemoteCapability,
     RemoteDeleteResult,
+    RemoteFolderListPage,
+    RemoteFolderListRequest,
     RemoteListPage,
     RemoteListRequest,
     RemoteObject,
+    RemotePreviewUrl,
     RemoteUrlMapping,
 } from './types';
 
@@ -12,8 +15,9 @@ export interface RemoteObjectProvider {
     readonly capabilities: ReadonlySet<RemoteCapability>;
     readonly referenceMapping?: RemoteUrlMapping;
     listObjects(request: RemoteListRequest): Promise<RemoteListPage>;
-    createPreviewUrl?(object: RemoteObject): Promise<string>;
-    deleteObject?(object: RemoteObject): Promise<RemoteDeleteResult>;
+    listFolders?: (request: RemoteFolderListRequest) => Promise<RemoteFolderListPage>;
+    createPreviewUrl?: (object: RemoteObject) => Promise<RemotePreviewUrl>;
+    deleteObject?: (object: RemoteObject) => Promise<RemoteDeleteResult>;
 }
 
 /**

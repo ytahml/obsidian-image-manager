@@ -3,22 +3,42 @@ import { getRemoteManagementConfig } from '../management-settings';
 import { RemoteProviderError, codeForHttpStatus, sanitizeRemoteEndpoint } from '../errors';
 import { RemoteRequestClient } from '../request';
 import type { RemoteObjectProvider } from '../provider';
-import type { RemoteListPage, RemoteListRequest, RemoteObject, RemoteUrlMapping } from '../types';
+import type {
+    RemoteDeleteFailureCode,
+    RemoteDeleteResult,
+    RemoteFolderListPage,
+    RemoteFolderListRequest,
+    RemoteListPage,
+    RemoteListRequest,
+    RemoteObject,
+    RemotePreviewUrl,
+    RemoteUrlMapping,
+} from '../types';
 import {
     S3RequestConfigurationError,
     buildS3RequestTarget,
+    presignS3GetRequest,
     signS3Request,
     type S3QueryParameter,
 } from '../../s3/sigv4';
-import { normalizePublicUrlBase } from '../../uploaders/public-url';
+import {
+    encodePublicPath,
+    joinPublicUrl,
+    normalizePublicUrlBase,
+} from '../../uploaders/public-url';
 
 export type S3XmlDocumentParser = (xml: string) => Document;
 
-const LIST_CAPABILITIES = new Set<'list'>(['list']);
+const S3_CAPABILITIES = new Set<'list' | 'folders' | 'preview' | 'delete'>([
+    'list',
+    'folders',
+    'preview',
+    'delete',
+]);
 
 /** Metadata-only S3-compatible remote provider. */
 export class S3RemoteObjectProvider implements RemoteObjectProvider {
-    readonly capabilities = LIST_CAPABILITIES;
+    readonly capabilities = S3_CAPABILITIES;
     readonly referenceMapping: RemoteUrlMapping;
     private readonly s3Config: S3Config;
 
@@ -34,6 +54,21 @@ export class S3RemoteObjectProvider implements RemoteObjectProvider {
 
     async listObjects(request: RemoteListRequest): Promise<RemoteListPage> {
         const query = buildListQuery(request);
+        const xml = await this.requestList(query);
+        return parseS3ListObjectsV2(xml, this.hostingConfig.id, this.parseXml);
+    }
+
+    async listFolders(request: RemoteFolderListRequest): Promise<RemoteFolderListPage> {
+        const query = buildListQuery({ ...request, delimiter: '/' });
+        const xml = await this.requestList(query);
+        const page = parseS3ListFolders(xml, this.parseXml);
+        if (page.prefixes.some((prefix) => !isDirectChildPrefix(prefix, request.prefix))) {
+            throw new RemoteProviderError('parsing');
+        }
+        return page;
+    }
+
+    private async requestList(query: S3QueryParameter[]): Promise<string> {
         let signedRequest;
         try {
             signedRequest = await signS3Request({
@@ -65,12 +100,125 @@ export class S3RemoteObjectProvider implements RemoteObjectProvider {
             );
         }
 
-        return parseS3ListObjectsV2(
-            response.text,
-            this.hostingConfig.id,
-            this.parseXml
-        );
+        return response.text;
     }
+
+    async createPreviewUrl(object: RemoteObject): Promise<RemotePreviewUrl> {
+        const settings = getRemoteManagementConfig(this.hostingConfig);
+        if (settings.previewAccess === 'public') {
+            const base = normalizePublicUrlBase(this.hostingConfig.urlPrefix);
+            if (!base) throw new RemoteProviderError('configuration');
+            return {
+                url: joinPublicUrl(base, encodePublicPath(object.key)),
+                access: 'public',
+            };
+        }
+
+        try {
+            const preview = await presignS3GetRequest({
+                config: this.s3Config,
+                key: object.key,
+                expiresInSeconds: 300,
+                now: this.now(),
+            });
+            return {
+                url: preview.url,
+                access: 'presigned',
+                expiresAt: preview.expiresAt,
+            };
+        } catch (error) {
+            if (error instanceof S3RequestConfigurationError) {
+                throw new RemoteProviderError('configuration');
+            }
+            throw error;
+        }
+    }
+
+    async deleteObject(object: RemoteObject): Promise<RemoteDeleteResult> {
+        let signedRequest;
+        try {
+            signedRequest = await signS3Request({
+                config: this.s3Config,
+                method: 'DELETE',
+                key: object.key,
+                now: this.now(),
+            });
+        } catch (error) {
+            if (error instanceof S3RequestConfigurationError) {
+                return deleteFailure(object.key, 'configuration');
+            }
+            return deleteFailure(object.key, 'unknown');
+        }
+
+        let response;
+        try {
+            response = await this.requestClient.request({
+                url: signedRequest.url,
+                method: 'DELETE',
+                headers: signedRequest.headers,
+                throw: false,
+            });
+        } catch (error) {
+            if (error instanceof RemoteProviderError) {
+                return deleteFailure(object.key, error.code, error.status, error.retryable);
+            }
+            return deleteFailure(object.key, 'network', undefined, true);
+        }
+
+        if (response.status === 204) {
+            const deleteMarker = readHeader(response.headers, 'x-amz-delete-marker') === 'true';
+            return {
+                key: object.key,
+                success: true,
+                status: 204,
+                deletionKind: deleteMarker ? 'delete-marker' : 'unknown',
+            };
+        }
+
+        const failure = classifyS3DeleteFailure(response.status, response.text, this.parseXml);
+        return deleteFailure(object.key, failure, response.status);
+    }
+}
+
+function classifyS3DeleteFailure(
+    status: number,
+    xml: string,
+    parseXml: S3XmlDocumentParser
+): RemoteDeleteFailureCode {
+    if (status === 409) return 'conflict';
+    if (status === 412) return 'precondition';
+    if (status === 423) return 'locked';
+    const serviceCode = readS3ErrorCode(xml, parseXml);
+    if (['ObjectLocked', 'ObjectUnderRetention', 'LegalHold'].includes(serviceCode ?? '')) return 'locked';
+    if (serviceCode === 'Conflict' || serviceCode === 'OperationAborted') return 'conflict';
+    if (serviceCode === 'PreconditionFailed') return 'precondition';
+    if (['InvalidAccessKeyId', 'SignatureDoesNotMatch', 'ExpiredToken', 'InvalidToken'].includes(serviceCode ?? '')) {
+        return 'authentication';
+    }
+    if (serviceCode === 'AccessDenied') return 'permission';
+    if (serviceCode === 'NoSuchBucket' || serviceCode === 'NoSuchKey') return 'not-found';
+    if (serviceCode === 'SlowDown') return 'rate-limit';
+    return codeForHttpStatus(status);
+}
+
+function deleteFailure(
+    key: string,
+    failureCode: RemoteDeleteFailureCode,
+    status?: number,
+    retryable = failureCode === 'rate-limit' || failureCode === 'network' || failureCode === 'service'
+): RemoteDeleteResult {
+    return {
+        key,
+        success: false,
+        ...(status !== undefined ? { status } : {}),
+        failureCode,
+        retryable,
+    };
+}
+
+function readHeader(headers: Record<string, string>, name: string): string | undefined {
+    const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name);
+    return entry?.[1]?.trim().toLowerCase();
 }
 
 export function buildListQuery(request: RemoteListRequest): S3QueryParameter[] {
@@ -121,6 +269,42 @@ export function parseS3ListObjectsV2(
     };
 }
 
+export function parseS3ListFolders(
+    xml: string,
+    parseXml: S3XmlDocumentParser = parseXmlDocument
+): RemoteFolderListPage {
+    const document = parseS3Document(xml, parseXml);
+    const root = document.documentElement;
+    if (!root || root.localName !== 'ListBucketResult') throw new RemoteProviderError('parsing');
+
+    const encodingType = readDirectText(root, 'EncodingType');
+    if (encodingType !== undefined && encodingType !== 'url') {
+        throw new RemoteProviderError('parsing');
+    }
+
+    const truncatedValue = readDirectText(root, 'IsTruncated');
+    if (truncatedValue !== 'true' && truncatedValue !== 'false') {
+        throw new RemoteProviderError('parsing');
+    }
+    const isTruncated = truncatedValue === 'true';
+    const nextCursor = readDirectText(root, 'NextContinuationToken');
+    if (isTruncated && !nextCursor) throw new RemoteProviderError('parsing');
+
+    const prefixes = directChildren(root, 'CommonPrefixes').map((element) => {
+        const rawPrefix = readRequiredText(element, 'Prefix');
+        const decoded = decodeS3ListValue(rawPrefix, encodingType);
+        if (!decoded.endsWith('/')) throw new RemoteProviderError('parsing');
+        const normalized = decoded.replace(/^\/+|\/+$/g, '');
+        if (!normalized) throw new RemoteProviderError('parsing');
+        return normalized;
+    });
+    return {
+        prefixes: [...new Set(prefixes)],
+        isTruncated,
+        ...(nextCursor ? { nextCursor } : {}),
+    };
+}
+
 export function buildS3ReferenceMapping(config: ImageHostingConfig): RemoteUrlMapping {
     const settings = getRemoteManagementConfig(config);
     const s3Config = config.config as S3Config;
@@ -146,14 +330,7 @@ export function buildS3ReferenceMapping(config: ImageHostingConfig): RemoteUrlMa
 
 function parseS3Object(element: Element, hostingId: string, encodingType: string | undefined): RemoteObject {
     const rawKey = readRequiredText(element, 'Key');
-    let key = rawKey;
-    if (encodingType === 'url') {
-        try {
-            key = decodeURIComponent(rawKey);
-        } catch {
-            throw new RemoteProviderError('parsing');
-        }
-    }
+    const key = decodeS3ListValue(rawKey, encodingType);
 
     const sizeText = readRequiredText(element, 'Size');
     if (!/^\d+$/.test(sizeText)) throw new RemoteProviderError('parsing');
@@ -177,6 +354,23 @@ function parseS3Object(element: Element, hostingId: string, encodingType: string
         ...(etag !== undefined ? { etag } : {}),
         ...(storageClass !== undefined ? { storageClass } : {}),
     };
+}
+
+function decodeS3ListValue(value: string, encodingType: string | undefined): string {
+    if (encodingType !== 'url') return value;
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        throw new RemoteProviderError('parsing');
+    }
+}
+
+function isDirectChildPrefix(prefix: string, parent: string): boolean {
+    const normalizedParent = parent.trim().replace(/^\/+|\/+$/g, '');
+    const base = normalizedParent ? `${normalizedParent}/` : '';
+    if (!prefix.startsWith(base)) return false;
+    const relative = prefix.slice(base.length);
+    return Boolean(relative) && !relative.includes('/');
 }
 
 function mapS3ResponseError(

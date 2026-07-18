@@ -4,8 +4,8 @@ export const DEFAULT_REMOTE_MANAGEMENT_CONFIG: Readonly<RemoteManagementConfig> 
     enabled: false,
     prefix: '',
     pageSize: 100,
-    previewMode: 'manual',
-    deleteEnabled: false,
+    previewMode: 'viewport',
+    previewAccess: 'presigned',
     publicUrlAliases: [],
 };
 
@@ -16,8 +16,9 @@ export function getRemoteManagementConfig(config: ImageHostingConfig): RemoteMan
         enabled: value?.enabled ?? DEFAULT_REMOTE_MANAGEMENT_CONFIG.enabled,
         prefix: normalizeRemotePrefix(value?.prefix ?? DEFAULT_REMOTE_MANAGEMENT_CONFIG.prefix),
         pageSize: normalizeRemotePageSize(value?.pageSize),
-        previewMode: value?.previewMode === 'viewport' ? 'viewport' : 'manual',
-        deleteEnabled: value?.deleteEnabled ?? DEFAULT_REMOTE_MANAGEMENT_CONFIG.deleteEnabled,
+        // Remote management now always uses viewport thumbnails after an explicit scan.
+        previewMode: 'viewport',
+        previewAccess: value?.previewAccess === 'public' ? 'public' : 'presigned',
         publicUrlAliases: normalizePublicUrlAliases(value?.publicUrlAliases ?? []),
     };
 }

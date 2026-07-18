@@ -9,6 +9,7 @@ import {
     S3RemoteObjectProvider,
     buildListQuery,
     buildS3ReferenceMapping,
+    parseS3ListFolders,
     parseS3ListObjectsV2,
     type S3XmlDocumentParser,
 } from '../src/remote/providers/s3-compatible-remote';
@@ -42,7 +43,7 @@ function hostingConfig(overrides: Partial<ImageHostingConfig> = {}): ImageHostin
             prefix: 'vault-a',
             pageSize: 2,
             previewMode: 'manual',
-            deleteEnabled: false,
+            previewAccess: 'presigned',
             publicUrlAliases: ['https://origin.example.com/root/'],
         },
         ...overrides,
@@ -111,6 +112,36 @@ describe('S3 ListObjectsV2 parsing', () => {
     });
 });
 
+describe('S3 virtual-folder parsing', () => {
+    it('decodes CommonPrefixes once and preserves the opaque cursor', () => {
+        expect(parseS3ListFolders(`
+            <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                <EncodingType>url</EncodingType>
+                <IsTruncated>true</IsTruncated>
+                <NextContinuationToken>next+/=&amp;opaque</NextContinuationToken>
+                <CommonPrefixes><Prefix>images/2026/</Prefix></CommonPrefixes>
+                <CommonPrefixes><Prefix>images/%E4%B8%AD%E6%96%87%20%252F/</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `, parseXml)).toEqual({
+            prefixes: ['images/2026', 'images/中文 %2F'],
+            nextCursor: 'next+/=&opaque',
+            isTruncated: true,
+        });
+    });
+
+    it('accepts an empty folder page and rejects malformed prefixes', () => {
+        expect(parseS3ListFolders(
+            '<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>',
+            parseXml
+        )).toEqual({ prefixes: [], isTruncated: false });
+        expect(() => parseS3ListFolders(`
+            <ListBucketResult><IsTruncated>false</IsTruncated>
+            <CommonPrefixes><Prefix>images/not-a-folder</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `, parseXml)).toThrow('Remote provider response could not be parsed');
+    });
+});
+
 describe('S3 remote provider', () => {
     it('requests one directory-scoped page with an encoded opaque cursor', async () => {
         const execute = vi.fn(async (_request: RequestUrlParam) => response(200, `
@@ -134,6 +165,48 @@ describe('S3 remote provider', () => {
             'https://minio.example.com:9000/proxy/s3/images/?continuation-token=token%2B%2F%3D%252520%26value&delimiter=%2F&encoding-type=url&list-type=2&max-keys=1000&prefix=images%2F2026%2F'
         );
         expect(request?.headers?.Authorization).not.toContain('secret-key');
+    });
+
+    it('lists one level of virtual folders with delimiter and pagination', async () => {
+        const execute = vi.fn(async (_request: RequestUrlParam) => response(200, `
+            <ListBucketResult>
+                <EncodingType>url</EncodingType>
+                <IsTruncated>false</IsTruncated>
+                <CommonPrefixes><Prefix>images/2026/</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `));
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml,
+            () => new Date('2026-07-18T04:05:06.000Z')
+        );
+
+        await expect(provider.listFolders({
+            prefix: 'images',
+            cursor: 'folder+/=&cursor',
+            limit: 200,
+        })).resolves.toEqual({
+            prefixes: ['images/2026'],
+            isTruncated: false,
+        });
+
+        expect(execute.mock.calls[0]?.[0].url).toBe(
+            'https://minio.example.com:9000/proxy/s3/images/?continuation-token=folder%2B%2F%3D%26cursor&delimiter=%2F&encoding-type=url&list-type=2&max-keys=200&prefix=images%2F'
+        );
+    });
+
+    it('rejects a folder response outside the requested level', async () => {
+        const execute = vi.fn(async () => response(200, `
+            <ListBucketResult>
+                <IsTruncated>false</IsTruncated>
+                <CommonPrefixes><Prefix>other/sibling/</Prefix></CommonPrefixes>
+            </ListBucketResult>
+        `));
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml
+        );
+
+        await expect(provider.listFolders({ prefix: 'images', limit: 200 }))
+            .rejects.toMatchObject({ code: 'parsing' });
     });
 
     it.each([
@@ -165,6 +238,136 @@ describe('S3 remote provider', () => {
 
         await expect(provider.listObjects({ prefix: '', limit: 1 }))
             .rejects.toMatchObject({ code: 'configuration' });
+    });
+
+    it('creates a 300-second private preview without making a provider request', async () => {
+        const execute = vi.fn();
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml,
+            () => new Date('2026-07-18T04:05:06.000Z')
+        );
+
+        const preview = await provider.createPreviewUrl({
+            hostingId: 's3-hosting',
+            key: 'vault-a/中文 image.png',
+            size: 42,
+        });
+
+        expect(preview).toMatchObject({
+            access: 'presigned',
+            expiresAt: Date.parse('2026-07-18T04:10:06.000Z'),
+        });
+        expect(preview.url).toContain('/proxy/s3/images/vault-a/%E4%B8%AD%E6%96%87%20image.png?');
+        expect(preview.url).toContain('X-Amz-Expires=300');
+        expect(execute).not.toHaveBeenCalled();
+    });
+
+    it('uses only urlPrefix for an explicitly public preview', async () => {
+        const config = hostingConfig();
+        config.remoteManagement!.previewAccess = 'public';
+        const provider = new S3RemoteObjectProvider(config);
+
+        await expect(provider.createPreviewUrl({
+            hostingId: config.id,
+            key: 'images/中文 #?%()+&=.png',
+            size: 1,
+        })).resolves.toEqual({
+            access: 'public',
+            url: 'https://cdn.example.com/vault/images/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png',
+        });
+    });
+
+    it('rejects a public preview without retaining or guessing an endpoint URL', async () => {
+        const config = hostingConfig({ urlPrefix: '' });
+        config.remoteManagement!.previewAccess = 'public';
+        const provider = new S3RemoteObjectProvider(config);
+
+        const promise = provider.createPreviewUrl({
+            hostingId: config.id,
+            key: 'images/a.png',
+            size: 1,
+        });
+        await expect(promise).rejects.toMatchObject({ code: 'configuration' });
+        await promise.catch((error: unknown) => {
+            expect(JSON.stringify(error)).not.toContain('minio.example.com');
+        });
+    });
+
+    it('deletes the exact key and conservatively reports accepted or delete-marker responses', async () => {
+        const execute = vi.fn()
+            .mockResolvedValueOnce({ ...response(204, ''), headers: {} })
+            .mockResolvedValueOnce({ ...response(204, ''), headers: { 'X-Amz-Delete-Marker': 'true' } });
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml,
+            () => new Date('2026-07-18T04:05:06.000Z')
+        );
+        const object = { hostingId: 's3-hosting', key: 'vault-a/中文 #?%()+&=.png', size: 1 };
+
+        await expect(provider.deleteObject(object)).resolves.toEqual({
+            key: object.key, success: true, status: 204, deletionKind: 'unknown',
+        });
+        await expect(provider.deleteObject(object)).resolves.toEqual({
+            key: object.key, success: true, status: 204, deletionKind: 'delete-marker',
+        });
+        expect(execute.mock.calls[0]?.[0]).toMatchObject({
+            method: 'DELETE',
+            url: 'https://minio.example.com:9000/proxy/s3/images/vault-a/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png',
+        });
+    });
+
+    it.each([
+        [401, 'InvalidAccessKeyId', 'authentication', false],
+        [403, 'AccessDenied', 'permission', false],
+        [404, 'NoSuchKey', 'not-found', false],
+        [409, 'Conflict', 'conflict', false],
+        [412, 'PreconditionFailed', 'precondition', false],
+        [423, 'ObjectLocked', 'locked', false],
+        [429, 'SlowDown', 'rate-limit', true],
+        [503, 'InternalError', 'service', true],
+    ] as const)('maps DELETE HTTP %s to %s without response text', async (status, serviceCode, failureCode, retryable) => {
+        const execute = vi.fn(async () => response(
+            status,
+            `<Error><Code>${serviceCode}</Code><Message>secret-key Authorization</Message></Error>`
+        ));
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml
+        );
+
+        const result = await provider.deleteObject({ hostingId: 's3-hosting', key: 'a.png', size: 1 });
+
+        expect(result).toEqual({
+            key: 'a.png', success: false, status, failureCode, retryable,
+        });
+        expect(JSON.stringify(result)).not.toContain('secret-key');
+        expect(JSON.stringify(result)).not.toContain('Authorization');
+    });
+
+    it('maps a thrown request to a retryable network failure', async () => {
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(),
+            new RemoteRequestClient(vi.fn(async () => { throw new Error('signed secret URL'); })),
+            parseXml
+        );
+
+        await expect(provider.deleteObject({ hostingId: 's3-hosting', key: 'a.png', size: 1 }))
+            .resolves.toEqual({
+                key: 'a.png', success: false, failureCode: 'network', retryable: true,
+            });
+    });
+
+    it('returns a redacted configuration failure without sending DELETE', async () => {
+        const execute = vi.fn();
+        const provider = new S3RemoteObjectProvider(hostingConfig({
+            config: s3Config({ endpoint: 'user:secret@host?token=value', region: '' }),
+        }), new RemoteRequestClient(execute), parseXml);
+
+        const result = await provider.deleteObject({ hostingId: 's3-hosting', key: 'a.png', size: 1 });
+
+        expect(result).toEqual({
+            key: 'a.png', success: false, failureCode: 'configuration', retryable: false,
+        });
+        expect(JSON.stringify(result)).not.toContain('secret');
+        expect(execute).not.toHaveBeenCalled();
     });
 });
 

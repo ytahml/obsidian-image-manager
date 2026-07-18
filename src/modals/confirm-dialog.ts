@@ -5,6 +5,7 @@ export interface ConfirmDialogOptions {
     title: string;
     message: string;
     confirmText?: string;
+    pendingText?: string;
     cancelText?: string;
     onConfirm: () => void | Promise<void>;
     onCancel?: () => void;
@@ -13,6 +14,9 @@ export interface ConfirmDialogOptions {
 export class ConfirmDialog extends Modal {
     private options: ConfirmDialogOptions;
     private keyHandler: (e: KeyboardEvent) => void;
+    private confirmButton: HTMLButtonElement | null = null;
+    private cancelButton: HTMLButtonElement | null = null;
+    private pending = false;
 
     constructor(app: App, options: ConfirmDialogOptions) {
         super(app);
@@ -40,19 +44,20 @@ export class ConfirmDialog extends Modal {
 
         const buttonContainer = contentEl.createDiv({ cls: 'confirm-dialog-buttons' });
 
-        const cancelBtn = buttonContainer.createEl('button', {
+        this.cancelButton = buttonContainer.createEl('button', {
             text: this.options.cancelText ?? t('modal.confirm.cancel'),
         });
-        cancelBtn.addEventListener('click', () => {
+        this.cancelButton.addEventListener('click', () => {
+            if (this.pending) return;
             this.options.onCancel?.();
             this.close();
         });
 
-        const confirmBtn = buttonContainer.createEl('button', {
+        this.confirmButton = buttonContainer.createEl('button', {
             text: this.options.confirmText ?? t('modal.confirm.ok'),
             cls: 'mod-cta',
         });
-        confirmBtn.addEventListener('click', () => void this.handleConfirm());
+        this.confirmButton.addEventListener('click', () => void this.handleConfirm());
 
         activeDocument.addEventListener('keydown', this.keyHandler);
     }
@@ -64,7 +69,23 @@ export class ConfirmDialog extends Modal {
     }
 
     private async handleConfirm() {
-        await this.options.onConfirm();
-        this.close();
+        if (this.pending) return;
+        this.pending = true;
+        this.contentEl.setAttribute('aria-busy', 'true');
+        if (this.cancelButton) this.cancelButton.disabled = true;
+        if (this.confirmButton) {
+            this.confirmButton.disabled = true;
+            this.confirmButton.empty();
+            this.confirmButton.addClass('confirm-dialog-pending');
+            this.confirmButton.createSpan({ cls: 'confirm-dialog-spinner' });
+            this.confirmButton.createSpan({
+                text: this.options.pendingText ?? t('modal.confirm.processing'),
+            });
+        }
+        try {
+            await this.options.onConfirm();
+        } finally {
+            this.close();
+        }
     }
 }

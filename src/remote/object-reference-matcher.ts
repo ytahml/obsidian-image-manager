@@ -1,17 +1,19 @@
 import type {
     RemoteObject,
     RemoteObjectReferenceLookup,
+    RemoteReferenceLocation,
     RemoteReferenceState,
     RemoteUrlMapping,
 } from './types';
 
-export type IndexedRemoteReferenceKind = 'referenced' | 'possibly-referenced';
+export type IndexedRemoteReferenceKind = 'markdown-image' | 'url';
 
 export interface IndexedRemoteReference {
     kind: IndexedRemoteReferenceKind;
     origin: string;
     pathSegments?: readonly string[];
     queryParameterNames: ReadonlySet<string>;
+    location?: RemoteReferenceLocation;
 }
 
 interface NormalizedBaseUrl {
@@ -26,7 +28,8 @@ interface LookupOptions {
 /** Parse an absolute URL without retaining query values or fragments. */
 export function indexRemoteReference(
     value: string,
-    kind: IndexedRemoteReferenceKind
+    kind: IndexedRemoteReferenceKind,
+    location?: Omit<RemoteReferenceLocation, 'syntax'>
 ): IndexedRemoteReference | null {
     let url: URL;
     try {
@@ -42,6 +45,7 @@ export function indexRemoteReference(
         origin: url.origin,
         pathSegments: decodeUrlPath(url.pathname),
         queryParameterNames: new Set(url.searchParams.keys()),
+        ...(location ? { location: { ...location, syntax: kind } } : {}),
     };
 }
 
@@ -54,10 +58,8 @@ export function createRemoteObjectReferenceLookup(
     const bases = [mapping.urlPrefix, ...mapping.publicUrlAliases]
         .map(normalizeBaseUrl)
         .filter((base): base is NormalizedBaseUrl => base !== null);
-    const ignoredQueryParameters = new Set(mapping.ignoredQueryParameters ?? []);
     const referencedKeys = new Set<string>();
-    const possibleKeys = new Set<string>();
-    const unmappableKeys = new Set<string>();
+    const locationsByKey = new Map<string, RemoteReferenceLocation[]>();
     let hasUnmappableManagedReference = false;
 
     if (bases.length > 0) {
@@ -71,21 +73,19 @@ export function createRemoteObjectReferenceLookup(
             const matchedKeys = getMatchedKeys(reference, bases);
             if (matchedKeys.length === 0) continue;
 
-            if (!reference.pathSegments || hasUnignoredQueryParameter(reference, ignoredQueryParameters)) {
-                for (const key of matchedKeys) unmappableKeys.add(key);
-                continue;
-            }
-
             if (new Set(matchedKeys).size > 1) {
                 hasUnmappableManagedReference = true;
                 continue;
             }
 
             const key = matchedKeys[0]!;
-            if (reference.kind === 'referenced') {
-                referencedKeys.add(key);
-            } else {
-                possibleKeys.add(key);
+            referencedKeys.add(key);
+            if (reference.location) {
+                const locations = locationsByKey.get(key) ?? [];
+                if (!locations.some((item) =>
+                    item.path === reference.location!.path && item.line === reference.location!.line
+                )) locations.push(reference.location);
+                locationsByKey.set(key, locations);
             }
         }
     }
@@ -99,9 +99,12 @@ export function createRemoteObjectReferenceLookup(
             const normalizedKey = normalizeObjectKey(object.key);
             if (normalizedKey === null || hasUnmappableManagedReference) return 'unmappable';
             if (referencedKeys.has(normalizedKey)) return 'referenced';
-            if (possibleKeys.has(normalizedKey)) return 'possibly-referenced';
-            if (unmappableKeys.has(normalizedKey)) return 'unmappable';
             return 'not-referenced-in-current-vault';
+        },
+        getReferences(object: RemoteObject): readonly RemoteReferenceLocation[] {
+            if (!options.isComplete || object.hostingId !== mapping.hostingId) return [];
+            const normalizedKey = normalizeObjectKey(object.key);
+            return normalizedKey === null ? [] : [...(locationsByKey.get(normalizedKey) ?? [])];
         },
     };
 }
@@ -144,16 +147,6 @@ function getMatchedKeys(
         keys.push(reference.pathSegments.slice(base.pathSegments.length).join('/'));
     }
     return keys;
-}
-
-function hasUnignoredQueryParameter(
-    reference: IndexedRemoteReference,
-    ignoredQueryParameters: ReadonlySet<string>
-): boolean {
-    for (const name of reference.queryParameterNames) {
-        if (!ignoredQueryParameters.has(name)) return true;
-    }
-    return false;
 }
 
 function startsWithSegments(value: readonly string[], prefix: readonly string[]): boolean {

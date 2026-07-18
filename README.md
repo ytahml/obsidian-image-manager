@@ -36,6 +36,8 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Wiki → Markdown Reference Conversion | ✅ Implemented |
 | Markdown → Wiki Reference Conversion | ❌ Not Supported |
 | Image Hosting Upload (Aliyun OSS / Qiniu / S3 / Custom) | ✅ Implemented |
+| S3 Card Browser, Viewport Thumbnails, and Preview (R2 / MinIO) | ✅ Implemented |
+| Guarded S3 Remote Deletion | 🚧 Issue #26 acceptance in progress |
 | Auto Upload on Paste | ✅ Implemented |
 | Batch Upload Note Images | ✅ Implemented |
 | Batch Upload Entire Vault | ✅ Implemented |
@@ -47,6 +49,14 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Chinese/English Internationalization | ✅ Implemented |
 | Image Hosting Migration | ❌ Not Implemented |
 | Replace Hosting References with Local | ❌ Not Implemented |
+
+---
+
+## S3 Remote Management Safety
+
+S3 remote browsing lists objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
+
+Deletion requires selecting at most 20 eligible objects, typing the selected count, and acknowledging that cloud deletion cannot be undone. Requests run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the S3 scope again. Presigned preview URLs and credentials are not written to delete history.
 
 ---
 
