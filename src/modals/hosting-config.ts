@@ -3,7 +3,7 @@ import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3C
 import { t } from '../i18n';
 import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePrefix } from '../remote/management-settings';
 
-type HostingConfigTab = 'connection' | 'upload' | 'remote';
+type HostingConfigTab = 'connection' | 'remote';
 
 export class HostingConfigModal extends Modal {
     private config: ImageHostingConfig;
@@ -46,9 +46,6 @@ export class HostingConfigModal extends Modal {
         switch (this.activeTab) {
             case 'connection':
                 this.renderConnectionFields(body);
-                break;
-            case 'upload':
-                this.renderUploadFields(body);
                 break;
             case 'remote':
                 this.renderRemoteManagementFields(body);
@@ -105,7 +102,6 @@ export class HostingConfigModal extends Modal {
         });
         for (const [value, label] of [
             ['connection', t('modal.hosting.tabConnection')],
-            ['upload', t('modal.hosting.tabUpload')],
             ['remote', t('modal.hosting.tabRemote')],
         ] as const) {
             const button = tabs.createEl('button', {
@@ -129,7 +125,8 @@ export class HostingConfigModal extends Modal {
             this.renderCustomUploadFields(container);
             return;
         }
-        new Setting(container)
+        const fields = container.createDiv({ cls: 'hosting-config-field-grid' });
+        new Setting(fields)
             .setName(t('modal.hosting.uploadPath'))
             .setDesc(t('modal.hosting.uploadPathDesc'))
             .addText((text) =>
@@ -141,7 +138,7 @@ export class HostingConfigModal extends Modal {
                     })
             );
 
-        new Setting(container)
+        new Setting(fields)
             .setName(t('modal.hosting.urlPrefix'))
             .setDesc(t('modal.hosting.urlPrefixDesc'))
             .addText((text) =>
@@ -227,6 +224,7 @@ export class HostingConfigModal extends Modal {
     }
 
     private renderConnectionFields(container: HTMLElement) {
+        this.renderSectionLabel(container, t('modal.hosting.providerConfig'));
         const fields = container.createDiv({ cls: 'hosting-config-field-grid' });
         switch (this.config.type) {
             case 'aliyun-oss':
@@ -242,6 +240,16 @@ export class HostingConfigModal extends Modal {
                 this.renderCustomConnectionFields(fields);
                 break;
         }
+        this.renderSectionLabel(container, t('modal.hosting.uploadAccess'));
+        this.renderUploadFields(container);
+    }
+
+    private renderSectionLabel(container: HTMLElement, text: string) {
+        container.createDiv({
+            cls: 'hosting-config-section-label',
+            text,
+            attr: { role: 'heading', 'aria-level': '3' },
+        });
     }
 
     private renderAliyunFields(container: HTMLElement) {

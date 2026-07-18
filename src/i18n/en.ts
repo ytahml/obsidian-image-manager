@@ -274,9 +274,9 @@ export const en: Record<string, string> = {
     'modal.hosting.type': 'Provider Type',
     'modal.hosting.enabled': 'Enabled',
     'modal.hosting.sections': 'Image hosting configuration sections',
-    'modal.hosting.tabConnection': 'Connection',
-    'modal.hosting.tabUpload': 'Upload and access',
+    'modal.hosting.tabConnection': 'Hosting configuration',
     'modal.hosting.tabRemote': 'Remote management',
+    'modal.hosting.uploadAccess': 'Upload and access',
     'modal.hosting.uploadPath': 'Upload Path',
     'modal.hosting.uploadPathDesc':
         'Override the global template. Leave empty to use the global setting. {sourceDir} sends the image folder path to the hosting provider.',

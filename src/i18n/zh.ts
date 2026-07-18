@@ -273,9 +273,9 @@ export const zh: Record<string, string> = {
     'modal.hosting.type': '服务商类型',
     'modal.hosting.enabled': '启用',
     'modal.hosting.sections': '图床配置区域',
-    'modal.hosting.tabConnection': '连接配置',
-    'modal.hosting.tabUpload': '上传与访问',
+    'modal.hosting.tabConnection': '图床配置',
     'modal.hosting.tabRemote': '远程管理',
+    'modal.hosting.uploadAccess': '上传与访问',
     'modal.hosting.uploadPath': '上传路径',
     'modal.hosting.uploadPathDesc':
         '覆盖全局模板，留空则使用全局设置。{sourceDir} 会将图片所在目录发送给图床服务商。',
