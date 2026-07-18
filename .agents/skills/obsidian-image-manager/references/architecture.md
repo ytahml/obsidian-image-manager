@@ -71,7 +71,7 @@ main.ts（入口）
 - `RemoteRequestClient` 封装 Obsidian `requestUrl`，允许 Provider 测试注入脱敏 mock。
 - `RemoteProviderError` 只保留分类、HTTP 状态和去掉账号、query、fragment 的 endpoint，不保留上游错误文本或请求头；浏览会话只发布结构化错误码和状态。
 - `RemoteListRequest.cursor` 属于 Provider 的不透明字符串，公共层只原样透传。
-- `RemoteReferenceIndex` 只在调用方显式扫描时读取 `.md`，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，也不包含 `.canvas`。
+- `RemoteReferenceIndex` 只在调用方显式扫描时读取 Markdown，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，非 Markdown 文件不属于远程引用管理范围。
 - `RemoteObjectReferenceLookup` 将标准 Markdown 图片引用标记为 `referenced`，受管原始 URL 标记为 `possibly-referenced`；未完成或已失效索引一律不返回“未检测到引用”。
 - `RemoteBrowseSession` 只在用户明确扫描、继续或刷新时调用 `listObjects()`；扫描内部以 1000 项为请求批次自动追踪 opaque cursor，每最多 10 次请求暂停并等待用户继续。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
 - S3-compatible 已注册首个真实 list Provider：共享 SigV4 层保证请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和结果分页在本地对已扫描集合执行。

@@ -121,7 +121,7 @@ export const zh: Record<string, string> = {
     'modal.imageBrowser.remoteUnsupported': '当前图床尚不支持远程对象列举。',
     'modal.imageBrowser.remoteStatus': '引用扫描：{status}',
     'modal.imageBrowser.remoteStatusEmpty': '尚未扫描',
-    'modal.imageBrowser.remoteStatusFresh': '完成于 {time}；Markdown 文件：{count}；未包含 Canvas 文件',
+    'modal.imageBrowser.remoteStatusFresh': '完成于 {time}；Markdown 文件：{count}',
     'modal.imageBrowser.remoteStatusStale': '索引已过期，请重新扫描后再判断引用状态',
     'modal.imageBrowser.remoteConfirmTitle': '扫描整个 Bucket',
     'modal.imageBrowser.remoteConfirmMessage': '当前未设置目录前缀，本次将读取当前 Bucket 根范围的一页对象。对象较多时可能增加请求和流量费用；当前 Vault 未检测到引用，也不代表对象可以安全删除。',

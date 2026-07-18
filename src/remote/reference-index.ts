@@ -56,7 +56,6 @@ export class RemoteReferenceIndex {
             referencedCount: references.filter((reference) => reference.kind === 'referenced').length,
             possiblyReferencedCount: references.filter((reference) => reference.kind === 'possibly-referenced').length,
             unmappableCount: references.filter((reference) => !reference.pathSegments).length,
-            canvasIncluded: false,
         };
         this.snapshot = { summary, references };
         this.isStale = false;

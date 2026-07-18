@@ -73,7 +73,6 @@ export interface RemoteReferenceScanSummary {
     referencedCount: number;
     possiblyReferencedCount: number;
     unmappableCount: number;
-    canvasIncluded: false;
 }
 
 /** Lifecycle state for the in-memory Vault reference index. */

@@ -154,7 +154,6 @@ describe('remote reference index', () => {
             referencedCount: 1,
             possiblyReferencedCount: 4,
             unmappableCount: 0,
-            canvasIncluded: false,
         });
 
         const lookup = index.createLookup(mapping);

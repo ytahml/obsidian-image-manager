@@ -78,7 +78,7 @@ Issue 提交者建议每个 Obsidian Vault 使用独立图床。计划认可这�
 - 现有 `OrphanFinder` 明确跳过 HTTP/HTTPS 引用，只能判断本地 `TFile`。
 - `UploadHistoryEntry` 只在全库批量上传时临时生成，没有持久化；单图、笔记、粘贴上传也没有统一经过该队列。
 - `UploadResult` 没有返回稳定的 `objectKey` 和图床配置 ID，无法作为可靠的远程对象记录。
-- 当前引用解析无法证明外部网站、其他 Vault、Canvas 或第三方插件是否使用对象。
+- 当前引用解析无法证明外部网站、其他 Vault 或第三方插件是否使用对象。
 - 私有 Bucket 的预览需要临时授权 URL，不同图床算法不同。
 - 删除、版本控制、对象锁、归档存储、权限错误的语义因图床而异。
 
@@ -212,7 +212,7 @@ interface RemoteManagementConfig {
 3. 冻结四种引用状态及用户可见文案。
 4. 确认目录前缀可为空；空值表示当前配置 Bucket 的根范围，并在会话首次扫描前确认。
 5. 建立脱敏测试对象矩阵与 R2/MinIO 专项矩阵。
-6. 明确首版只统计 `.md` 中标准图片引用与受管 URL 的原始文本命中；`.canvas` 在 list-only 阶段显示未覆盖提示，在删除功能开放前必须纳入扫描。
+6. 远程引用管理只统计 Markdown 中的标准图片引用与受管 URL 原始文本命中；非 Markdown 文件不属于本项目的引用判断范围。
 
 #### G0.1 首版交互文字线框
 
@@ -266,7 +266,7 @@ interface RemoteManagementConfig {
 | `not-referenced-in-current-vault` | 当前 Vault 未检测到引用 | 已扫描范围未命中，不代表可安全删除 |
 | `unmappable` | 无法匹配引用 | URL 或 object key 无法可靠映射，不按文件名猜测 |
 
-list-only 首版扫描 `.md`；`.canvas` 暂不纳入，但 UI 必须显示覆盖范围。删除能力开放前，`.canvas` 必须纳入引用扫描，不允许仅靠警告绕过。
+引用索引只扫描 Markdown；UI 明确状态为当前 Vault 的 Markdown 扫描结果。删除能力使用同一范围，不扩张到非 Markdown 文件。
 
 #### G0.4 S3 测试矩阵
 
@@ -302,7 +302,7 @@ MinIO 专项：
 - “未检测到引用”与“可安全删除”在所有文案中明确分离。
 - 空前缀合法且表示当前 Bucket 根；会话首次扫描前确认，确认后也不自动追完全部分页。
 - 文字线框明确打开、切换、选择和确认前均不请求网络，预览和删除不属于 list-only 首版。
-- `pageSize` 冻结为 per-hosting、默认 100；`.canvas` 冻结为删除开放前的硬门槛。
+- `pageSize` 冻结为 per-hosting、默认 100；远程引用索引范围冻结为 Markdown。
 - 将最终决策写入本文“决策记录”。
 
 ### G1：远程对象公共接口与测试底座
@@ -342,7 +342,7 @@ MinIO 专项：
 
 1. 使用 `RefConverter` 解析标准 Markdown 图片引用。
 2. 对 `.md` 内容增加受管 URL 的原始文本扫描，把 HTML、frontmatter、普通链接等命中标记为 `possibly-referenced`。
-3. 在开放删除能力前增加 `.canvas` JSON 文本扫描，或在 UI 中明确显示未覆盖警告。
+3. 删除门禁只接受 fresh Markdown 索引；未扫描或 stale 时不得得出未引用结论。
 4. URL 规范化仅处理可证明安全的部分：协议/主机大小写、默认端口、fragment、provider 允许忽略的查询参数。
 5. 路径按段解码，禁止把编码的 `%2F` 误解成目录分隔符，禁止重复解码 `%2520`。
 6. 支持 `urlPrefix` 与多个 `publicUrlAliases` 映射到同一 object key。
@@ -425,7 +425,7 @@ MinIO 专项：
 
 ### G5：删除安全框架
 
-> 当前交付：Issue #26，分支 `feat/issue-26-s3-remote-management`。删除默认关闭，且 `.canvas` 引用扫描是开放删除前的硬门槛。
+> 当前交付：Issue #26，分支 `feat/issue-26-s3-remote-management`。删除默认关闭，且 fresh Markdown 引用索引是开放删除前的硬门槛。
 
 **阶段目标**
 
@@ -703,7 +703,7 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 
 - 跟踪 Issue：[#26](https://github.com/ytahml/obsidian-image-manager/issues/26)，作为 Issue #17 子 Issue。
 - 长期分支：`feat/issue-26-s3-remote-management`；从最新 `master` 创建，后续 S3-3、S3-4、S3-5 均在该分支持续提交，直到完整验收后再合并。
-- 实施顺序：公共 preview/delete 类型与安全边界 → SigV4 presigned GET → 手动按需预览 UI → `.canvas` 引用扫描与删除门禁 → S3 DeleteObject → R2/MinIO 兼容矩阵与文档收尾。
+- 实施顺序：公共 preview/delete 类型与安全边界 → SigV4 presigned GET → 手动按需预览 UI → Markdown 索引删除门禁 → S3 DeleteObject → R2/MinIO 兼容矩阵与文档收尾。
 - presigned GET 默认有效期 300 秒，只存在当前会话；R2 只对 S3 API endpoint 签名，不对自定义域名签名。
 - 首版不实现 viewport 自动预览、DeleteObjects、versionId 管理、MFA Delete、Object Lock/retention 绕过、临时凭证/session token。
 - 删除默认关闭，只允许 fresh 索引中的 `not-referenced-in-current-vault` 对象；单批最多 20 项、最多 2 并发，204 无法证明永久删除时报告 `unknown`。
@@ -969,10 +969,10 @@ P0 计划文件
 | P0 | 创建持续实施计划 | 已完成 | 无 | 本文创建 |
 | G0 | 需求冻结、交互草图与测试矩阵 | 已完成 | P0 | 2026-07-16：S3-first 产品契约、文字线框、空前缀确认和 R2/MinIO 测试矩阵；`npm test` 75/75、`npm run build`、`git diff --check` 通过 |
 | G1 | 远程对象公共接口与测试底座 | 已完成 | G0 | 2026-07-17：G 系列共用分支 `feat/issue-17-g-series` 本地变更，关联 #19；新增公共类型、factory、错误脱敏、可 mock 请求边界和 opaque cursor 测试；`npm test` 94/94、`npm run build`、`git diff --check` 通过 |
-| G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；`.canvas` 显式未覆盖且未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
+| G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
 | G3 | 远程图片浏览器外壳与元数据分页 | 已完成 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；`npm test` 109/109、`npm run build`、`git diff --check` 通过，用户已完成 Obsidian 基本验收；真实 Provider 列举由 Issue #23 覆盖 |
 | G4 | 按需预览与流量控制 | 已完成 | G3 | Issue #26：手动独立预览 Modal、显式公开/签名访问、短时 URL、会话失效与请求计数已实现；自动化 140/140，Cloudflare R2 与 MinIO 公开/私有预览验收通过；viewport 不在范围 |
-| G5 | 删除安全框架 | 未开始 | G2、G3 | Issue #26 同一长期分支承接；须先完成 `.canvas` 引用扫描和公共删除门禁 |
+| G5 | 删除安全框架 | 未开始 | G2、G3 | Issue #26 同一长期分支承接；下一步完成基于 fresh Markdown 索引的公共删除门禁 |
 | G6 | 统一上传结果与持久化上传清单 | 未开始 | G1 | |
 | G7 | 跨图床整合、文档与发布门禁 | 未开始 | 已交付 Provider 阶段 | |
 | OSS-1 | OSS V4 与 ListObjectsV2 | 未开始 | G1 | |
@@ -1030,7 +1030,7 @@ P0 计划文件
 ### 13.1 G0 已决策
 
 1. 远程浏览器复用单个 Modal 外壳，在其中切换本地/远程；远程视图使用独立组件。
-2. `.canvas` 不阻塞 list-only 首版，但删除能力开放前必须纳入引用扫描。
+2. 远程引用管理只覆盖 Markdown；删除判断不扫描或推断非 Markdown 文件。
 3. `pageSize` 按图床配置保存，默认 100。
 4. 空前缀表示当前配置 Bucket 根，每个 Modal 会话首次扫描前确认；关闭后重新打开需再次确认。
 5. S3-compatible 首批实际兼容目标为 Cloudflare R2、MinIO，不安排 RustFS 验证。
@@ -1055,14 +1055,15 @@ P0 计划文件
 | 2026-07-16 | 目录前缀允许为空，空值表示当前配置 Bucket 根 | 允许直接管理整个 Bucket，同时通过手动分页和会话确认控制费用与范围风险 | G0、G3、G5 |
 | 2026-07-16 | 空前缀使用友好风险提示，不使用“后果自负”等指责性措辞 | 清楚说明请求费用、扫描范围和引用误判风险，同时保持用户体验 | G0、G3、i18n |
 | 2026-07-16 | 远程浏览器复用 Modal 外壳，远程视图独立；pageSize per-hosting 默认 100（其语义已改为本地结果页大小） | 控制现有本地浏览器改动范围，并保持不同图床的结果展示偏好 | G0、G3 |
-| 2026-07-16 | `.canvas` 不阻塞 list-only，但在删除开放前必须纳入引用扫描 | 先交付低风险元数据列表，同时不降低删除安全门槛 | G0、G2、G5 |
+| 2026-07-16 | 初始考虑在删除前扩展非 Markdown 引用扫描（已由 2026-07-18 Markdown-only 决策取代） | 当时希望扩大 Vault 引用覆盖范围 | G0、G2、G5 |
 | 2026-07-17 | 远程 Provider factory 使用可注册 builder 与显式 `ready` / `unsupported` 结果 | 让各 Provider 按阶段接入，同时避免 UI 用未捕获异常判断能力 | G1、全部 Provider |
 | 2026-07-17 | Issue #17 按阶段系列共用开发分支，G1–G7 使用 `feat/issue-17-g-series` | 减少分支与 PR 数量，同时保留 G、S3 等系列边界 | 全部阶段 |
-| 2026-07-17 | G2 保持纯索引层，仅扫描 `.md`，扫描状态 UI 延后至 G3 | 避免在没有远程浏览器视图时提前扩张 Modal；删除开放前仍必须补齐 `.canvas` | G2、G3、G5 |
+| 2026-07-17 | G2 保持纯 Markdown 索引层，扫描状态 UI 延后至 G3 | 避免在没有远程浏览器视图时提前扩张 Modal | G2、G3、G5 |
 | 2026-07-18 | G3 在无真实 Provider 时交付 metadata-only 浏览器外壳和可注入分页会话；unsupported 图床不显示扫描操作 | 保持 UI、安全边界和测试可先行，避免把假列表能力当成 Provider 支持 | G3、S3-1、S3-2 |
 | 2026-07-18 | Issue #23 合并交付 S3 SigV4/ListObjectsV2 与浏览器接入；非空管理前缀作为目录范围在请求时追加 `/` | 形成可独立验收的 S3 metadata-only 纵向能力，并避免相邻前缀越界 | S3-1、S3-2 |
 | 2026-07-18 | 远端手动分页改为前缀范围自动批次扫描；每次最多 1000 项、每最多 10 次请求暂停，搜索与 `pageSize` 分页改为本地结果操作 | 当前页过滤无法形成完整搜索结果；目录前缀已承担主要流量边界，同时保留继续与停止控制 | G3、S3-2 |
 | 2026-07-18 | 剩余 S3 预览、删除和兼容性收尾统一使用 Issue #26 与长期分支 `feat/issue-26-s3-remote-management`，不再拆内部阶段 Issue/分支 | 保持 S3 公共类型、签名、UI、安全门禁和真实验收在同一集成线上持续一致 | G4、G5、S3-3～S3-5 |
+| 2026-07-18 | 远程引用管理范围固定为 Markdown，删除门禁以 fresh Markdown 索引为准，不扩张到其他文件格式 | 本项目面向 Markdown 图片管理，并继续通过保守状态与明确确认表达外部引用未知风险 | G2、G5、S3-4 |
 
 ## 15. 变更记录
 
@@ -1070,11 +1071,11 @@ P0 计划文件
 |------|------|
 | 2026-07-18 | 完成 Issue #26 手动预览：新增显式 `presigned | public` 设置、300 秒 SigV4 presigned GET、30 秒到期安全窗口、会话缓存/失效、独立预览 Modal、人工重试和请求计数；`npm test` 140/140、`npm run build`、`git diff --check` 通过，Cloudflare R2 与 MinIO 公开/私有人工验收通过。 |
 | 2026-07-18 | 完成 Issue #23 合并后修复并通过验收：前缀和结果页大小输入即时生效、防抖保存；远端分页改为自动批次扫描与本地搜索结果分页；修复终页无 cursor 被误判为重复 cursor 的问题；自动化基线 130/130。 |
-| 2026-07-18 | 创建 Issue #26 和长期 S3 分支，冻结手动按需预览、300 秒 presigned GET、`.canvas` 删除门禁、20 项/2 并发删除上限及 R2/MinIO 收尾计划。 |
+| 2026-07-18 | 创建 Issue #26 和长期 S3 分支，冻结手动按需预览、300 秒 presigned GET、20 项/2 并发删除上限及 R2/MinIO 收尾计划。 |
 | 2026-07-15 | 创建 Issue #17 持续实施计划，覆盖公共阶段与四种图床专项阶段。 |
 | 2026-07-16 | 完成 G0 产品契约：冻结 S3-first、R2/MinIO、空前缀确认、交互线框、引用状态与测试矩阵。 |
 | 2026-07-17 | 完成 G1：建立独立远程 Provider 公共类型、显式 unsupported factory、脱敏错误模型、可 mock `requestUrl` 边界与 opaque cursor 契约；上传 API 保持不变。 |
-| 2026-07-17 | 完成 G2：建立按需 Vault Markdown 远程引用索引、URL/object key 保守匹配、扫描取消/原子发布与 Markdown 文件变更失效；不请求远程服务，不扫描 `.canvas`。 |
+| 2026-07-17 | 完成 G2：建立按需 Vault Markdown 远程引用索引、URL/object key 保守匹配、扫描取消/原子发布与 Markdown 文件变更失效；不请求远程服务。 |
 | 2026-07-18 | 推进 G3：图片浏览器支持本地/图床切换；图床视图仅展示元数据，手动分页会话缓存已访问页并隔离迟到响应；旧配置默认关闭，未实现 Provider 明确显示 unsupported；等待 Obsidian 手动验收。 |
 | 2026-07-18 | 完成 G3 基本人工验收；推进 Issue #23：实现共享 S3 SigV4、ListObjectsV2 Provider、XML 元数据解析、结构化错误、引用 URL bases 和生产浏览器接入；`npm test` 126/126、`npm run build`、`git diff --check` 通过，等待 R2/MinIO 人工验收。 |
 

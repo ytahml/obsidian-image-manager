@@ -122,7 +122,7 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.remoteUnsupported': 'This hosting provider does not support remote object listing yet.',
     'modal.imageBrowser.remoteStatus': 'Reference scan: {status}',
     'modal.imageBrowser.remoteStatusEmpty': 'not scanned',
-    'modal.imageBrowser.remoteStatusFresh': 'completed at {time}; Markdown files: {count}; Canvas files are not included',
+    'modal.imageBrowser.remoteStatusFresh': 'completed at {time}; Markdown files: {count}',
     'modal.imageBrowser.remoteStatusStale': 'outdated; scan again before interpreting reference status',
     'modal.imageBrowser.remoteConfirmTitle': 'Scan the entire bucket',
     'modal.imageBrowser.remoteConfirmMessage': 'No directory prefix is configured. This will read one page from the current bucket root. A large bucket can increase request and traffic costs, and no reference found in this vault does not mean an object is safe to delete.',
