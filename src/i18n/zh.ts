@@ -310,8 +310,8 @@ export const zh: Record<string, string> = {
     'modal.hosting.remotePreviewPresigned': '私有 Bucket（临时签名）',
     'modal.hosting.remotePreviewPublic': '公开地址（urlPrefix）',
     'modal.hosting.remotePreviewPublicWarning': '请配置公共访问 URL 基础路径以启用预览；列表和上传不受影响。',
-    'modal.hosting.remoteAliases': '额外公共 URL 基础路径',
-    'modal.hosting.remoteAliasesDesc': '每行一个 URL 基础路径，用于将 CDN 或自定义域名引用匹配到对象 key。',
+    'modal.hosting.remoteAliases': '其他引用 URL 基础路径',
+    'modal.hosting.remoteAliasesDesc': '当前仓库若通过 CDN、旧域名或其他公开域名引用同一批图片，请每行填写一个基础路径。仅用于识别引用，不用于上传或预览。',
 
     // 图片命名
     'modal.imageName.title': '图片名称',

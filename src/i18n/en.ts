@@ -311,8 +311,8 @@ export const en: Record<string, string> = {
     'modal.hosting.remotePreviewPresigned': 'Private bucket (temporary signature)',
     'modal.hosting.remotePreviewPublic': 'Public address (urlPrefix)',
     'modal.hosting.remotePreviewPublicWarning': 'Configure a public access URL base to enable preview. Listing and upload remain available.',
-    'modal.hosting.remoteAliases': 'Additional public URL bases',
-    'modal.hosting.remoteAliasesDesc': 'One URL base per line for matching CDN or custom-domain references to object keys.',
+    'modal.hosting.remoteAliases': 'Other reference URL bases',
+    'modal.hosting.remoteAliasesDesc': 'Add one base per line when this vault references the same images through a CDN, old domain, or another public domain. Used only to detect references, not for uploads or previews.',
 
     // Image Name Prompt Modal
     'modal.imageName.title': 'Image Name',

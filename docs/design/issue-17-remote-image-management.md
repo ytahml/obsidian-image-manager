@@ -191,7 +191,7 @@ interface RemoteManagementConfig {
 - 保存时去除前缀首尾多余 `/`，不修改中间路径，也不从上传路径模板自动推断管理前缀。
 - 每个图片浏览器会话首次用空前缀扫描时必须确认；同一会话内翻页不重复确认。
 - 旧 `pageSize`、`previewMode` 字段继续兼容读取，但页码 UI 已移除，`previewMode` 统一规范化为 `viewport`。
-- `publicUrlAliases` 用于 CDN、自定义域名与源站域名共同映射。
+- `publicUrlAliases` 用于 CDN、旧域名、自定义域名与源站域名的引用映射，仅影响当前 Vault 的引用识别，不参与上传、预览或删除请求。
 - 凭据继续沿用现有图床配置，不在缓存、日志或错误消息中复制。
 
 ## 4. 公共功能阶段

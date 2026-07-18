@@ -1042,9 +1042,14 @@
 }
 
 .hosting-config-tabs button.is-active {
-    background: var(--background-primary-alt);
-    box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
-    color: var(--text-normal);
+    background: var(--interactive-accent);
+    box-shadow: none;
+    color: var(--text-on-accent);
+}
+
+.hosting-config-tabs button.is-active:hover {
+    background: var(--interactive-accent-hover);
+    color: var(--text-on-accent);
 }
 
 .hosting-config-body {

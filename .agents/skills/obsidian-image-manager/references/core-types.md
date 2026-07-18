@@ -51,7 +51,7 @@ interface RemoteManagementConfig {
     pageSize: number;                 // 旧 data.json 兼容；卡片网格不再分页
     previewMode: 'manual' | 'viewport'; // 统一规范化为 viewport
     previewAccess: 'presigned' | 'public'; // 旧配置默认 presigned
-    publicUrlAliases: string[];       // CDN 或自定义域名映射
+    publicUrlAliases: string[];       // 仅用于 CDN、旧域名或其他公开域名的引用映射
 }
 
 interface UploadContext {

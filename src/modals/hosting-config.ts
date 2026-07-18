@@ -37,6 +37,10 @@ export class HostingConfigModal extends Modal {
             .setName(this.isNew ? t('modal.hosting.addTitle') : t('modal.hosting.editTitle'))
             .setHeading();
         this.renderBasicFields(header);
+        if (this.config.type !== 'custom') {
+            this.renderSectionLabel(header, t('modal.hosting.uploadAccess'));
+            this.renderUploadFields(header);
+        }
         this.renderTabs(contentEl);
 
         const body = contentEl.createDiv({
@@ -121,10 +125,6 @@ export class HostingConfigModal extends Modal {
     }
 
     private renderUploadFields(container: HTMLElement) {
-        if (this.config.type === 'custom') {
-            this.renderCustomUploadFields(container);
-            return;
-        }
         const fields = container.createDiv({ cls: 'hosting-config-field-grid' });
         new Setting(fields)
             .setName(t('modal.hosting.uploadPath'))
@@ -239,8 +239,10 @@ export class HostingConfigModal extends Modal {
                 this.renderCustomConnectionFields(fields);
                 break;
         }
-        this.renderSectionLabel(container, t('modal.hosting.uploadAccess'));
-        this.renderUploadFields(container);
+        if (this.config.type === 'custom') {
+            this.renderSectionLabel(container, t('modal.hosting.uploadAccess'));
+            this.renderCustomUploadFields(container);
+        }
     }
 
     private renderSectionLabel(container: HTMLElement, text: string) {
