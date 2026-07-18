@@ -38,6 +38,18 @@ export interface ImageHostingConfig {
     uploadPath: string;
     /** Public access URL base, optionally including a bucket or directory path. */
     urlPrefix: string;
+    /** Optional remote-object browser settings. Missing values keep old configs disabled. */
+    remoteManagement?: RemoteManagementConfig;
+}
+
+/** Per-hosting safety settings for remote object management. */
+export interface RemoteManagementConfig {
+    enabled: boolean;
+    prefix: string;
+    pageSize: number;
+    previewMode: 'manual' | 'viewport';
+    deleteEnabled: boolean;
+    publicUrlAliases: string[];
 }
 
 /** 上传调用上下文 */

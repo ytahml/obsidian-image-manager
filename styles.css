@@ -7,6 +7,69 @@
     margin: 0 0 12px 0;
 }
 
+.image-browser-tabs,
+.remote-image-browser-controls,
+.remote-image-browser-actions,
+.remote-image-browser-page-tools,
+.remote-image-browser-pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.image-browser-tabs {
+    margin-bottom: 12px;
+}
+
+.image-browser-tabs .is-active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.remote-image-browser {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.remote-image-browser-controls input[type='text'] {
+    flex: 1 1 160px;
+}
+
+.remote-image-browser-controls input[type='number'] {
+    width: 84px;
+}
+
+.remote-image-browser-range,
+.remote-image-browser-reference-status,
+.remote-image-browser-page-note,
+.remote-image-browser-message {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.remote-image-browser-table {
+    display: block;
+    max-height: 48vh;
+    overflow: auto;
+    border-collapse: collapse;
+}
+
+.remote-image-browser-table th,
+.remote-image-browser-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.remote-image-browser-table td:first-child {
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .image-browser-controls {
     display: flex;
     align-items: center;

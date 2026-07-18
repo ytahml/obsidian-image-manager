@@ -11,6 +11,16 @@ main.ts（入口）
 │   ├── upload-path.ts（共享上传路径模板解析）
 │   ├── public-url.ts（公共访问 URL 基础路径拼接）
 │   └── upload-queue.ts
+├── remote/（图床远程对象管理公共层）
+│   ├── types.ts（对象、分页、能力与删除结果）
+│   ├── provider.ts（与 Provider 无关的能力接口）
+│   ├── provider-factory.ts（适配器注册与 unsupported 状态）
+│   ├── request.ts（可注入的 `requestUrl` 边界）
+│   ├── errors.ts（错误分类与敏感信息脱敏）
+│   ├── reference-index.ts（按需 Markdown 远程引用索引）
+│   ├── object-reference-matcher.ts（受管 URL 到 object key 的保守匹配）
+│   ├── management-settings.ts（每个图床的远程管理默认值与规范化）
+│   └── browse-session.ts（手动分页、游标缓存与迟到响应隔离）
 ├── utils/（工具模块）
 │   ├── ref-converter.ts ← constants.ts（正则）
 │   ├── public-url.ts（Markdown URL 的 Unicode 可读化）
@@ -47,6 +57,19 @@ main.ts（入口）
 ### 4. 并发队列（上传）
 
 `UploadQueue` 实现 3 并发 worker、3 次重试、进度回调。用于批量上传场景。
+
+### 5. 独立 Provider 边界（远程管理）
+
+`RemoteObjectProvider` 独立于 `UploaderBase`，避免 list/preview/delete 的管理权限扩张既有上传 API。
+
+- `createRemoteObjectProvider()` 通过可注册 builder 创建适配器；未实现的图床返回显式 `unsupported` 结果，不用异常表示 UI 能力状态。
+- `RemoteRequestClient` 封装 Obsidian `requestUrl`，允许 Provider 测试注入脱敏 mock。
+- `RemoteProviderError` 只保留分类、HTTP 状态和去掉账号、query、fragment 的 endpoint，不保留上游错误文本或请求头。
+- `RemoteListRequest.cursor` 属于 Provider 的不透明字符串，公共层只原样透传。
+- `RemoteReferenceIndex` 只在调用方显式扫描时读取 `.md`，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，也不包含 `.canvas`。
+- `RemoteObjectReferenceLookup` 将标准 Markdown 图片引用标记为 `referenced`，受管原始 URL 标记为 `possibly-referenced`；未完成或已失效索引一律不返回“未检测到引用”。
+- `RemoteBrowseSession` 只在用户明确扫描、翻页或刷新时调用 `listObjects()`；上一页命中会话缓存，不会预取或自动遍历后续页。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
+- 远程浏览器仅创建对象元数据表格，不创建远程 `<img>`、预览 URL 或删除操作；真实 Provider 列表能力由后续专项阶段注册。
 
 ## 关键数据流
 
@@ -121,4 +144,5 @@ reorganizeConvertFormat
 | `image-reorganizer.ts` | 文件移动 + 引用更新 | 压缩、上传 |
 | `batch-rename.ts` | 重命名 + 引用同步 | 文件移动、格式转换 |
 | `uploaders/` | 图床上传 | 引用替换（main.ts 处理） |
+| `remote/` | 远程对象公共类型、能力、错误与请求边界 | 具体 Provider 的列表、预览或删除协议（分阶段实现） |
 | `image-optimizer.ts` | 压缩、格式转换 | 文件保存（调用者处理） |

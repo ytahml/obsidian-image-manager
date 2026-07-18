@@ -42,6 +42,16 @@ interface ImageHostingConfig {
     config: AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig;
     uploadPath: string;  // 上传路径模板
     urlPrefix: string;   // 公共访问 URL 基础路径，可包含 bucket 或目录
+    remoteManagement?: RemoteManagementConfig;
+}
+
+interface RemoteManagementConfig {
+    enabled: boolean;                 // 旧配置默认 false
+    prefix: string;                   // 空值表示当前 Bucket 根
+    pageSize: number;                 // 默认 100，通用范围 1–1000
+    previewMode: 'manual' | 'viewport'; // G3 固定为 manual
+    deleteEnabled: boolean;           // G3 固定为 false
+    publicUrlAliases: string[];       // CDN 或自定义域名映射
 }
 
 interface UploadContext {
@@ -201,6 +211,24 @@ IMAGE_MIME_TYPES: {
     ico: 'image/x-icon',
 }
 ```
+
+## 远程对象公共类型
+
+文件：`src/remote/types.ts`、`src/remote/provider.ts`、`src/remote/provider-factory.ts`
+
+- `RemoteCapability`：`list | preview | delete`，每个 Provider 只公布已实现的能力。
+- `RemoteObject`：只保存规范化的对象元数据，必须包含 `hostingId`、逻辑 `key`、`size`。
+- `RemoteListRequest` / `RemoteListPage`：公共分页契约；`cursor` 是 Provider 拥有的不透明字符串，禁止公共层解析或二次编码。
+- `RemoteDeleteResult`：保留 permanent、delete-marker 或 unknown 语义，不将服务商删除结果压缩为单一布尔值。
+- `RemoteObjectProvider`：远程 list/preview/delete 接口，不继承也不修改 `UploaderBase`。
+- `RemoteProviderFactoryResult`：`ready` / `unsupported` 判别联合；尚未实现的图床返回空能力集和结构化原因，调用者无需捕获异常。
+- `RemoteUrlMapping`：一个 hosting 的 `urlPrefix`、CDN/source aliases 和 Provider 允许忽略的查询参数名；G2 仅作为运行时匹配输入，不写入设置。
+- `RemoteReferenceScanSummary` / `RemoteReferenceIndexState`：提供 Markdown 扫描时间、计数、`.canvas` 覆盖状态和 `empty | fresh | stale` 生命周期。
+- `RemoteObjectReferenceLookup`：按 `referenced`、`possibly-referenced`、`unmappable`、`not-referenced-in-current-vault` 的保守顺序分类对象；未扫描或 stale 时不产生未引用结论。
+
+这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
+
+G3 增加 `RemoteBrowseSession`：会话保存 opaque cursor 和已访问页，下一页未缓存时只请求一页，上一页读取缓存；刷新替换当前页并丢弃其后的游标链。停止、范围变更和关闭会使迟到结果失效，但不承诺取消已经发送的 Provider HTTP 请求。
 
 ## 新增设置项流程
 
