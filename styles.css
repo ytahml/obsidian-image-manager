@@ -992,16 +992,29 @@
 }
 
 .hosting-config-basic {
-    display: grid;
-    grid-template-columns: minmax(0, 220px) minmax(200px, 240px);
-    justify-content: start;
-    gap: 4px 24px;
+    display: flex;
+    flex-direction: column;
     margin-bottom: 4px;
 }
 
-.hosting-config-modal .hosting-config-basic > .hosting-config-basic-item {
-    border: 0;
-    box-shadow: none;
+.hosting-config-basic-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 160px) minmax(200px, 320px);
+    align-items: center;
+    gap: 24px;
+    min-width: 0;
+    padding: 7px 0;
+}
+
+.hosting-config-basic-label {
+    color: var(--text-normal);
+    font-weight: var(--font-medium);
+}
+
+.hosting-config-basic-control,
+.hosting-config-basic-control input,
+.hosting-config-basic-control select {
+    width: 100%;
 }
 
 .hosting-config-field-grid > .setting-item,
@@ -1023,22 +1036,6 @@
     justify-content: flex-end;
 }
 
-.hosting-config-basic-item {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    min-width: 0;
-    padding: 4px 0 8px;
-}
-
-.hosting-config-basic-item .setting-item-control {
-    width: 100%;
-    justify-content: flex-start;
-}
-
-.hosting-config-basic-item input,
-.hosting-config-basic-item select,
 .hosting-config-field-grid input,
 .hosting-config-field-grid select,
 .hosting-config-field-grid textarea,
@@ -1048,10 +1045,14 @@
     width: 100%;
 }
 
+.hosting-config-tabs-section {
+    flex: 0 0 auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
 .hosting-config-tabs {
     display: flex;
-    flex: 0 0 auto;
-    align-self: flex-start;
     gap: 4px;
     padding: 3px;
     overflow-x: auto;
@@ -1097,7 +1098,13 @@
 }
 
 .hosting-config-upload-fields {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
+}
+
+.hosting-config-modal .hosting-config-upload-item {
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    box-shadow: none;
 }
 
 .hosting-config-section-label {
@@ -1135,7 +1142,6 @@
         max-height: calc(100dvh - 24px);
     }
 
-    .hosting-config-basic-item,
     .hosting-config-field-grid > .setting-item,
     .hosting-config-body > .setting-item {
         grid-template-columns: 1fr;
@@ -1143,11 +1149,11 @@
         gap: 6px;
     }
 
-    .hosting-config-basic {
+    .hosting-config-basic-row {
         grid-template-columns: 1fr;
+        gap: 6px;
     }
 
-    .hosting-config-basic-item .setting-item-control,
     .hosting-config-field-grid > .setting-item .setting-item-control,
     .hosting-config-body > .setting-item .setting-item-control {
         max-width: none;

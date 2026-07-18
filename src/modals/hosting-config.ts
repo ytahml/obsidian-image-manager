@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, DropdownComponent, Modal, Setting, TextComponent } from 'obsidian';
 import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, CustomConfig } from '../types';
 import { t } from '../i18n';
 import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePrefix } from '../remote/management-settings';
@@ -61,36 +61,45 @@ export class HostingConfigModal extends Modal {
     private renderBasicFields(container: HTMLElement) {
         const basic = container.createDiv({ cls: 'hosting-config-basic' });
 
-        const name = new Setting(basic)
-            .setName(t('modal.hosting.name'))
-            .addText((text) =>
-                text.setValue(this.config.name).onChange((v) => {
-                    this.config.name = v;
-                })
-            );
-        name.settingEl.addClass('hosting-config-basic-item');
+        const nameId = `hosting-config-name-${this.config.id || 'new'}`;
+        const nameRow = basic.createDiv({ cls: 'hosting-config-basic-row' });
+        nameRow.createEl('label', {
+            cls: 'hosting-config-basic-label',
+            text: t('modal.hosting.name'),
+            attr: { for: nameId },
+        });
+        const nameControl = nameRow.createDiv({ cls: 'hosting-config-basic-control' });
+        const nameInput = new TextComponent(nameControl).setValue(this.config.name).onChange((value) => {
+            this.config.name = value;
+        });
+        nameInput.inputEl.id = nameId;
 
-        const type = new Setting(basic)
-            .setName(t('modal.hosting.type'))
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption('aliyun-oss', 'Aliyun oss')
-                    .addOption('qiniu', 'Qiniu')
-                    .addOption('s3', 'S3 compatible')
-                    .addOption('custom', 'Custom')
-                    .setValue(this.config.type)
-                    .onChange((v: string) => {
-                        this.config.type = v as HostingType;
-                        this.config.config = this.getDefaultProviderConfig(v as HostingType);
-                        this.activeTab = 'connection';
-                        this.renderForm();
-                    })
-            );
-        type.settingEl.addClass('hosting-config-basic-item');
+        const typeId = `hosting-config-type-${this.config.id || 'new'}`;
+        const typeRow = basic.createDiv({ cls: 'hosting-config-basic-row' });
+        typeRow.createEl('label', {
+            cls: 'hosting-config-basic-label',
+            text: t('modal.hosting.type'),
+            attr: { for: typeId },
+        });
+        const typeControl = typeRow.createDiv({ cls: 'hosting-config-basic-control' });
+        const typeDropdown = new DropdownComponent(typeControl)
+            .addOption('aliyun-oss', 'Aliyun oss')
+            .addOption('qiniu', 'Qiniu')
+            .addOption('s3', 'S3 compatible')
+            .addOption('custom', 'Custom')
+            .setValue(this.config.type)
+            .onChange((value: string) => {
+                this.config.type = value as HostingType;
+                this.config.config = this.getDefaultProviderConfig(value as HostingType);
+                this.activeTab = 'connection';
+                this.renderForm();
+            });
+        typeDropdown.selectEl.id = typeId;
     }
 
     private renderTabs(container: HTMLElement) {
-        const tabs = container.createDiv({
+        const section = container.createDiv({ cls: 'hosting-config-tabs-section' });
+        const tabs = section.createDiv({
             cls: 'hosting-config-tabs',
             attr: { role: 'tablist', 'aria-label': t('modal.hosting.sections') },
         });
@@ -116,7 +125,7 @@ export class HostingConfigModal extends Modal {
 
     private renderUploadFields(container: HTMLElement) {
         const fields = container.createDiv({ cls: 'hosting-config-field-grid hosting-config-upload-fields' });
-        new Setting(fields)
+        const uploadPath = new Setting(fields)
             .setName(t('modal.hosting.uploadPath'))
             .setDesc(t('modal.hosting.uploadPathDesc'))
             .addText((text) =>
@@ -127,8 +136,9 @@ export class HostingConfigModal extends Modal {
                         this.config.uploadPath = v;
                     })
             );
+        uploadPath.settingEl.addClass('hosting-config-upload-item');
 
-        new Setting(fields)
+        const urlPrefix = new Setting(fields)
             .setName(t('modal.hosting.urlPrefix'))
             .setDesc(t('modal.hosting.urlPrefixDesc'))
             .addText((text) =>
@@ -139,6 +149,7 @@ export class HostingConfigModal extends Modal {
                         this.config.urlPrefix = v;
                     })
             );
+        urlPrefix.settingEl.addClass('hosting-config-upload-item');
     }
 
     private renderButtons(container: HTMLElement) {
