@@ -320,6 +320,20 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             info.createDiv({ cls: 'hosting-config-name', text: config.name || config.type.toUpperCase() });
             info.createDiv({ cls: 'hosting-config-type', text: config.type });
 
+            const toggleBtn = row.createEl('button', {
+                text: config.enabled ? t('settings.disableHosting') : t('settings.enableHosting'),
+                cls: `hosting-config-btn hosting-config-toggle-btn ${config.enabled ? 'is-enabled' : 'is-disabled'}`,
+                attr: { 'aria-pressed': String(config.enabled) },
+            });
+            toggleBtn.addEventListener('click', () => {
+                config.enabled = !config.enabled;
+                if (!config.enabled && this.plugin.settings.defaultHostingId === config.id) {
+                    this.plugin.settings.defaultHostingId =
+                        configs.find((item) => item.id !== config.id && item.enabled)?.id ?? '';
+                }
+                void this.plugin.saveSettings().then(() => this.refresh());
+            });
+
             // Edit button
             const editBtn = row.createEl('button', { text: t('settings.editHosting'), cls: 'hosting-config-btn' });
             editBtn.addEventListener('click', () => {

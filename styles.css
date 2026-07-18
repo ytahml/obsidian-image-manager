@@ -920,6 +920,28 @@
     flex-shrink: 0;
 }
 
+.hosting-config-toggle-btn.is-enabled {
+    color: var(--text-muted);
+}
+
+.hosting-config-toggle-btn.is-disabled {
+    color: var(--text-accent);
+}
+
+@media (max-width: 600px) {
+    .hosting-config-item {
+        flex-wrap: wrap;
+    }
+
+    .hosting-config-info {
+        flex-basis: calc(100% - 24px);
+    }
+
+    .hosting-config-btn {
+        flex: 1 1 72px;
+    }
+}
+
 /* Image Name Prompt */
 .image-name-prompt .image-name-prompt-input {
     width: 100%;
@@ -971,9 +993,15 @@
 
 .hosting-config-basic {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(210px, 0.85fr);
+    grid-template-columns: minmax(0, 220px) minmax(200px, 240px);
+    justify-content: start;
     gap: 4px 24px;
     margin-bottom: 4px;
+}
+
+.hosting-config-modal .hosting-config-basic > .hosting-config-basic-item {
+    border: 0;
+    box-shadow: none;
 }
 
 .hosting-config-field-grid > .setting-item,
@@ -1018,20 +1046,6 @@
 .hosting-config-body > .setting-item select,
 .hosting-config-body > .setting-item textarea {
     width: 100%;
-}
-
-.hosting-config-basic-item.is-toggle .setting-item-control {
-    width: auto;
-    min-height: 0;
-    align-items: center;
-}
-
-.hosting-config-basic-item.is-toggle {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    white-space: nowrap;
 }
 
 .hosting-config-tabs {
@@ -1139,11 +1153,6 @@
         max-width: none;
         justify-self: stretch;
         justify-content: flex-start;
-    }
-
-    .hosting-config-basic-item.is-toggle {
-        grid-column: auto;
-        white-space: normal;
     }
 
     .hosting-config-tabs button {

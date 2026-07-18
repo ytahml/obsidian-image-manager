@@ -87,15 +87,6 @@ export class HostingConfigModal extends Modal {
                     })
             );
         type.settingEl.addClass('hosting-config-basic-item');
-
-        const enabled = new Setting(basic)
-            .setName(t('modal.hosting.enabled'))
-            .addToggle((toggle) =>
-                toggle.setValue(this.config.enabled).onChange((v) => {
-                    this.config.enabled = v;
-                })
-            );
-        enabled.settingEl.addClass('hosting-config-basic-item', 'is-toggle');
     }
 
     private renderTabs(container: HTMLElement) {
