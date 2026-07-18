@@ -122,7 +122,7 @@ describe('S3 remote provider', () => {
         );
 
         await provider.listObjects({
-            prefix: '/vault-a/',
+            prefix: '/images/2026/',
             cursor: 'token+/=%2520&value',
             delimiter: '/',
             limit: 5000,
@@ -131,7 +131,7 @@ describe('S3 remote provider', () => {
         expect(execute).toHaveBeenCalledTimes(1);
         const request = execute.mock.calls[0]?.[0];
         expect(request?.url).toBe(
-            'https://minio.example.com:9000/proxy/s3/images/?continuation-token=token%2B%2F%3D%252520%26value&delimiter=%2F&encoding-type=url&list-type=2&max-keys=1000&prefix=vault-a%2F'
+            'https://minio.example.com:9000/proxy/s3/images/?continuation-token=token%2B%2F%3D%252520%26value&delimiter=%2F&encoding-type=url&list-type=2&max-keys=1000&prefix=images%2F2026%2F'
         );
         expect(request?.headers?.Authorization).not.toContain('secret-key');
     });
@@ -193,6 +193,12 @@ describe('S3 list query', () => {
         ]);
         expect(buildListQuery({ prefix: '', limit: Number.NaN })).toContainEqual([
             'max-keys', '100',
+        ]);
+    });
+
+    it('keeps a nested directory prefix and appends exactly one scope separator', () => {
+        expect(buildListQuery({ prefix: '/images/2026/', limit: 10 })).toContainEqual([
+            'prefix', 'images/2026/',
         ]);
     });
 });

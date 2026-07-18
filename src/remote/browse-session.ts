@@ -4,6 +4,8 @@ import { listRemoteObjects, type RemoteObjectProvider } from './provider';
 import type { RemoteListPage, RemoteObject } from './types';
 import { RemoteProviderError, type RemoteProviderErrorCode } from './errors';
 
+export const REMOTE_LIST_BATCH_SIZE = 1000;
+
 export type RemoteBrowseStatus =
     | 'idle'
     | 'confirming'
@@ -67,7 +69,7 @@ export class RemoteBrowseSession {
 
     async scan(provider: RemoteObjectProvider, config: ImageHostingConfig): Promise<boolean> {
         this.invalidate('scanning');
-        return this.loadPage(provider, config, undefined, 0, false);
+        return this.loadPage(provider, config, undefined, 0);
     }
 
     async next(provider: RemoteObjectProvider, config: ImageHostingConfig): Promise<boolean> {
@@ -77,37 +79,37 @@ export class RemoteBrowseSession {
         const cached = this.pages[nextIndex];
         if (cached?.cursor === current.result.nextCursor) {
             this.currentPageIndex = nextIndex;
-            this.status = cached.result.objects.length === 0 ? 'empty' : 'ready';
+            this.status = this.getAllObjects().length === 0 ? 'empty' : 'ready';
             return true;
         }
-        return this.loadPage(provider, config, current.result.nextCursor, nextIndex, false);
+        return this.loadPage(provider, config, current.result.nextCursor, nextIndex);
     }
 
-    previous(): boolean {
-        if (this.currentPageIndex === 0) return false;
-        this.currentPageIndex--;
-        this.status = this.pages[this.currentPageIndex]!.result.objects.length === 0 ? 'empty' : 'ready';
+    async loadNextBatch(
+        provider: RemoteObjectProvider,
+        config: ImageHostingConfig,
+        maxRequests: number
+    ): Promise<boolean> {
+        for (let request = 0; request < maxRequests && this.hasMore(); request++) {
+            if (!await this.next(provider, config)) return false;
+        }
         return true;
     }
 
-    async refresh(provider: RemoteObjectProvider, config: ImageHostingConfig): Promise<boolean> {
-        const page = this.pages[this.currentPageIndex];
-        if (!page) return this.scan(provider, config);
-        this.status = 'scanning';
-        this.error = undefined;
-        return this.loadPage(provider, config, page.cursor, this.currentPageIndex, true);
+    hasMore(): boolean {
+        const current = this.pages[this.pages.length - 1];
+        return Boolean(current?.result.isTruncated && current.result.nextCursor);
     }
 
-    getCurrentObjects(): readonly RemoteObject[] {
-        return this.pages[this.currentPageIndex]?.result.objects ?? [];
+    getAllObjects(): RemoteObject[] {
+        return this.pages.flatMap((page) => page.result.objects);
     }
 
     private async loadPage(
         provider: RemoteObjectProvider,
         config: ImageHostingConfig,
         cursor: string | undefined,
-        pageIndex: number,
-        replace: boolean
+        pageIndex: number
     ): Promise<boolean> {
         const requestGeneration = ++this.generation;
         this.status = 'scanning';
@@ -117,7 +119,7 @@ export class RemoteBrowseSession {
             const result = await listRemoteObjects(provider, {
                 prefix: settings.prefix,
                 cursor,
-                limit: settings.pageSize,
+                limit: REMOTE_LIST_BATCH_SIZE,
             });
             if (requestGeneration !== this.generation) return false;
             if (result.isTruncated && !result.nextCursor) {
@@ -125,19 +127,15 @@ export class RemoteBrowseSession {
                 this.error = { code: 'invalid-cursor' };
                 return false;
             }
-            if (result.nextCursor === cursor) {
+            if (result.isTruncated && result.nextCursor === cursor) {
                 this.status = 'error';
                 this.error = { code: 'invalid-cursor' };
                 return false;
             }
             const page = { cursor, result };
-            if (replace) {
-                this.pages.splice(pageIndex, this.pages.length - pageIndex, page);
-            } else {
-                this.pages.splice(pageIndex, this.pages.length - pageIndex, page);
-            }
+            this.pages.splice(pageIndex, this.pages.length - pageIndex, page);
             this.currentPageIndex = pageIndex;
-            this.status = result.objects.length === 0 ? 'empty' : 'ready';
+            this.status = this.getAllObjects().length === 0 ? 'empty' : 'ready';
             return true;
         } catch (error) {
             if (requestGeneration !== this.generation) return false;

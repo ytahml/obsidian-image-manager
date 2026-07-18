@@ -48,7 +48,7 @@ interface ImageHostingConfig {
 interface RemoteManagementConfig {
     enabled: boolean;                 // 旧配置默认 false
     prefix: string;                   // 空值表示当前 Bucket 根
-    pageSize: number;                 // 默认 100，通用范围 1–1000
+    pageSize: number;                 // 本地结果每页数量，默认 100，范围 1–1000
     previewMode: 'manual' | 'viewport'; // G3 固定为 manual
     deleteEnabled: boolean;           // G3 固定为 false
     publicUrlAliases: string[];       // CDN 或自定义域名映射
@@ -228,7 +228,7 @@ IMAGE_MIME_TYPES: {
 
 这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
 
-G3 增加 `RemoteBrowseSession`：会话保存 opaque cursor 和已访问页，下一页未缓存时只请求一页，上一页读取缓存；刷新替换当前页并丢弃其后的游标链。停止、范围变更和关闭会使迟到结果失效，但不承诺取消已经发送的 Provider HTTP 请求。
+G3 增加 `RemoteBrowseSession`；Issue #23 合并后改为自动批次扫描：会话保存 opaque cursor 和已读取页，每个远端请求最多 1000 项，每最多 10 次请求暂停并允许继续。已读取页聚合为一个本地结果集，`pageSize` 只控制搜索结果展示。停止、范围变更和关闭会使迟到结果失效，但不承诺取消已经发送的 Provider HTTP 请求。
 
 Issue #23 将 `RemoteBrowseSnapshot.error` 调整为结构化 `RemoteBrowseFailure`，只包含稳定错误码与可选 HTTP 状态；S3 Provider 不把 XML 错误正文或签名信息传给 UI。`RemoteProviderErrorCode` 新增 `configuration` 与 `not-found`。
 

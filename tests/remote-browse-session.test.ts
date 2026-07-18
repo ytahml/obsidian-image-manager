@@ -26,6 +26,21 @@ function config(prefix = 'vault-a'): ImageHostingConfig {
 }
 
 describe('remote browse session', () => {
+    it('accepts a complete first page without a continuation cursor', async () => {
+        const provider: RemoteObjectProvider = {
+            capabilities: new Set(['list']),
+            listObjects: vi.fn(async () => ({
+                objects: [{ hostingId: 's3-test', key: 'only-page.png', size: 1 }],
+                isTruncated: false,
+            })),
+        };
+        const session = new RemoteBrowseSession();
+
+        await expect(session.scan(provider, config())).resolves.toBe(true);
+        expect(session.getSnapshot().status).toBe('ready');
+        expect(session.getAllObjects().map((object) => object.key)).toEqual(['only-page.png']);
+    });
+
     it('does not request until an explicit scan and preserves opaque cursors', async () => {
         const listObjects = vi.fn(async () => ({
             objects: [{ hostingId: 's3-test', key: 'a.png', size: 1 }],
@@ -38,12 +53,12 @@ describe('remote browse session', () => {
         expect(listObjects).not.toHaveBeenCalled();
         await session.scan(provider, config());
 
-        expect(listObjects).toHaveBeenCalledWith({ prefix: 'vault-a', cursor: undefined, limit: 100 });
+        expect(listObjects).toHaveBeenCalledWith({ prefix: 'vault-a', cursor: undefined, limit: 1000 });
         expect(session.getSnapshot().status).toBe('ready');
         expect(session.getSnapshot().pages[0]?.result.nextCursor).toBe('opaque+/=%2520');
     });
 
-    it('caches previous pages and only fetches an uncached next page', async () => {
+    it('aggregates remote pages into one searchable result set', async () => {
         const listObjects = vi.fn()
             .mockResolvedValueOnce({ objects: [{ hostingId: 's3-test', key: 'a', size: 1 }], nextCursor: 'next-token', isTruncated: true })
             .mockResolvedValueOnce({ objects: [{ hostingId: 's3-test', key: 'b', size: 1 }], isTruncated: false });
@@ -52,12 +67,28 @@ describe('remote browse session', () => {
         const hosting = config();
 
         await session.scan(provider, hosting);
-        await session.next(provider, hosting);
+        await session.loadNextBatch(provider, hosting, 10);
         expect(listObjects).toHaveBeenCalledTimes(2);
-        expect(session.previous()).toBe(true);
-        expect(session.getCurrentObjects()[0]?.key).toBe('a');
-        await session.next(provider, hosting);
-        expect(listObjects).toHaveBeenCalledTimes(2);
+        expect(session.getAllObjects().map((object) => object.key)).toEqual(['a', 'b']);
+        expect(session.hasMore()).toBe(false);
+    });
+
+    it('pauses automatic scanning after the requested number of list calls', async () => {
+        let request = 0;
+        const listObjects = vi.fn(async () => ({
+            objects: [{ hostingId: 's3-test', key: String(request++), size: 1 }],
+            nextCursor: `cursor-${request}`,
+            isTruncated: true,
+        }));
+        const provider: RemoteObjectProvider = { capabilities: new Set(['list']), listObjects };
+        const session = new RemoteBrowseSession();
+
+        await session.scan(provider, config());
+        await session.loadNextBatch(provider, config(), 9);
+
+        expect(listObjects).toHaveBeenCalledTimes(10);
+        expect(session.getAllObjects()).toHaveLength(10);
+        expect(session.hasMore()).toBe(true);
     });
 
     it('drops late results after stop or scope invalidation', async () => {

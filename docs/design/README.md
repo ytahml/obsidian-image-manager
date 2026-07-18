@@ -25,7 +25,7 @@
 
 | 文档 | 状态 | 关联 Issue | 说明 |
 |------|------|------------|------|
-| [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中（G0–G3 已完成，S3 列表接入中） | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3-first，优先 Cloudflare R2 与 MinIO |
+| [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中（G0–G3、S3-1、S3-2 已完成） | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3 列表与浏览器已验收；下一阶段为按需预览 |
 
 ## 新建设计文档模板
 
