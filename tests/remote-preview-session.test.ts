@@ -52,6 +52,27 @@ describe('remote preview session', () => {
         expect(JSON.stringify(session)).not.toContain('late-signed-url');
     });
 
+    it('shares one in-flight URL request between a thumbnail and full preview', async () => {
+        let finish: ((value: { url: string; access: 'public' }) => void) | undefined;
+        const createPreviewUrl = vi.fn(() => new Promise<{ url: string; access: 'public' }>((resolve) => {
+            finish = resolve;
+        }));
+        const provider: RemoteObjectProvider = {
+            capabilities: new Set(['preview']),
+            listObjects: vi.fn(),
+            createPreviewUrl,
+        };
+        const session = new RemotePreviewSession();
+
+        const thumbnail = session.resolveUrl(provider, object);
+        const fullPreview = session.resolveUrl(provider, object);
+        expect(createPreviewUrl).toHaveBeenCalledTimes(1);
+        finish?.({ url: 'shared-url', access: 'public' });
+
+        await expect(thumbnail).resolves.toMatchObject({ url: 'shared-url' });
+        await expect(fullPreview).resolves.toMatchObject({ url: 'shared-url' });
+    });
+
     it('counts only actual image request attempts', () => {
         const session = new RemotePreviewSession();
 
@@ -82,7 +103,6 @@ describe('remote preview policy', () => {
             pageSize: 100,
             previewMode: 'manual',
             previewAccess: 'public',
-            deleteEnabled: false,
             publicUrlAliases: [],
         },
     };

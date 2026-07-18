@@ -19,6 +19,8 @@ import { generateImageFileName, sanitizeImageFileName } from './utils/image-nami
 import { removeEmptyDirectParent } from './utils/empty-folder-cleanup';
 import { shouldReplaceLocalImageReference } from './utils/upload-reference';
 import { RemoteReferenceIndex } from './remote/reference-index';
+import type { RemoteDeleteAuditEntry } from './remote/types';
+import { normalizeRemoteDeleteHistory, RemoteDeleteAuditWriter } from './remote/delete-audit';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -27,6 +29,7 @@ export default class ImageManagerPlugin extends Plugin {
     batchRename: BatchRename;
     remoteReferenceIndex: RemoteReferenceIndex;
     private isReorganizing = false;
+    private remoteDeleteAuditWriter: RemoteDeleteAuditWriter;
     async onload() {
         await this.loadSettings();
         setLocale(this.settings.locale);
@@ -35,6 +38,11 @@ export default class ImageManagerPlugin extends Plugin {
         this.imageOptimizer = new ImageOptimizer(this.app);
         this.batchRename = new BatchRename(this.app, this.settings);
         this.remoteReferenceIndex = new RemoteReferenceIndex(this.app, this.refConverter);
+        this.remoteDeleteAuditWriter = new RemoteDeleteAuditWriter(
+            () => this.settings.remoteDeleteHistory,
+            (history) => { this.settings.remoteDeleteHistory = history; },
+            () => this.saveSettings()
+        );
 
         // Ribbon icon
         if (this.settings.enableImageBrowser) {
@@ -228,11 +236,17 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<ImageManagerSettings>);
+        const loaded = await this.loadData() as Partial<ImageManagerSettings> | null;
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
+        this.settings.remoteDeleteHistory = normalizeRemoteDeleteHistory(loaded?.remoteDeleteHistory);
     }
 
     async saveSettings() {
         await this.saveData(this.settings);
+    }
+
+    recordRemoteDeleteAudit(entry: RemoteDeleteAuditEntry): Promise<void> {
+        return this.remoteDeleteAuditWriter.append(entry);
     }
 
     private isImageFile(file: TFile): boolean {

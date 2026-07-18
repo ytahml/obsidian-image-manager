@@ -9,10 +9,12 @@ export class RemotePreviewSession {
     private generation = 0;
     private requestCount = 0;
     private readonly cache = new Map<string, RemotePreviewUrl>();
+    private readonly pending = new Map<string, Promise<RemotePreviewUrl | undefined>>();
 
     invalidate(): void {
         this.generation++;
         this.cache.clear();
+        this.pending.clear();
     }
 
     getRequestCount(): number {
@@ -36,13 +38,22 @@ export class RemotePreviewSession {
         const key = `${object.hostingId}\u0000${object.key}`;
         const cached = this.cache.get(key);
         if (!options.force && cached && isReusable(cached, now)) return cached;
+        const pending = this.pending.get(key);
+        if (!options.force && pending) return pending;
 
         if (options.force) this.cache.delete(key);
         const generation = this.generation;
-        const preview = await provider.createPreviewUrl(object);
-        if (generation !== this.generation) return undefined;
-        this.cache.set(key, preview);
-        return preview;
+        const request = provider.createPreviewUrl(object).then((preview) => {
+            if (generation !== this.generation || this.pending.get(key) !== request) return undefined;
+            this.cache.set(key, preview);
+            return preview;
+        });
+        this.pending.set(key, request);
+        try {
+            return await request;
+        } finally {
+            if (this.pending.get(key) === request) this.pending.delete(key);
+        }
     }
 }
 

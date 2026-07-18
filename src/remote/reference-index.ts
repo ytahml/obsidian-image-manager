@@ -21,11 +21,12 @@ interface Snapshot {
     references: IndexedRemoteReference[];
 }
 
-/** On-demand, Markdown-only index of remote references in the current Vault. */
+/** On-demand index of image URLs in Markdown syntax, HTML, frontmatter, links, and raw text. */
 export class RemoteReferenceIndex {
     private snapshot: Snapshot | null = null;
     private isStale = false;
     private revision = 0;
+    private invalidationListeners = new Set<() => void>();
 
     constructor(
         private app: App,
@@ -42,7 +43,7 @@ export class RemoteReferenceIndex {
             throwIfAborted(options.signal);
             const content = await this.app.vault.cachedRead(file);
             throwIfAborted(options.signal);
-            collectReferences(content, this.refConverter, references);
+            collectReferences(content, file.path, this.refConverter, references);
         }
 
         throwIfAborted(options.signal);
@@ -53,8 +54,8 @@ export class RemoteReferenceIndex {
         const summary: RemoteReferenceScanSummary = {
             scannedAt: this.now(),
             markdownFileCount: files.length,
-            referencedCount: references.filter((reference) => reference.kind === 'referenced').length,
-            possiblyReferencedCount: references.filter((reference) => reference.kind === 'possibly-referenced').length,
+            referencedCount: references.length,
+            possiblyReferencedCount: 0,
             unmappableCount: references.filter((reference) => !reference.pathSegments).length,
         };
         this.snapshot = { summary, references };
@@ -65,6 +66,12 @@ export class RemoteReferenceIndex {
     invalidate() {
         this.revision++;
         if (this.snapshot) this.isStale = true;
+        for (const listener of this.invalidationListeners) listener();
+    }
+
+    onInvalidate(listener: () => void): () => void {
+        this.invalidationListeners.add(listener);
+        return () => this.invalidationListeners.delete(listener);
     }
 
     getState(): RemoteReferenceIndexState {
@@ -83,24 +90,42 @@ export class RemoteReferenceIndex {
 
 function collectReferences(
     content: string,
+    sourcePath: string,
     refConverter: RefConverter,
     references: IndexedRemoteReference[]
 ) {
     const imageReferenceRanges: Array<{ start: number; end: number }> = [];
     for (const reference of refConverter.parseReferences(content)) {
         if (reference.format !== 'markdown') continue;
-        imageReferenceRanges.push({ start: reference.col, end: reference.col + reference.fullMatch.length });
-        const indexed = indexRemoteReference(reference.path, 'referenced');
-        if (indexed) references.push(indexed);
+        const indexed = indexRemoteReference(reference.path, 'markdown-image', {
+            path: sourcePath,
+            line: reference.line,
+        });
+        if (indexed) {
+            imageReferenceRanges.push({
+                start: reference.col,
+                end: reference.col + reference.fullMatch.length,
+            });
+            references.push(indexed);
+        }
     }
 
     const urlPattern = /https?:\/\/[^\s<>"']+/gi;
     let match: RegExpExecArray | null;
+    let scannedOffset = 0;
+    let currentLine = 0;
     while ((match = urlPattern.exec(content)) !== null) {
+        for (let index = scannedOffset; index < match.index; index++) {
+            if (content.charCodeAt(index) === 10) currentLine++;
+        }
+        scannedOffset = urlPattern.lastIndex;
         if (imageReferenceRanges.some((range) => match!.index >= range.start && match!.index < range.end)) {
             continue;
         }
-        const indexed = indexRemoteReference(trimTrailingUrlPunctuation(match[0]), 'possibly-referenced');
+        const indexed = indexRemoteReference(trimTrailingUrlPunctuation(match[0]), 'url', {
+            path: sourcePath,
+            line: currentLine,
+        });
         if (indexed) references.push(indexed);
     }
 }

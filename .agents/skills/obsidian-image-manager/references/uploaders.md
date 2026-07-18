@@ -80,7 +80,9 @@ abstract class UploaderBase {
 - **连接测试**：使用 `ListObjectsV2` 的 `max-keys=1` 非破坏请求，不自动遍历 Bucket
 - **R2 region**：配置非空时原样使用；R2 endpoint 的空 region 规范化为 `auto`，其他 S3 endpoint 仍要求显式 region
 - **MinIO region 提示**：保持 region 显式配置；设置界面提示 MinIO 通常使用 `us-east-1`，实际值仍须与服务端配置一致
-- **手动预览**：私有模式使用同一请求目标和 signing key 派生逻辑生成 300 秒 SigV4 presigned GET，只签 `host` 并使用 `UNSIGNED-PAYLOAD`；公开模式只用 `urlPrefix + encoded key`，不受 `forcePathStyle` 影响且不会从签名失败回退
+- **缩略图与大图预览**：私有模式使用同一请求目标和 signing key 派生逻辑生成 300 秒 SigV4 presigned GET，只签 `host` 并使用 `UNSIGNED-PAYLOAD`；公开模式只用 `urlPrefix + encoded key`，不受 `forcePathStyle` 影响且不会从签名失败回退
+- **远程删除**：共享 header SigV4 层对列表返回的完整 key 发送单对象 `DELETE` 和空 payload hash；不发送 versionId、MFA、条件头或 Object Lock/retention 绕过参数，不使用 DeleteObjects，不自动更换 endpoint、region 或 URL style
+- **删除结果**：仅 204 表示请求已接受；`x-amz-delete-marker: true` 映射为 `delete-marker`，其他 204 映射为 `unknown`，从不显示永久删除。401/403/404/409/412/423/429/5xx 与网络错误映射为稳定脱敏失败码
 
 ### 公共访问 URL 与 Markdown 显示
 

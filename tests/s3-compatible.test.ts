@@ -124,6 +124,58 @@ describe('S3 path construction', () => {
         );
     });
 
+    it('signs an exact DELETE target with an empty payload and no unsigned headers', async () => {
+        const request = await signS3Request({
+            config: createS3Config({ endpoint: 'http://minio.example.com:9000/proxy/s3/' }),
+            method: 'DELETE',
+            key: 'images/中文 #?%()+&=.png',
+            now: new Date('2026-07-18T04:05:06.000Z'),
+        });
+
+        expect(request.url).toBe(
+            'http://minio.example.com:9000/proxy/s3/images/images/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png'
+        );
+        expect(request.canonicalRequest).toBe([
+            'DELETE',
+            '/proxy/s3/images/images/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png',
+            '',
+            'host:minio.example.com:9000',
+            'x-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            'x-amz-date:20260718T040506Z',
+            '',
+            'host;x-amz-content-sha256;x-amz-date',
+            'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        ].join('\n'));
+        expect(request.headers.Authorization).toBe(
+            'AWS4-HMAC-SHA256 Credential=access-key/20260718/us-east-1/s3/aws4_request, ' +
+            'SignedHeaders=host;x-amz-content-sha256;x-amz-date, ' +
+            'Signature=5e859dc7a67cdc5bbb9ee4762d0b4fc56f20cb226000004b0dcf5061ba8080e2'
+        );
+        expect(request.headers).not.toHaveProperty('Content-Type');
+    });
+
+    it('signs a virtual-hosted R2 DELETE with auto region and an encoded slash kept in the key', async () => {
+        const request = await signS3Request({
+            config: createS3Config({
+                endpoint: 'https://account.r2.cloudflarestorage.com',
+                region: '',
+                forcePathStyle: false,
+            }),
+            method: 'DELETE',
+            key: 'folder/a%2Fb.png',
+            now: new Date('2026-07-18T04:05:06.000Z'),
+        });
+
+        expect(request.url).toBe(
+            'https://images.account.r2.cloudflarestorage.com/folder/a%252Fb.png'
+        );
+        expect(request.canonicalRequest).toContain('\n/folder/a%252Fb.png\n');
+        expect(request.headers.Authorization).toContain('/auto/s3/aws4_request');
+        expect(request.headers.Authorization).toContain(
+            'SignedHeaders=host;x-amz-content-sha256;x-amz-date'
+        );
+    });
+
     it('defaults an empty Cloudflare R2 region to auto and rejects other empty regions', async () => {
         const r2 = createS3Config({
             endpoint: 'https://account.eu.r2.cloudflarestorage.com',

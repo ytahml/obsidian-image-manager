@@ -1,7 +1,7 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, MarkdownView, Modal, Setting } from 'obsidian';
 import { t } from '../i18n';
 import { RemoteProviderError } from '../remote/errors';
-import type { RemoteObject, RemotePreviewUrl } from '../remote/types';
+import type { RemoteObject, RemotePreviewUrl, RemoteReferenceLocation } from '../remote/types';
 import { formatFileSize } from '../utils/path-utils';
 
 type PreviewResolver = (force: boolean) => Promise<RemotePreviewUrl | undefined>;
@@ -19,7 +19,9 @@ export class RemoteImagePreviewModal extends Modal {
         private readonly object: RemoteObject,
         private readonly resolvePreview: PreviewResolver,
         private readonly onImageRequest: () => void,
-        private readonly onClosed: () => void
+        private readonly onClosed: () => void,
+        private readonly references: readonly RemoteReferenceLocation[] = [],
+        private readonly closeBrowser: () => void = () => {}
     ) {
         super(app);
     }
@@ -42,6 +44,7 @@ export class RemoteImagePreviewModal extends Modal {
         const generation = ++this.generation;
         this.cleanupImage();
         this.renderShell(t('modal.remotePreview.loading'));
+        this.renderReferences();
 
         try {
             const preview = await this.resolvePreview(force);
@@ -93,6 +96,7 @@ export class RemoteImagePreviewModal extends Modal {
                     : '—',
             }),
         });
+        this.renderReferences();
         info.createSpan({
             text: preview.access === 'presigned'
                 ? t('modal.remotePreview.privateAccess')
@@ -111,6 +115,7 @@ export class RemoteImagePreviewModal extends Modal {
             text: t('modal.remotePreview.retry'),
         });
         retry.addEventListener('click', () => void this.load(true));
+        this.renderReferences();
     }
 
     private cleanupImage(): void {
@@ -126,6 +131,68 @@ export class RemoteImagePreviewModal extends Modal {
         this.imageLoadHandler = null;
         this.imageErrorHandler = null;
     }
+
+    private renderReferences(): void {
+        const section = this.contentEl.createDiv({ cls: 'remote-image-preview-references' });
+        if (this.references.length === 0) {
+            section.createDiv({
+                cls: 'image-preview-orphan',
+                text: t('modal.remotePreview.noReferences'),
+            });
+            return;
+        }
+        const groups = groupReferences(this.references);
+        section.createDiv({
+            cls: 'image-preview-meta',
+            text: t('modal.remotePreview.references', {
+                total: String(this.references.length),
+                notes: String(groups.length),
+            }),
+        });
+        const list = section.createDiv({ cls: 'image-preview-notes' });
+        for (const group of groups) {
+            const row = list.createDiv({ cls: 'image-preview-note-item' });
+            row.createSpan({ cls: 'image-preview-note-path', text: group.path });
+            const lines = row.createSpan({ cls: 'image-preview-note-lines' });
+            for (const line of group.lines) {
+                const link = lines.createSpan({
+                    cls: 'image-preview-note-line-link',
+                    text: `:${line + 1}`,
+                });
+                link.addEventListener('click', () => this.openReference(group.path, line));
+            }
+        }
+    }
+
+    private openReference(path: string, line: number): void {
+        this.close();
+        this.closeBrowser();
+        void this.app.workspace.openLinkText(path, path, true).then(() => {
+            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view) return;
+            view.editor.setCursor(line);
+            view.editor.scrollIntoView(
+                { from: { line, ch: 0 }, to: { line, ch: 0 } },
+                true
+            );
+        });
+    }
+}
+
+function groupReferences(references: readonly RemoteReferenceLocation[]): Array<{
+    path: string;
+    lines: number[];
+}> {
+    const groups = new Map<string, Set<number>>();
+    for (const reference of references) {
+        const lines = groups.get(reference.path) ?? new Set<number>();
+        lines.add(reference.line);
+        groups.set(reference.path, lines);
+    }
+    return [...groups].map(([path, lines]) => ({
+        path,
+        lines: [...lines].sort((left, right) => left - right),
+    }));
 }
 
 function getPreviewErrorMessage(error?: unknown): string {

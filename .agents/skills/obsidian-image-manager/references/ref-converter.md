@@ -110,4 +110,4 @@ return match?.path ?? null;
 | 转换整个 vault | 遍历所有 MD 文件逐个调用 | 批量转换 |
 | 解析引用 | `parseReferences(content)` | 上传、整理、重命名 |
 | 统计引用 | `countReferences(content)` | 显示提示信息 |
-| 远程引用索引 | `parseReferences(text)` | G2 将标准 Markdown 远程图片识别为明确引用；HTML、frontmatter、普通链接和裸 URL 由独立扫描器保守标记为可能引用 |
+| 远程引用索引 | `parseReferences(text)` + 独立 URL 扫描器 | 标准 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和裸 URL 中可可靠映射的地址均算作明确引用，并记录笔记路径和行号 |

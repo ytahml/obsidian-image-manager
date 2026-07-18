@@ -1,25 +1,137 @@
 /* Image Browser Modal */
 .image-browser-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
     margin-bottom: 12px;
 }
 
 .image-browser-title {
-    margin: 0 0 12px 0;
+    margin: 0;
+}
+
+.image-browser-modal {
+    width: min(1100px, 90vw);
+    max-width: 90vw;
+    height: min(800px, 84vh);
+    max-height: 84vh;
+}
+
+.image-browser-modal .modal-content,
+.image-browser,
+.image-browser-view {
+    min-height: 0;
+}
+
+.image-browser-modal .modal-content,
+.image-browser-view {
+    display: flex;
+    flex-direction: column;
+}
+
+.image-browser-modal .modal-content,
+.image-browser-view,
+.remote-image-browser {
+    flex: 1;
 }
 
 .image-browser-tabs,
 .remote-image-browser-controls,
 .remote-image-browser-actions,
-.remote-image-browser-page-tools,
-.remote-image-browser-pagination {
+.remote-image-browser-page-tools {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
 }
 
+.remote-delete-toolbar,
+.remote-delete-actions,
+.remote-delete-result-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.remote-delete-toolbar {
+    justify-content: space-between;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+}
+
+.remote-delete-confirm,
+.remote-delete-results {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.remote-delete-acknowledgement {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+}
+
+.remote-delete-acknowledgement input {
+    margin-top: 2px;
+}
+
+.remote-delete-summary,
+.remote-delete-result-status {
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+.remote-delete-object-list,
+.remote-delete-result-list {
+    max-height: 42vh;
+    overflow: auto;
+}
+
+.remote-delete-object-list {
+    overflow-wrap: anywhere;
+}
+
+.remote-delete-result-list {
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.remote-delete-result-row {
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.remote-delete-result-row span:first-child {
+    max-width: 65%;
+    overflow-wrap: anywhere;
+}
+
+.remote-delete-select-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.remote-delete-unavailable {
+    display: inline-block;
+    max-width: 180px;
+    color: var(--text-muted);
+    font-size: 0.85em;
+    white-space: normal;
+}
+
 .image-browser-tabs {
-    margin-bottom: 12px;
+    margin: 0;
 }
 
 .image-browser-tabs .is-active {
@@ -31,14 +143,11 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-height: 0;
 }
 
 .remote-image-browser-controls input[type='text'] {
     flex: 1 1 160px;
-}
-
-.remote-image-browser-controls input[type='number'] {
-    width: 84px;
 }
 
 .remote-image-browser-range,
@@ -49,25 +158,170 @@
     font-size: 0.85em;
 }
 
-.remote-image-browser-table {
-    display: block;
-    max-height: 48vh;
-    overflow: auto;
-    border-collapse: collapse;
+.remote-image-browser-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-s);
+    background: var(--background-secondary);
+    color: var(--text-muted);
 }
 
-.remote-image-browser-table th,
-.remote-image-browser-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--background-modifier-border);
-    text-align: left;
+.remote-image-browser-spinner {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border: 2px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: remote-image-browser-spin 0.8s linear infinite;
+}
+
+@keyframes remote-image-browser-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.remote-image-browser-page-tools input[type='text'] {
+    flex: 1 1 180px;
+}
+
+.remote-image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+    height: 100%;
+    max-height: none;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.remote-image-browser-page-results {
+    flex: 1;
+    min-height: 0;
+}
+
+.remote-image-card {
+    position: relative;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    background: var(--background-primary);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.remote-image-card:hover,
+.remote-image-card.is-selected {
+    border-color: var(--interactive-accent);
+    background: var(--background-modifier-hover);
+}
+
+.remote-image-card-media {
+    position: relative;
+    display: flex;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-bottom: 8px;
+    border-radius: var(--radius-s);
+    background: var(--background-secondary);
+    cursor: pointer;
+}
+
+.remote-image-card-media[aria-disabled='true'] {
+    cursor: default;
+}
+
+.remote-image-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.remote-image-card-placeholder,
+.remote-image-card-path,
+.remote-image-card-meta,
+.remote-image-card-delete-reason {
+    color: var(--text-muted);
+    font-size: 0.75em;
+}
+
+.remote-image-card-placeholder {
+    padding: 12px;
+    text-align: center;
+}
+
+.remote-image-card-retry {
+    position: absolute;
+    bottom: 10px;
+}
+
+.remote-image-card-name,
+.remote-image-card-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.remote-image-browser-table td:first-child {
-    max-width: 320px;
+.remote-image-card-name {
+    font-weight: 500;
+}
+
+.remote-image-card-reference {
+    display: inline-block;
+    max-width: 100%;
+    margin-bottom: 6px;
+    padding: 2px 6px;
     overflow: hidden;
+    border-radius: 999px;
+    background: var(--background-secondary-alt);
+    color: var(--text-muted);
+    font-size: 0.7em;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid currentColor;
+}
+
+.remote-image-card-reference.is-referenced {
+    color: var(--text-success);
+}
+
+.remote-image-card-reference.is-orphan {
+    color: var(--text-warning);
+}
+
+.remote-image-card-reference.is-unmappable {
+    color: var(--text-muted);
+}
+
+.remote-image-card-select {
+    position: absolute;
+    z-index: 2;
+    top: 14px;
+    left: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    border-radius: var(--radius-s);
+    background: var(--background-primary-alt);
+    cursor: pointer;
+    font-size: 0.75em;
+}
+
+.remote-image-card-delete-reason {
+    min-height: 2.4em;
+    margin-bottom: 6px;
+}
+
+.remote-image-grid-sentinel {
+    grid-column: 1 / -1;
+    height: 1px;
 }
 
 .remote-image-preview {
@@ -144,9 +398,57 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 12px;
-    max-height: 60vh;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
     padding: 4px;
+}
+
+@media (max-width: 600px) {
+    .image-browser-modal {
+        width: calc(100vw - 16px);
+        max-width: calc(100vw - 16px);
+        height: calc(100vh - 24px);
+        height: calc(100dvh - 24px);
+        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
+    }
+
+    .image-browser-header {
+        gap: 8px;
+    }
+
+    .image-browser-title {
+        font-size: 1.2em;
+    }
+
+    .image-browser-tabs {
+        gap: 4px;
+    }
+
+    .image-browser-tabs button {
+        padding-inline: 8px;
+    }
+
+    .image-browser-controls {
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .image-browser-search {
+        flex-basis: 100%;
+    }
+
+    .image-browser-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
+    }
+
+    .remote-image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+    }
 }
 
 .image-browser-card {
@@ -324,6 +626,21 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+}
+
+.confirm-dialog-pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.confirm-dialog-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: remote-image-browser-spin 0.8s linear infinite;
 }
 
 /* Orphan Images Modal */

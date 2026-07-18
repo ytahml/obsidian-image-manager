@@ -1,7 +1,7 @@
 import { App, Modal, Setting } from 'obsidian';
 import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, CustomConfig } from '../types';
 import { t } from '../i18n';
-import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePageSize, normalizeRemotePrefix } from '../remote/management-settings';
+import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePrefix } from '../remote/management-settings';
 
 export class HostingConfigModal extends Modal {
     private config: ImageHostingConfig;
@@ -138,17 +138,6 @@ export class HostingConfigModal extends Modal {
                     remote.prefix = normalizeRemotePrefix(value);
                 })
             );
-        new Setting(container)
-            .setName(t('modal.hosting.remotePageSize'))
-            .setDesc(t('modal.hosting.remotePageSizeDesc'))
-            .addText((text) => {
-                text.inputEl.type = 'number';
-                text.inputEl.min = '1';
-                text.inputEl.max = '1000';
-                text.setValue(String(remote.pageSize)).onChange((value) => {
-                    remote.pageSize = normalizeRemotePageSize(Number(value));
-                });
-            });
         if (this.config.type === 's3') {
             new Setting(container)
                 .setName(t('modal.hosting.remotePreviewAccess'))

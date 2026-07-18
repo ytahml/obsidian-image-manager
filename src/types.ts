@@ -1,4 +1,5 @@
 import { TFile } from 'obsidian';
+import type { RemoteDeleteAuditEntry } from './remote/types';
 
 /** 图片文件信息 */
 export interface ImageFile {
@@ -46,10 +47,11 @@ export interface ImageHostingConfig {
 export interface RemoteManagementConfig {
     enabled: boolean;
     prefix: string;
+    /** Legacy persisted value; the card grid no longer paginates locally. */
     pageSize: number;
+    /** Normalized to viewport; retained only for old data.json compatibility. */
     previewMode: 'manual' | 'viewport';
     previewAccess: 'presigned' | 'public';
-    deleteEnabled: boolean;
     publicUrlAliases: string[];
 }
 
@@ -154,6 +156,7 @@ export interface ImageManagerSettings {
     enableImageBrowser: boolean;
     autoUploadOnPaste: boolean;
     keepLocalCopy: boolean;
+    remoteDeleteHistory: RemoteDeleteAuditEntry[];
 }
 
 export const DEFAULT_UPLOAD_PATH_TEMPLATE = 'images/{year}/{month}/{hash}.{ext}';
@@ -177,4 +180,5 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     enableImageBrowser: true,
     autoUploadOnPaste: false,
     keepLocalCopy: false,
+    remoteDeleteHistory: [],
 };

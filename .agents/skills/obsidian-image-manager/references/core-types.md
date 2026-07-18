@@ -48,10 +48,9 @@ interface ImageHostingConfig {
 interface RemoteManagementConfig {
     enabled: boolean;                 // 旧配置默认 false
     prefix: string;                   // 空值表示当前 Bucket 根
-    pageSize: number;                 // 本地结果每页数量，默认 100，范围 1–1000
-    previewMode: 'manual' | 'viewport'; // G3 固定为 manual
+    pageSize: number;                 // 旧 data.json 兼容；卡片网格不再分页
+    previewMode: 'manual' | 'viewport'; // 统一规范化为 viewport
     previewAccess: 'presigned' | 'public'; // 旧配置默认 presigned
-    deleteEnabled: boolean;           // G3 固定为 false
     publicUrlAliases: string[];       // CDN 或自定义域名映射
 }
 
@@ -164,6 +163,7 @@ interface ImageManagerSettings {
     enableImageBrowser: boolean;      // 默认 true
     autoUploadOnPaste: boolean;       // 默认 false
     keepLocalCopy: boolean;           // 默认 false
+    remoteDeleteHistory: RemoteDeleteAuditEntry[]; // 最近 200 条脱敏远程删除结果
 }
 ```
 
@@ -189,6 +189,7 @@ const DEFAULT_SETTINGS: ImageManagerSettings = {
     enableImageBrowser: true,
     autoUploadOnPaste: false,
     keepLocalCopy: false,
+    remoteDeleteHistory: [],
 };
 ```
 
@@ -221,20 +222,24 @@ IMAGE_MIME_TYPES: {
 - `RemoteObject`：只保存规范化的对象元数据，必须包含 `hostingId`、逻辑 `key`、`size`。
 - `RemoteListRequest` / `RemoteListPage`：公共分页契约；`cursor` 是 Provider 拥有的不透明字符串，禁止公共层解析或二次编码。
 - `RemoteDeleteResult`：保留 permanent、delete-marker 或 unknown 语义，不将服务商删除结果压缩为单一布尔值。
+- `RemoteDeleteFailureCode`：复用结构化 Provider 错误码并增加 `conflict | precondition | locked`；删除结果不含任意错误字符串。
+- `RemoteDeleteAuditEntry`：持久化时间、hostingId、完整 key、成功状态、HTTP 状态、删除语义或稳定失败码；不保存 endpoint、完整 URL、凭据或响应正文。
 - `RemoteObjectProvider`：远程 list/preview/delete 接口，不继承也不修改 `UploaderBase`；可选 `referenceMapping` 由 Provider 提供服务商 API URL bases。
-- `RemotePreviewUrl`：手动预览返回的会话内 URL，包含明确的 `presigned | public` 访问方式和可选到期时间；不得持久化或写入日志。
+- `RemotePreviewUrl`：缩略图或大图预览返回的会话内 URL，包含明确的 `presigned | public` 访问方式和可选到期时间；不得持久化或写入日志。
 - `RemoteProviderFactoryResult`：`ready` / `unsupported` 判别联合；尚未实现的图床返回空能力集和结构化原因，调用者无需捕获异常。
 - `RemoteUrlMapping`：一个 hosting 的 `urlPrefix`、CDN/source aliases 和 Provider 允许忽略的查询参数名；G2 仅作为运行时匹配输入，不写入设置。
 - `RemoteReferenceScanSummary` / `RemoteReferenceIndexState`：提供 Markdown 扫描时间、计数和 `empty | fresh | stale` 生命周期；远程引用管理不扩展到非 Markdown 文件。
-- `RemoteObjectReferenceLookup`：按 `referenced`、`possibly-referenced`、`unmappable`、`not-referenced-in-current-vault` 的保守顺序分类对象；未扫描或 stale 时不产生未引用结论。
+- `RemoteObjectReferenceLookup`：任何可可靠映射的 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹或原始 URL 都分类为 `referenced`；同时通过 `getReferences()` 返回笔记路径、0-based 行号和语法来源。完全未命中才返回 `not-referenced-in-current-vault`，未扫描、stale 或映射歧义仍返回 `unmappable`。`possibly-referenced` 仅作为旧公共类型兼容值，不再由当前索引产生。
 
 这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
 
-G3 增加 `RemoteBrowseSession`；Issue #23 合并后改为自动批次扫描：会话保存 opaque cursor 和已读取页，每个远端请求最多 1000 项，每最多 10 次请求暂停并允许继续。已读取页聚合为一个本地结果集，`pageSize` 只控制搜索结果展示。停止、范围变更和关闭会使迟到结果失效，但不承诺取消已经发送的 Provider HTTP 请求。
+G3 增加 `RemoteBrowseSession`；Issue #23 合并后改为自动批次扫描：会话保存 opaque cursor 和已读取页，每个远端请求最多 1000 项，每最多 10 次请求暂停并允许继续。已读取页聚合为一个本地结果集。Issue #26 的体验重构移除本地分页：搜索、排序和引用状态筛选作用于完整集合，卡片每次渐进追加 60 项。停止、范围变更和关闭会使迟到结果失效，但不承诺取消已经发送的 Provider HTTP 请求。
 
 Issue #23 将 `RemoteBrowseSnapshot.error` 调整为结构化 `RemoteBrowseFailure`，只包含稳定错误码与可选 HTTP 状态；S3 Provider 不把 XML 错误正文或签名信息传给 UI。`RemoteProviderErrorCode` 新增 `configuration` 与 `not-found`。
 
-Issue #26 的手动预览增加 `RemotePreviewSession`：公开模式只使用 `urlPrefix`，私有模式缓存 300 秒 presigned GET；距到期不足 30 秒或用户重试时重新生成。关闭、切换配置、修改前缀和刷新会清空缓存并隔离迟到结果。
+Issue #26 的预览增加 `RemotePreviewSession`：公开模式只使用 `urlPrefix`，私有模式缓存 300 秒 presigned GET；距到期不足 30 秒或用户重试时重新生成。`RemoteThumbnailSession` 为进入可视区域的卡片提供 4 并发 URL 解析队列；缩略图和独立大图预览共用会话 URL 缓存。关闭、切换配置、修改前缀和刷新会清空缓存并隔离迟到结果。
+
+Issue #26 的删除闭环增加 `RemoteDeleteSession` 与 Provider 无关策略：只接受 fresh Markdown 索引的 `not-referenced-in-current-vault` 对象；校验 hostingId、目录前缀和当前扫描集合；20 项硬上限、2 并发、无自动重试。`remoteDeleteHistory` 旧配置默认空数组，逐项完成后串行保存并截断为最近 200 条。
 
 ## 新增设置项流程
 

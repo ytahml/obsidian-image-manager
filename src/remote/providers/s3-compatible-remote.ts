@@ -4,6 +4,8 @@ import { RemoteProviderError, codeForHttpStatus, sanitizeRemoteEndpoint } from '
 import { RemoteRequestClient } from '../request';
 import type { RemoteObjectProvider } from '../provider';
 import type {
+    RemoteDeleteFailureCode,
+    RemoteDeleteResult,
     RemoteListPage,
     RemoteListRequest,
     RemoteObject,
@@ -25,7 +27,7 @@ import {
 
 export type S3XmlDocumentParser = (xml: string) => Document;
 
-const S3_CAPABILITIES = new Set<'list' | 'preview'>(['list', 'preview']);
+const S3_CAPABILITIES = new Set<'list' | 'preview' | 'delete'>(['list', 'preview', 'delete']);
 
 /** Metadata-only S3-compatible remote provider. */
 export class S3RemoteObjectProvider implements RemoteObjectProvider {
@@ -113,6 +115,92 @@ export class S3RemoteObjectProvider implements RemoteObjectProvider {
             throw error;
         }
     }
+
+    async deleteObject(object: RemoteObject): Promise<RemoteDeleteResult> {
+        let signedRequest;
+        try {
+            signedRequest = await signS3Request({
+                config: this.s3Config,
+                method: 'DELETE',
+                key: object.key,
+                now: this.now(),
+            });
+        } catch (error) {
+            if (error instanceof S3RequestConfigurationError) {
+                return deleteFailure(object.key, 'configuration');
+            }
+            return deleteFailure(object.key, 'unknown');
+        }
+
+        let response;
+        try {
+            response = await this.requestClient.request({
+                url: signedRequest.url,
+                method: 'DELETE',
+                headers: signedRequest.headers,
+                throw: false,
+            });
+        } catch (error) {
+            if (error instanceof RemoteProviderError) {
+                return deleteFailure(object.key, error.code, error.status, error.retryable);
+            }
+            return deleteFailure(object.key, 'network', undefined, true);
+        }
+
+        if (response.status === 204) {
+            const deleteMarker = readHeader(response.headers, 'x-amz-delete-marker') === 'true';
+            return {
+                key: object.key,
+                success: true,
+                status: 204,
+                deletionKind: deleteMarker ? 'delete-marker' : 'unknown',
+            };
+        }
+
+        const failure = classifyS3DeleteFailure(response.status, response.text, this.parseXml);
+        return deleteFailure(object.key, failure, response.status);
+    }
+}
+
+function classifyS3DeleteFailure(
+    status: number,
+    xml: string,
+    parseXml: S3XmlDocumentParser
+): RemoteDeleteFailureCode {
+    if (status === 409) return 'conflict';
+    if (status === 412) return 'precondition';
+    if (status === 423) return 'locked';
+    const serviceCode = readS3ErrorCode(xml, parseXml);
+    if (['ObjectLocked', 'ObjectUnderRetention', 'LegalHold'].includes(serviceCode ?? '')) return 'locked';
+    if (serviceCode === 'Conflict' || serviceCode === 'OperationAborted') return 'conflict';
+    if (serviceCode === 'PreconditionFailed') return 'precondition';
+    if (['InvalidAccessKeyId', 'SignatureDoesNotMatch', 'ExpiredToken', 'InvalidToken'].includes(serviceCode ?? '')) {
+        return 'authentication';
+    }
+    if (serviceCode === 'AccessDenied') return 'permission';
+    if (serviceCode === 'NoSuchBucket' || serviceCode === 'NoSuchKey') return 'not-found';
+    if (serviceCode === 'SlowDown') return 'rate-limit';
+    return codeForHttpStatus(status);
+}
+
+function deleteFailure(
+    key: string,
+    failureCode: RemoteDeleteFailureCode,
+    status?: number,
+    retryable = failureCode === 'rate-limit' || failureCode === 'network' || failureCode === 'service'
+): RemoteDeleteResult {
+    return {
+        key,
+        success: false,
+        ...(status !== undefined ? { status } : {}),
+        failureCode,
+        retryable,
+    };
+}
+
+function readHeader(headers: Record<string, string>, name: string): string | undefined {
+    const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name);
+    return entry?.[1]?.trim().toLowerCase();
 }
 
 export function buildListQuery(request: RemoteListRequest): S3QueryParameter[] {

@@ -28,6 +28,7 @@ export class ImageBrowserModal extends Modal {
     }
 
     onOpen() {
+        this.modalEl.addClass('image-browser-modal');
         this.contentEl.addClass('image-browser');
         const header = this.contentEl.createDiv({ cls: 'image-browser-header' });
         header.createEl('h2', { text: t('modal.imageBrowser.title'), cls: 'image-browser-title' });
@@ -81,7 +82,12 @@ export class ImageBrowserModal extends Modal {
     private showRemoteView() {
         if (!this.viewEl) return;
         this.viewEl.empty();
-        this.remoteView = new RemoteImageBrowserView(this.app, this.plugin, this.viewEl);
+        this.remoteView = new RemoteImageBrowserView(
+            this.app,
+            this.plugin,
+            this.viewEl,
+            () => this.close()
+        );
         this.remoteView.open();
     }
 

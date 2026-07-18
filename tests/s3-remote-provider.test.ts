@@ -43,7 +43,6 @@ function hostingConfig(overrides: Partial<ImageHostingConfig> = {}): ImageHostin
             pageSize: 2,
             previewMode: 'manual',
             previewAccess: 'presigned',
-            deleteEnabled: false,
             publicUrlAliases: ['https://origin.example.com/root/'],
         },
         ...overrides,
@@ -219,6 +218,83 @@ describe('S3 remote provider', () => {
         await promise.catch((error: unknown) => {
             expect(JSON.stringify(error)).not.toContain('minio.example.com');
         });
+    });
+
+    it('deletes the exact key and conservatively reports accepted or delete-marker responses', async () => {
+        const execute = vi.fn()
+            .mockResolvedValueOnce({ ...response(204, ''), headers: {} })
+            .mockResolvedValueOnce({ ...response(204, ''), headers: { 'X-Amz-Delete-Marker': 'true' } });
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml,
+            () => new Date('2026-07-18T04:05:06.000Z')
+        );
+        const object = { hostingId: 's3-hosting', key: 'vault-a/中文 #?%()+&=.png', size: 1 };
+
+        await expect(provider.deleteObject(object)).resolves.toEqual({
+            key: object.key, success: true, status: 204, deletionKind: 'unknown',
+        });
+        await expect(provider.deleteObject(object)).resolves.toEqual({
+            key: object.key, success: true, status: 204, deletionKind: 'delete-marker',
+        });
+        expect(execute.mock.calls[0]?.[0]).toMatchObject({
+            method: 'DELETE',
+            url: 'https://minio.example.com:9000/proxy/s3/images/vault-a/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png',
+        });
+    });
+
+    it.each([
+        [401, 'InvalidAccessKeyId', 'authentication', false],
+        [403, 'AccessDenied', 'permission', false],
+        [404, 'NoSuchKey', 'not-found', false],
+        [409, 'Conflict', 'conflict', false],
+        [412, 'PreconditionFailed', 'precondition', false],
+        [423, 'ObjectLocked', 'locked', false],
+        [429, 'SlowDown', 'rate-limit', true],
+        [503, 'InternalError', 'service', true],
+    ] as const)('maps DELETE HTTP %s to %s without response text', async (status, serviceCode, failureCode, retryable) => {
+        const execute = vi.fn(async () => response(
+            status,
+            `<Error><Code>${serviceCode}</Code><Message>secret-key Authorization</Message></Error>`
+        ));
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml
+        );
+
+        const result = await provider.deleteObject({ hostingId: 's3-hosting', key: 'a.png', size: 1 });
+
+        expect(result).toEqual({
+            key: 'a.png', success: false, status, failureCode, retryable,
+        });
+        expect(JSON.stringify(result)).not.toContain('secret-key');
+        expect(JSON.stringify(result)).not.toContain('Authorization');
+    });
+
+    it('maps a thrown request to a retryable network failure', async () => {
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(),
+            new RemoteRequestClient(vi.fn(async () => { throw new Error('signed secret URL'); })),
+            parseXml
+        );
+
+        await expect(provider.deleteObject({ hostingId: 's3-hosting', key: 'a.png', size: 1 }))
+            .resolves.toEqual({
+                key: 'a.png', success: false, failureCode: 'network', retryable: true,
+            });
+    });
+
+    it('returns a redacted configuration failure without sending DELETE', async () => {
+        const execute = vi.fn();
+        const provider = new S3RemoteObjectProvider(hostingConfig({
+            config: s3Config({ endpoint: 'user:secret@host?token=value', region: '' }),
+        }), new RemoteRequestClient(execute), parseXml);
+
+        const result = await provider.deleteObject({ hostingId: 's3-hosting', key: 'a.png', size: 1 });
+
+        expect(result).toEqual({
+            key: 'a.png', success: false, failureCode: 'configuration', retryable: false,
+        });
+        expect(JSON.stringify(result)).not.toContain('secret');
+        expect(execute).not.toHaveBeenCalled();
     });
 });
 

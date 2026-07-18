@@ -13,8 +13,8 @@ export interface RemoteObjectProvider {
     readonly capabilities: ReadonlySet<RemoteCapability>;
     readonly referenceMapping?: RemoteUrlMapping;
     listObjects(request: RemoteListRequest): Promise<RemoteListPage>;
-    createPreviewUrl?(object: RemoteObject): Promise<RemotePreviewUrl>;
-    deleteObject?(object: RemoteObject): Promise<RemoteDeleteResult>;
+    createPreviewUrl?: (object: RemoteObject) => Promise<RemotePreviewUrl>;
+    deleteObject?: (object: RemoteObject) => Promise<RemoteDeleteResult>;
 }
 
 /**

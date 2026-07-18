@@ -2,7 +2,7 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：G0–G4、S3-1～S3-3 已完成；S3 列举、浏览器接入及公开/私有手动预览均已通过 Cloudflare R2 与 MinIO 验收。
+> 文档状态：G0–G4、S3-1～S3-3 已完成；G5 与 S3-4 的代码和自动化已完成，等待 Cloudflare R2 与 MinIO 真实删除验收。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
@@ -17,8 +17,8 @@ Issue #17 希望图片浏览器可以在“本地图片”和“图床图片”�
 1. 用户必须先选择一个已配置图床和明确的管理范围。
 2. 只有用户明确开始扫描后才自动分批列举范围内的对象元数据，始终不自动加载远程图片。
 3. 将远程对象与当前 Vault 中检测到的引用进行比对。
-4. 默认使用“当前 Vault 未检测到引用”，不直接宣称对象是垃圾文件。
-5. 远程预览按需加载；删除能力单独启用并二次确认。
+4. 完成当前仓库的 Markdown 扫描后，未检测到引用的对象在 UI 显示为“孤立图片”；删除确认仍说明其他位置可能存在引用。
+5. 远程预览按需加载；启用远程管理后提供受门禁保护的删除，并在执行前二次确认。
 6. 首个开发与发布目标为 S3-compatible，优先验证 Cloudflare R2 与 MinIO；其他图床在 S3 首版稳定后独立推进。
 
 ### 1.1 每个 Vault 独立图床的落实方式
@@ -38,7 +38,7 @@ Issue 提交者建议每个 Obsidian Vault 使用独立图床。计划认可这�
 
 - 不在打开图片浏览器或切换到远程标签时自动扫描。
 - 不在无确认的情况下扫描整个 Bucket；空前缀必须由用户手动发起并确认。
-- 不默认加载所有缩略图或原图。
+- 不在用户明确扫描前加载缩略图；扫描后只为进入可视区域的图片创建远程请求。
 - 不根据“当前 Vault 未检测到引用”自动删除。
 - 不要求四种图床同时达到相同成熟度后才能发布。
 - 不把上传清单当作远程对象真实列表的替代品。
@@ -50,14 +50,14 @@ Issue 提交者建议每个 Obsidian Vault 使用独立图床。计划认可这�
 本节取代 G0/G3 历史阶段中“用户手动翻远端页、搜索只过滤当前远端页”的旧方案，后续会话和 Provider 接入必须以此为准：
 
 1. 打开浏览器、切换远程标签、选择图床均不请求网络；用户明确选择“开始扫描”后才允许列举。
-2. 管理前缀和结果页大小在输入时立即更新会话状态，并在 300ms 后持久化，不依赖 `change` 或失焦事件。
+2. 管理前缀在输入时立即更新会话状态，并在 300ms 后持久化，不依赖 `change` 或失焦事件。
 3. Provider 仍按协议单页返回；浏览会话自动追踪 opaque cursor，每次最多请求 1000 项，每批最多 10 次请求（约 10000 项）后暂停并提供“继续扫描”。
 4. “停止”使当前批次及迟到响应失效；已完成页面的元数据可以保留。刷新从当前前缀的第一页重新扫描。
 5. 所有已扫描远端页聚合为一个会话内元数据集合；搜索和排序作用于该集合，而不是分别过滤某个远端页。
-6. `RemoteManagementConfig.pageSize` 只表示本地搜索结果每页显示数量，不再控制 S3 `max-keys`。
-7. UI 的上一页/下一页只切换本地搜索结果，不发送网络请求；远端尚未扫描完成时通过“继续扫描”继续获取。
-8. 范围为空时显示“无对象”，关键词无命中时显示“当前页无匹配”，不得用空表掩盖扫描错误。
-9. 列表仍为 metadata-only，不创建远程 `<img>`、预览请求、选择或删除入口。
+6. 远程结果不再显示页码或每页数量；搜索、排序和引用状态筛选作用于完整扫描集合，卡片按 60 项渐进追加。
+7. 扫描完成后，进入网格可视区域前约 200px 的支持图片自动加载；签名 URL 解析最多 4 并发，非图片和归档对象不请求。
+8. 范围为空时显示“无对象”，关键词无命中时显示“无匹配”，不得用空网格掩盖扫描错误。
+9. 卡片点击打开独立大图预览；删除选择位于卡片上，仍受 fresh Markdown 引用索引、前缀、hosting 和扫描快照门禁保护。
 
 ## 2. 当前实现基线与主要缺口
 
@@ -124,8 +124,9 @@ interface RemoteDeleteResult {
     key: string;
     success: boolean;
     status?: number;
-    error?: string;
     deletionKind?: 'permanent' | 'delete-marker' | 'unknown';
+    failureCode?: RemoteProviderErrorCode | 'conflict' | 'precondition' | 'locked';
+    retryable?: boolean;
 }
 
 interface RemoteObjectProvider {
@@ -176,20 +177,20 @@ src/modals/
 interface RemoteManagementConfig {
     enabled: boolean;
     prefix: string;
-    pageSize: number;
-    previewMode: 'manual' | 'viewport';
-    deleteEnabled: boolean;
+    pageSize: number; // 仅兼容旧 data.json，不再控制 UI
+    previewMode: 'manual' | 'viewport'; // 统一规范化为 viewport
+    previewAccess: 'presigned' | 'public';
     publicUrlAliases: string[];
 }
 ```
 
 约束：
 
-- 默认 `enabled=false`、`deleteEnabled=false`、`previewMode='manual'`。
+- 默认 `enabled=false`；启用后在明确扫描完成时采用可视区域缩略图加载，并开放 Provider 已实现的浏览、预览和受门禁保护删除能力，不增加缩略图或删除独立开关。
 - `prefix` 允许为空；空值表示当前图床配置中的整个 Bucket。
 - 保存时去除前缀首尾多余 `/`，不修改中间路径，也不从上传路径模板自动推断管理前缀。
 - 每个图片浏览器会话首次用空前缀扫描时必须确认；同一会话内翻页不重复确认。
-- `pageSize` 按图床配置保存，初始默认 100，Provider 再限制到服务商允许范围。
+- 旧 `pageSize`、`previewMode` 字段继续兼容读取，但页码 UI 已移除，`previewMode` 统一规范化为 `viewport`。
 - `publicUrlAliases` 用于 CDN、自定义域名与源站域名共同映射。
 - 凭据继续沿用现有图床配置，不在缓存、日志或错误消息中复制。
 
@@ -261,12 +262,12 @@ interface RemoteManagementConfig {
 
 | 内部状态 | 首版用户文案 | 含义 |
 |----------|--------------|------|
-| `referenced` | 当前 Vault 已引用 | 标准 Markdown 图片引用可明确映射到该 object key |
-| `possibly-referenced` | 当前 Vault 可能引用 | HTML、frontmatter、普通链接或受管 URL 原始文本命中 |
-| `not-referenced-in-current-vault` | 当前 Vault 未检测到引用 | 已扫描范围未命中，不代表可安全删除 |
-| `unmappable` | 无法匹配引用 | URL 或 object key 无法可靠映射，不按文件名猜测 |
+| `referenced` | 当前仓库已引用 | 标准 Markdown 图片引用可明确映射到该 object key |
+| `possibly-referenced` | 旧兼容状态，不再由当前索引产生 | 旧版本曾用于非标准语法；现行规则是只要地址可可靠映射就归为 `referenced` |
+| `not-referenced-in-current-vault` | 孤立图片 | 当前仓库的 Markdown 扫描未命中；删除时仍提示其他位置可能存在引用 |
+| `unmappable` | 无法判断引用 | URL 或 object key 无法可靠映射，不按文件名猜测 |
 
-引用索引只扫描 Markdown；UI 明确状态为当前 Vault 的 Markdown 扫描结果。删除能力使用同一范围，不扩张到非 Markdown 文件。
+引用索引扫描仓库内 Markdown 文件，但不局限于标准图片语法：Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和原始 URL 中可可靠映射的地址都算作引用，并记录笔记路径和行号。删除能力使用同一范围，不扩张到非 Markdown 文件。
 
 #### G0.4 S3 测试矩阵
 
@@ -425,7 +426,7 @@ MinIO 专项：
 
 ### G5：删除安全框架
 
-> 当前交付：Issue #26，分支 `feat/issue-26-s3-remote-management`。删除默认关闭，且 fresh Markdown 引用索引是开放删除前的硬门槛。
+> 当前交付：Issue #26，分支 `feat/issue-26-s3-remote-management`。代码与自动化已完成，等待 R2/MinIO 真实删除验收；删除随远程管理启用，fresh Markdown 引用索引和最终确认仍是硬门槛。
 
 **阶段目标**
 
@@ -433,18 +434,19 @@ MinIO 专项：
 
 **实施内容**
 
-1. 删除功能默认关闭，按图床配置单独启用。
+1. 删除不设置额外开关：远程对象管理启用且 Provider 公布 `delete` capability 时显示删除流程。
 2. 任何引用状态都不默认勾选；`referenced` 和 `possibly-referenced` 默认禁止批量选择。
 3. 专用确认页展示图床、Bucket、前缀、完整 key、大小、引用状态、扫描时间和删除语义说明。
-4. 首版批量上限建议 20，串行或低并发执行；不进行无上限自动重试。
-5. 快照过旧时要求刷新或明确确认；删除后使相关列表缓存失效。
+4. 首版批量上限固定 20、最多 2 并发；不自动重试，失败项必须重新确认后手动重试。
+5. 配置、前缀、扫描结果或 Markdown 索引变化会使选择失效；删除请求被接受后使列表、预览与选择缓存失效。
 6. 每个对象保留独立成功/失败结果，失败对象不得从 UI 消失。
 7. Provider 必须报告“永久删除 / delete marker / 未知”，不能统一显示成“已永久删除”。
-8. 保存不含密钥的本地删除记录：时间、hostingId、key、结果和状态码；记录容量需有限制。
+8. 在 `data.json` 保存最近 200 条脱敏结果：时间、hostingId、key、结果、状态码和稳定失败码；每项完成后串行持久化。
+9. 最终确认必须输入当前所选对象数量；IME 组合输入期间 Enter 不执行。
 
 **阶段验收标准**
 
-- 未启用删除时，代码路径不会发送删除请求。
+- 未启用远程对象管理或 Provider 未公布 `delete` capability 时，代码路径不会发送删除请求。
 - 用户必须经过范围确认和最终确认才能执行。
 - 批量上限不可由 UI 绕过，部分失败可准确重试选定项。
 - 删除请求使用列表返回的完整 key，不通过文件名重建。
@@ -706,7 +708,7 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 - 实施顺序：公共 preview/delete 类型与安全边界 → SigV4 presigned GET → 手动按需预览 UI → Markdown 索引删除门禁 → S3 DeleteObject → R2/MinIO 兼容矩阵与文档收尾。
 - presigned GET 默认有效期 300 秒，只存在当前会话；R2 只对 S3 API endpoint 签名，不对自定义域名签名。
 - 首版不实现 viewport 自动预览、DeleteObjects、versionId 管理、MFA Delete、Object Lock/retention 绕过、临时凭证/session token。
-- 删除默认关闭，只允许 fresh 索引中的 `not-referenced-in-current-vault` 对象；单批最多 20 项、最多 2 并发，204 无法证明永久删除时报告 `unknown`。
+- 删除随远程对象管理启用，只允许 fresh 索引中的 `not-referenced-in-current-vault` 对象；单批最多 20 项、最多 2 并发，204 无法证明永久删除时报告 `unknown`。
 - Cloudflare R2、MinIO 的公开/私有预览与专用测试范围删除均通过后，才允许将 S3-3～S3-5 和 Issue #26 标记完成。
 
 ### S3-1：抽取通用 SigV4 与 ListObjectsV2
@@ -774,6 +776,8 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 
 ### S3-4：S3 DeleteObject
 
+> 实施状态：代码与自动化已完成，等待 Cloudflare R2 与 MinIO 专用测试范围人工验收。
+
 **阶段目标**
 
 精确删除对象，并对版本控制、delete marker、对象锁/MFA/保留策略保持诚实语义。
@@ -781,7 +785,7 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 **实施内容**
 
 1. 实现单对象 `DELETE` SigV4 请求，首版不使用批量 DeleteObjects。
-2. 处理 versioning、delete marker、Object Lock、MFA Delete、retention 和权限错误。
+2. 首版不发送 `versionId`、MFA、条件头或 retention/Object Lock 绕过参数；以 204 响应头保守识别 delete marker，并映射权限、冲突、前置条件、锁定、限流、网络和服务错误。
 3. 如果响应无法判断永久删除，结果标记为 `unknown`，提示重新列举或查看服务端版本。
 4. 不为兼容性未知 endpoint 自动重试删除。
 
@@ -872,7 +876,7 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 1. 配置 delete URL template、DELETE/POST 方法、headers、query/body key 字段和成功状态码。
 2. object key 只允许作为编码后的模板变量或 JSON/form 字段，不允许字符串脚本。
 3. 保存配置前展示完整但脱敏的请求预览。
-4. 删除能力必须单独启用，并经过 G5 的公共确认流程。
+4. Provider 只有明确公布 `delete` capability 才显示删除入口，并必须经过 G5 的公共确认流程。
 5. 动态签名、challenge、回调式删除或复杂批量协议改为原生 Provider，不扩张通用配置语言。
 
 **阶段验收标准**
@@ -904,7 +908,7 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 - URL/object key：Unicode、空格、`%`、`#`、`?`、括号、编码斜杠、base path、CDN alias。
 - 引用索引：标准图片、HTML/raw URL、query/fragment、同名不同目录、无法映射。
 - UI 网络行为：打开/切换不请求，扫描只 list，点击才 preview。
-- 删除：默认关闭、批量上限、部分失败、缓存失效、错误映射。
+- 删除：随远程管理启用、资格门禁、批量上限、部分失败、缓存失效、错误映射。
 - 设置迁移：旧配置远程管理默认关闭，新增字段往返保存。
 - 日志安全：凭据、Authorization、signed URL token 不出现在日志或 snapshot。
 - 现有功能回归：本地浏览、孤立检测、四种上传、引用替换、粘贴自动上传。
@@ -972,7 +976,7 @@ P0 计划文件
 | G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
 | G3 | 远程图片浏览器外壳与元数据分页 | 已完成 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；`npm test` 109/109、`npm run build`、`git diff --check` 通过，用户已完成 Obsidian 基本验收；真实 Provider 列举由 Issue #23 覆盖 |
 | G4 | 按需预览与流量控制 | 已完成 | G3 | Issue #26：手动独立预览 Modal、显式公开/签名访问、短时 URL、会话失效与请求计数已实现；自动化 140/140，Cloudflare R2 与 MinIO 公开/私有预览验收通过；viewport 不在范围 |
-| G5 | 删除安全框架 | 未开始 | G2、G3 | Issue #26 同一长期分支承接；下一步完成基于 fresh Markdown 索引的公共删除门禁 |
+| G5 | 删除安全框架 | 进行中 | G2、G3 | Issue #26：fresh Markdown 门禁、20 项/2 并发、数量确认、失败重试、缓存失效及 200 条脱敏审计已实现；自动化 166/166，等待 R2/MinIO 人工验收 |
 | G6 | 统一上传结果与持久化上传清单 | 未开始 | G1 | |
 | G7 | 跨图床整合、文档与发布门禁 | 未开始 | 已交付 Provider 阶段 | |
 | OSS-1 | OSS V4 与 ListObjectsV2 | 未开始 | G1 | |
@@ -988,7 +992,7 @@ P0 计划文件
 | S3-1 | SigV4 与 ListObjectsV2 | 已完成 | G1 | Issue #23：共享 SigV4、ListObjectsV2、XML 解析、1000 项内部批次与游标保护已实现；Cloudflare R2、MinIO 验收通过；`npm test` 130/130、`npm run build`、`git diff --check` 通过 |
 | S3-2 | 兼容性探测、URL 映射与 UI | 已完成 | G2、G3、S3-1 | Issue #23：生产 registry、结构化错误、URL bases、自动批次扫描、本地搜索/排序/分页与 metadata-only UI 已验收；开发依赖未进入生产 bundle |
 | S3-3 | S3 presigned GET 预览 | 已完成 | G4、S3-2 | Issue #26：公开 `urlPrefix` 与 300 秒 presigned GET、到期重签、独立 Modal 和脱敏失败已实现；自动化 140/140，Cloudflare R2 与 MinIO 公开/私有人工验收通过 |
-| S3-4 | S3 DeleteObject | 未开始 | G5、S3-2 | Issue #26，同一长期分支，不另建内部阶段 Issue |
+| S3-4 | S3 DeleteObject | 进行中 | G5、S3-2 | Issue #26：单对象 SigV4 DELETE、特殊 key、204/delete-marker 保守语义及结构化错误已实现；自动化 166/166，等待 R2/MinIO 人工验收 |
 | S3-5 | S3-compatible 兼容矩阵与文档 | 未开始 | S3-3、S3-4 | Issue #26，同一长期分支完成 R2/MinIO 真实验收与收尾 |
 | CU-0 | Custom unsupported 能力边界 | 未开始 | G1 | |
 | CU-1 | Custom 声明式 JSON 列表 | 未开始 | CU-0、G3 | |
@@ -1031,13 +1035,13 @@ P0 计划文件
 
 1. 远程浏览器复用单个 Modal 外壳，在其中切换本地/远程；远程视图使用独立组件。
 2. 远程引用管理只覆盖 Markdown；删除判断不扫描或推断非 Markdown 文件。
-3. `pageSize` 按图床配置保存，默认 100。
+3. `pageSize` 的历史决定已由 2026-07-18 卡片网格决策取代；旧值仅作 `data.json` 兼容，不再显示分页控件。
 4. 空前缀表示当前配置 Bucket 根，每个 Modal 会话首次扫描前确认；关闭后重新打开需再次确认。
 5. S3-compatible 首批实际兼容目标为 Cloudflare R2、MinIO，不安排 RustFS 验证。
 
 ### 13.2 后续阶段待决策
 
-1. 删除记录存放在插件 data 还是独立 JSON 文件？G5 根据容量和隐私评估。
+1. 删除记录已决定存放在插件 `data.json`，仅保留最近 200 条脱敏结果；本阶段不提供历史界面。
 2. Custom 声明式配置的 JSON path 是否复用现有简单点路径，还是设计受限 path 语法？CU-1 决定。
 3. 图片处理缩略图参数是否进入各 Provider 首个 preview 版本？默认不阻塞基础预览。
 
@@ -1064,11 +1068,27 @@ P0 计划文件
 | 2026-07-18 | 远端手动分页改为前缀范围自动批次扫描；每次最多 1000 项、每最多 10 次请求暂停，搜索与 `pageSize` 分页改为本地结果操作 | 当前页过滤无法形成完整搜索结果；目录前缀已承担主要流量边界，同时保留继续与停止控制 | G3、S3-2 |
 | 2026-07-18 | 剩余 S3 预览、删除和兼容性收尾统一使用 Issue #26 与长期分支 `feat/issue-26-s3-remote-management`，不再拆内部阶段 Issue/分支 | 保持 S3 公共类型、签名、UI、安全门禁和真实验收在同一集成线上持续一致 | G4、G5、S3-3～S3-5 |
 | 2026-07-18 | 远程引用管理范围固定为 Markdown，删除门禁以 fresh Markdown 索引为准，不扩张到其他文件格式 | 本项目面向 Markdown 图片管理，并继续通过保守状态与明确确认表达外部引用未知风险 | G2、G5、S3-4 |
+| 2026-07-18 | 删除最终确认输入所选数量；每批最多 20 项、最多 2 并发、无自动重试，最近 200 条脱敏结果写入 `data.json` | 在保持操作简单的同时建立不可绕过的公共门禁、部分失败诊断和有限审计 | G5、S3-4 |
+| 2026-07-18 | S3 首版只发送无 `versionId` 的单对象 DeleteObject；204 仅报告 `delete-marker` 或 `unknown` | AWS/MinIO 版本控制和 R2 实现差异使 204 无法证明永久释放，协议交集也不包含锁绕过能力 | S3-4 |
+| 2026-07-18 | 删除随远程对象管理启用，不保留独立删除开关；不可选择行直接显示原因，不渲染无反馈的禁用复选框 | 减少重复开关，并让引用/索引/范围门禁对用户可见；真正的危险操作仍由数量确认和结果语义保护 | G5、S3-4、i18n |
+| 2026-07-18 | S3 远程结果由技术表格改为响应式图片卡片；明确扫描后可视区域自动加载，最多 4 个签名解析并发；移除本地分页和每页数量，改为 60 项渐进追加 | 目录前缀和显式扫描已提供请求范围边界，图片管理应优先保证可识别、可搜索、可选择和可预览的连续体验 | G3、G4、G5、S3-2～S3-4 |
+| 2026-07-18 | 扫描增加明确 loading；未检测到引用显示“孤立图片”；中文使用“仓库”、英文使用 “vault”；删除确认增加不可撤销勾选，用户成功结果简化为“请求成功”，服务商删除语义仅保留在审计层 | 将协议保守性留在架构和诊断层，同时使用用户能够理解、愿意操作的语言表达真实风险 | G2、G3、G5、i18n |
+| 2026-07-18 | 所有可可靠映射的远程地址统一视为已引用，不再区分标准图片与“可能引用”；索引记录笔记路径和行号，远程大图预览可查看并跳转引用位置 | 地址命中已经足以保护对象不被误删，同时让远程图片获得与本地图片一致的引用追踪体验 | G2、G4、G5 |
+| 2026-07-18 | 空前缀“继续扫描”确认按钮增加异步 spinner 与重复提交保护；引用徽标使用绿色已引用、橙色孤立图片、灰色无法判断 | 长时间扫描需要即时操作反馈，引用状态也需要比纯文字更容易快速辨认 | G3、G5、i18n |
+| 2026-07-18 | 图片浏览器标题与本地/图床切换合并为同一响应式标题栏；桌面 Modal 最终调整为最大约 1100px × 84vh，移动端按视口保留安全边距；已引用卡片只保留彩色状态徽标和悬停说明 | 在信息密度和编辑区遮挡之间保持平衡，并移除重复的引用状态正文 | G3、G4、UI |
+| 2026-07-18 | S3 目录选择器评估为可行但尚未实现：使用独立 `ListObjectsV2(prefix, delimiter='/')` 请求解析 `CommonPrefixes`，保留手动前缀输入 | S3/R2 是扁平 key 空间，所谓文件夹只是 `/` 分隔的公共前缀；目录浏览和递归图片扫描需要不同请求语义 | S3-2、UI |
 
 ## 15. 变更记录
 
 | 日期 | 变更 |
 |------|------|
+| 2026-07-18 | 优化图片浏览器整体布局：标题与来源切换同行；桌面端扩大显示面积，网格占满剩余高度；移动端使用近全屏响应式尺寸及更紧凑卡片列。 |
+| 2026-07-18 | 补充扫描与状态视觉反馈：扫全 Bucket 的“继续扫描”按钮进入 loading 并禁止重复操作；远程卡片引用徽标增加绿色、橙色和灰色语义标识。 |
+| 2026-07-18 | 扩展远程引用索引：覆盖 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和原始 URL；可靠地址统一判定为已引用，记录笔记路径/行号，并在远程预览中提供引用位置与跳转。 |
+| 2026-07-18 | 优化远程扫描与删除体验：增加扫描 loading；引用状态改为本地化的“孤立图片 / Orphan image”和“可能使用”；删除确认加入不可撤销复选框，替换 204/delete-marker 技术文案，成功项统一显示“请求成功”。自动化基线更新为 22 个测试文件、171 项测试。 |
+| 2026-07-18 | 重构 S3 图片管理体验：远程表格替换为响应式卡片网格，增加引用状态筛选、可视区域自动缩略图、4 并发 URL 队列、60 项渐进渲染和卡片删除选择；移除页码/每页数量，旧字段仅作迁移兼容。自动化基线更新为 21 个测试文件、170 项测试。 |
+| 2026-07-18 | 修复删除选择交互：删除随远程管理启用，移除 `deleteEnabled` 设置；符合资格的行显示扩大点击区域的选择控件，不符合资格的行直接展示具体原因，删除确认风险提示保持不变。 |
+| 2026-07-18 | 完成 G5/S3-4 代码与自动化：新增删除门禁、跨本地页选择、数量确认、2 并发调度、停止/迟到结果隔离、失败项重试、200 条串行脱敏审计，以及 S3 SigV4 DeleteObject 和保守响应语义；`npm test` 166/166、`npm run build`、`git diff --check` 通过，等待 R2/MinIO 人工验收。 |
 | 2026-07-18 | 完成 Issue #26 手动预览：新增显式 `presigned | public` 设置、300 秒 SigV4 presigned GET、30 秒到期安全窗口、会话缓存/失效、独立预览 Modal、人工重试和请求计数；`npm test` 140/140、`npm run build`、`git diff --check` 通过，Cloudflare R2 与 MinIO 公开/私有人工验收通过。 |
 | 2026-07-18 | 完成 Issue #23 合并后修复并通过验收：前缀和结果页大小输入即时生效、防抖保存；远端分页改为自动批次扫描与本地搜索结果分页；修复终页无 cursor 被误判为重复 cursor 的问题；自动化基线 130/130。 |
 | 2026-07-18 | 创建 Issue #26 和长期 S3 分支，冻结手动按需预览、300 秒 presigned GET、20 项/2 并发删除上限及 R2/MinIO 收尾计划。 |
