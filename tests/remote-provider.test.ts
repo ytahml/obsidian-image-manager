@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('obsidian', () => ({ requestUrl: vi.fn() }));
 import type { HostingType, ImageHostingConfig } from '../src/types';
 import { createRemoteObjectProvider } from '../src/remote/provider-factory';
 import { listRemoteObjects } from '../src/remote/provider';
@@ -29,7 +31,7 @@ describe('remote provider factory', () => {
     it.each<HostingType>(['aliyun-oss', 'qiniu', 's3', 'custom'])(
         'returns an explicit unsupported result for %s before its adapter is implemented',
         (type) => {
-            const result = createRemoteObjectProvider(createHostingConfig(type));
+            const result = createRemoteObjectProvider(createHostingConfig(type), {});
 
             expect(result).toMatchObject({
                 status: 'unsupported',
@@ -42,6 +44,25 @@ describe('remote provider factory', () => {
             }
         }
     );
+
+    it('registers the S3 list provider in the production registry', () => {
+        const config = createHostingConfig('s3');
+        config.config = {
+            endpoint: 'https://account.r2.cloudflarestorage.com',
+            region: 'auto',
+            accessKeyId: 'access-key',
+            secretAccessKey: 'secret-key',
+            bucket: 'images',
+            forcePathStyle: true,
+        };
+
+        const result = createRemoteObjectProvider(config);
+
+        expect(result.status).toBe('ready');
+        if (result.status === 'ready') {
+            expect([...result.provider.capabilities]).toEqual(['list']);
+        }
+    });
 
     it('creates a registered provider without changing the upload factory', () => {
         const config = createHostingConfig('s3');

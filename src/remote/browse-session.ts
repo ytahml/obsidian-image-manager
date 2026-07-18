@@ -2,6 +2,7 @@ import type { ImageHostingConfig } from '../types';
 import { getRemoteManagementConfig } from './management-settings';
 import { listRemoteObjects, type RemoteObjectProvider } from './provider';
 import type { RemoteListPage, RemoteObject } from './types';
+import { RemoteProviderError, type RemoteProviderErrorCode } from './errors';
 
 export type RemoteBrowseStatus =
     | 'idle'
@@ -22,7 +23,12 @@ export interface RemoteBrowseSnapshot {
     status: RemoteBrowseStatus;
     pages: readonly RemoteBrowsePage[];
     currentPageIndex: number;
-    error?: string;
+    error?: RemoteBrowseFailure;
+}
+
+export interface RemoteBrowseFailure {
+    code: RemoteProviderErrorCode | 'invalid-cursor' | 'request-failed';
+    status?: number;
 }
 
 /**
@@ -34,7 +40,7 @@ export class RemoteBrowseSession {
     private pages: RemoteBrowsePage[] = [];
     private currentPageIndex = 0;
     private status: RemoteBrowseStatus = 'idle';
-    private error?: string;
+    private error?: RemoteBrowseFailure;
 
     getSnapshot(): RemoteBrowseSnapshot {
         return {
@@ -116,12 +122,12 @@ export class RemoteBrowseSession {
             if (requestGeneration !== this.generation) return false;
             if (result.isTruncated && !result.nextCursor) {
                 this.status = 'error';
-                this.error = 'invalid-cursor';
+                this.error = { code: 'invalid-cursor' };
                 return false;
             }
             if (result.nextCursor === cursor) {
                 this.status = 'error';
-                this.error = 'invalid-cursor';
+                this.error = { code: 'invalid-cursor' };
                 return false;
             }
             const page = { cursor, result };
@@ -136,7 +142,9 @@ export class RemoteBrowseSession {
         } catch (error) {
             if (requestGeneration !== this.generation) return false;
             this.status = 'error';
-            this.error = error instanceof Error ? error.message : 'request-failed';
+            this.error = error instanceof RemoteProviderError
+                ? { code: error.code, ...(error.status !== undefined ? { status: error.status } : {}) }
+                : { code: 'request-failed' };
             return false;
         }
     }

@@ -220,7 +220,7 @@ IMAGE_MIME_TYPES: {
 - `RemoteObject`：只保存规范化的对象元数据，必须包含 `hostingId`、逻辑 `key`、`size`。
 - `RemoteListRequest` / `RemoteListPage`：公共分页契约；`cursor` 是 Provider 拥有的不透明字符串，禁止公共层解析或二次编码。
 - `RemoteDeleteResult`：保留 permanent、delete-marker 或 unknown 语义，不将服务商删除结果压缩为单一布尔值。
-- `RemoteObjectProvider`：远程 list/preview/delete 接口，不继承也不修改 `UploaderBase`。
+- `RemoteObjectProvider`：远程 list/preview/delete 接口，不继承也不修改 `UploaderBase`；可选 `referenceMapping` 由 Provider 提供服务商 API URL bases。
 - `RemoteProviderFactoryResult`：`ready` / `unsupported` 判别联合；尚未实现的图床返回空能力集和结构化原因，调用者无需捕获异常。
 - `RemoteUrlMapping`：一个 hosting 的 `urlPrefix`、CDN/source aliases 和 Provider 允许忽略的查询参数名；G2 仅作为运行时匹配输入，不写入设置。
 - `RemoteReferenceScanSummary` / `RemoteReferenceIndexState`：提供 Markdown 扫描时间、计数、`.canvas` 覆盖状态和 `empty | fresh | stale` 生命周期。
@@ -229,6 +229,8 @@ IMAGE_MIME_TYPES: {
 这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
 
 G3 增加 `RemoteBrowseSession`：会话保存 opaque cursor 和已访问页，下一页未缓存时只请求一页，上一页读取缓存；刷新替换当前页并丢弃其后的游标链。停止、范围变更和关闭会使迟到结果失效，但不承诺取消已经发送的 Provider HTTP 请求。
+
+Issue #23 将 `RemoteBrowseSnapshot.error` 调整为结构化 `RemoteBrowseFailure`，只包含稳定错误码与可选 HTTP 状态；S3 Provider 不把 XML 错误正文或签名信息传给 UI。`RemoteProviderErrorCode` 新增 `configuration` 与 `not-found`。
 
 ## 新增设置项流程
 

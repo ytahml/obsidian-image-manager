@@ -8,6 +8,7 @@ import { RemoteBrowseSession } from '../remote/browse-session';
 import { getRemoteManagementConfig, normalizeRemotePageSize, normalizeRemotePrefix } from '../remote/management-settings';
 import { createRemoteObjectProvider } from '../remote/provider-factory';
 import type { RemoteObject, RemoteReferenceState, RemoteUrlMapping } from '../remote/types';
+import type { RemoteBrowseFailure } from '../remote/browse-session';
 
 /** Metadata-only browser view. It must never create remote image elements. */
 export class RemoteImageBrowserView {
@@ -182,7 +183,7 @@ export class RemoteImageBrowserView {
             : await this.session.scan(result.provider, config);
         if (controller.signal.aborted || this.scanAbortController !== controller) return;
         this.scanAbortController = null;
-        if (!completed && this.session.getSnapshot().error === 'invalid-cursor') {
+        if (!completed && this.session.getSnapshot().error?.code === 'invalid-cursor') {
             this.session.stop();
         }
         this.render();
@@ -210,9 +211,7 @@ export class RemoteImageBrowserView {
     private renderPage(config: ImageHostingConfig) {
         const snapshot = this.session.getSnapshot();
         if (snapshot.status === 'error') {
-            const message = snapshot.error === 'invalid-cursor'
-                ? t('modal.imageBrowser.remoteInvalidCursor')
-                : t('modal.imageBrowser.remoteError', { error: snapshot.error ?? 'request-failed' });
+            const message = getRemoteFailureMessage(snapshot.error);
             this.containerEl.createDiv({ cls: 'remote-image-browser-message mod-warning', text: message });
         }
 
@@ -241,7 +240,11 @@ export class RemoteImageBrowserView {
             const header = table.createEl('thead').createEl('tr');
             for (const text of ['Key', 'Size', 'Modified', 'ETag', 'Storage', 'Reference']) header.createEl('th', { text });
             const body = table.createEl('tbody');
-            const lookup = this.plugin.remoteReferenceIndex.createLookup(toUrlMapping(config));
+            const providerResult = createRemoteObjectProvider(config);
+            const mapping = providerResult.status === 'ready'
+                ? providerResult.provider.referenceMapping ?? toUrlMapping(config)
+                : toUrlMapping(config);
+            const lookup = this.plugin.remoteReferenceIndex.createLookup(mapping);
             for (const object of objects) this.renderObjectRow(body, object, lookup.classify(object));
         }
 
@@ -316,4 +319,28 @@ function referenceLabel(state: RemoteReferenceState): string {
         unmappable: 'modal.imageBrowser.remoteUnmappable',
     };
     return t(keys[state]);
+}
+
+function getRemoteFailureMessage(failure: RemoteBrowseFailure | undefined): string {
+    if (failure?.code === 'invalid-cursor') return t('modal.imageBrowser.remoteInvalidCursor');
+    const keyByCode: Record<Exclude<RemoteBrowseFailure['code'], 'invalid-cursor'>, string> = {
+        configuration: 'modal.imageBrowser.remoteErrorConfiguration',
+        authentication: 'modal.imageBrowser.remoteErrorAuthentication',
+        permission: 'modal.imageBrowser.remoteErrorPermission',
+        'not-found': 'modal.imageBrowser.remoteErrorNotFound',
+        'rate-limit': 'modal.imageBrowser.remoteErrorRateLimit',
+        network: 'modal.imageBrowser.remoteErrorNetwork',
+        parsing: 'modal.imageBrowser.remoteErrorParsing',
+        unsupported: 'modal.imageBrowser.remoteErrorUnsupported',
+        service: 'modal.imageBrowser.remoteErrorService',
+        unknown: 'modal.imageBrowser.remoteErrorUnknown',
+        'request-failed': 'modal.imageBrowser.remoteErrorUnknown',
+    };
+    const detail = t(keyByCode[failure?.code ?? 'request-failed']);
+    return failure?.status === undefined
+        ? t('modal.imageBrowser.remoteError', { error: detail })
+        : t('modal.imageBrowser.remoteErrorWithStatus', {
+            error: detail,
+            status: String(failure.status),
+        });
 }

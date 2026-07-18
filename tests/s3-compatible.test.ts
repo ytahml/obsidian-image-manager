@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RequestUrlParam } from 'obsidian';
 import type { ImageHostingConfig, S3Config } from '../src/types';
 
 const { requestUrl } = vi.hoisted(() => ({ requestUrl: vi.fn() }));
@@ -8,6 +9,7 @@ vi.mock('obsidian', () => ({ requestUrl }));
 import { S3Uploader } from '../src/uploaders/s3-compatible';
 import { buildS3CanonicalUri, buildS3Url } from '../src/uploaders/s3-path';
 import { createUploader } from '../src/uploaders/uploader-factory';
+import { buildS3CanonicalQuery, signS3Request } from '../src/s3/sigv4';
 
 function createS3Config(overrides: Partial<S3Config> = {}): S3Config {
     return {
@@ -67,6 +69,71 @@ describe('S3 path construction', () => {
             '/images/folder/%21file%27%28%29%2A.png'
         );
     });
+
+    it('keeps an endpoint base path in both the request and canonical URI', () => {
+        const config = createS3Config({ endpoint: 'https://minio.example.com:9000/s3/api/' });
+
+        expect(buildS3Url(config, 'folder/a.png')).toBe(
+            'https://minio.example.com:9000/s3/api/images/folder/a.png'
+        );
+        expect(buildS3CanonicalUri(config, 'folder/a.png')).toBe(
+            '/s3/api/images/folder/a.png'
+        );
+    });
+
+    it('encodes and sorts canonical query values without using plus for spaces', () => {
+        expect(buildS3CanonicalQuery([
+            ['prefix', 'vault a/中文'],
+            ['continuation-token', 'token+/=%2520&value'],
+            ['list-type', '2'],
+        ])).toBe(
+            'continuation-token=token%2B%2F%3D%252520%26value&list-type=2&prefix=vault%20a%2F%E4%B8%AD%E6%96%87'
+        );
+    });
+
+    it('signs the exact query and only headers that are actually sent', async () => {
+        const request = await signS3Request({
+            config: createS3Config(),
+            method: 'GET',
+            key: '',
+            query: [['list-type', '2'], ['max-keys', '1']],
+            now: new Date('2026-07-18T04:05:06.000Z'),
+        });
+
+        expect(request.url).toBe(
+            'https://minio.example.com:9000/images/?list-type=2&max-keys=1'
+        );
+        expect(request.canonicalRequest).toBe([
+            'GET',
+            '/images/',
+            'list-type=2&max-keys=1',
+            'host:minio.example.com:9000',
+            'x-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            'x-amz-date:20260718T040506Z',
+            '',
+            'host;x-amz-content-sha256;x-amz-date',
+            'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        ].join('\n'));
+        expect(request.headers).not.toHaveProperty('Content-Type');
+        expect(request.headers.Authorization).toContain(
+            'Credential=access-key/20260718/us-east-1/s3/aws4_request'
+        );
+    });
+
+    it('defaults an empty Cloudflare R2 region to auto and rejects other empty regions', async () => {
+        const r2 = createS3Config({
+            endpoint: 'https://account.eu.r2.cloudflarestorage.com',
+            region: '',
+        });
+
+        const request = await signS3Request({ config: r2, method: 'GET', key: '' });
+        expect(request.headers.Authorization).toContain('/auto/s3/aws4_request');
+        await expect(signS3Request({
+            config: createS3Config({ region: '' }),
+            method: 'GET',
+            key: '',
+        })).rejects.toThrow('S3 region is required');
+    });
 });
 
 describe('S3Uploader', () => {
@@ -80,9 +147,14 @@ describe('S3Uploader', () => {
 
         const result = await uploader.upload(new ArrayBuffer(0), '中文 图.png');
 
-        expect(requestUrl).toHaveBeenCalledWith(expect.objectContaining({
-            url: 'https://minio.example.com:9000/images/uploads/%E4%B8%AD%E6%96%87%20%E5%9B%BE.png',
-        }));
+        const uploadRequest = requestUrl.mock.calls[0]?.[0] as RequestUrlParam | undefined;
+        expect(uploadRequest?.url).toBe(
+            'https://minio.example.com:9000/images/uploads/%E4%B8%AD%E6%96%87%20%E5%9B%BE.png'
+        );
+        expect(uploadRequest?.headers?.['Content-Type']).toBe('image/png');
+        expect(uploadRequest?.headers?.Authorization).toContain(
+            'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date'
+        );
         expect(result).toMatchObject({
             success: true,
             url: 'https://minio.example.com:9000/images/uploads/%E4%B8%AD%E6%96%87%20%E5%9B%BE.png',
@@ -128,6 +200,20 @@ describe('S3Uploader', () => {
         }));
         expect(result.url).toBe(
             'https://minio.example.com:9000/images/global/Projects/A/%E5%9B%BE%201.png'
+        );
+    });
+
+    it('tests list capability with one metadata item and no signed content type', async () => {
+        const uploader = new S3Uploader(createHostingConfig(createS3Config()));
+
+        await expect(uploader.testConnection()).resolves.toBe(true);
+
+        const request = requestUrl.mock.calls[0]?.[0] as RequestUrlParam | undefined;
+        expect(request?.url).toBe('https://minio.example.com:9000/images/?list-type=2&max-keys=1');
+        expect(request?.method).toBe('GET');
+        expect(request?.headers).not.toHaveProperty('Content-Type');
+        expect(request?.headers?.Authorization).toContain(
+            'SignedHeaders=host;x-amz-content-sha256;x-amz-date'
         );
     });
 });
