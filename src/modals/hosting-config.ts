@@ -1,6 +1,7 @@
 import { App, Modal, Setting } from 'obsidian';
 import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, CustomConfig } from '../types';
 import { t } from '../i18n';
+import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePageSize, normalizeRemotePrefix } from '../remote/management-settings';
 
 export class HostingConfigModal extends Modal {
     private config: ImageHostingConfig;
@@ -94,6 +95,8 @@ export class HostingConfigModal extends Modal {
                 );
         }
 
+        this.renderRemoteManagementFields(contentEl);
+
         // Provider-specific fields
         contentEl.createEl('h3', { text: t('modal.hosting.providerConfig') });
         this.renderProviderFields(contentEl);
@@ -111,6 +114,51 @@ export class HostingConfigModal extends Modal {
             }
             this.onSave(this.config);
             this.close();
+        });
+    }
+
+    private renderRemoteManagementFields(container: HTMLElement) {
+        const remote = getRemoteManagementConfig(this.config);
+        this.config.remoteManagement = remote;
+
+        new Setting(container).setName(t('modal.hosting.remoteManagement')).setHeading();
+        new Setting(container)
+            .setName(t('modal.hosting.remoteManagementEnabled'))
+            .setDesc(t('modal.hosting.remoteManagementEnabledDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(remote.enabled).onChange((value) => {
+                    remote.enabled = value;
+                })
+            );
+        new Setting(container)
+            .setName(t('modal.hosting.remotePrefix'))
+            .setDesc(t('modal.hosting.remotePrefixDesc'))
+            .addText((text) =>
+                text.setValue(remote.prefix).onChange((value) => {
+                    remote.prefix = normalizeRemotePrefix(value);
+                })
+            );
+        new Setting(container)
+            .setName(t('modal.hosting.remotePageSize'))
+            .setDesc(t('modal.hosting.remotePageSizeDesc'))
+            .addText((text) => {
+                text.inputEl.type = 'number';
+                text.inputEl.min = '1';
+                text.inputEl.max = '1000';
+                text.setValue(String(remote.pageSize)).onChange((value) => {
+                    remote.pageSize = normalizeRemotePageSize(Number(value));
+                });
+            });
+        new Setting(container)
+            .setName(t('modal.hosting.remoteAliases'))
+            .setDesc(t('modal.hosting.remoteAliasesDesc'));
+        const aliasesInput = container.createEl('textarea', {
+            cls: 'hosting-config-remote-aliases',
+        });
+        aliasesInput.rows = 3;
+        aliasesInput.value = remote.publicUrlAliases.join('\n');
+        aliasesInput.addEventListener('change', () => {
+            remote.publicUrlAliases = normalizePublicUrlAliases(aliasesInput.value.split('\n'));
         });
     }
 

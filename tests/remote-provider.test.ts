@@ -4,6 +4,7 @@ import { createRemoteObjectProvider } from '../src/remote/provider-factory';
 import { listRemoteObjects } from '../src/remote/provider';
 import type { RemoteObjectProvider } from '../src/remote/provider';
 import type { RemoteListRequest } from '../src/remote/types';
+import { getRemoteManagementConfig, normalizeRemotePrefix } from '../src/remote/management-settings';
 
 function createHostingConfig(type: HostingType): ImageHostingConfig {
     return {
@@ -90,5 +91,24 @@ describe('remote provider pagination contract', () => {
         expect(listObjects).toHaveBeenCalledWith(request);
         expect(listObjects.mock.calls[0]?.[0]).toBe(request);
         expect(page.nextCursor).toBe(nextCursor);
+    });
+});
+
+describe('remote management settings', () => {
+    it('keeps legacy hosting configurations disabled by default', () => {
+        const legacy = createHostingConfig('s3');
+
+        expect(getRemoteManagementConfig(legacy)).toEqual({
+            enabled: false,
+            prefix: '',
+            pageSize: 100,
+            previewMode: 'manual',
+            deleteEnabled: false,
+            publicUrlAliases: [],
+        });
+    });
+
+    it('normalizes only leading and trailing prefix separators', () => {
+        expect(normalizeRemotePrefix('///vault-a//images///')).toBe('vault-a//images');
     });
 });

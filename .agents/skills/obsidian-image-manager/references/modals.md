@@ -19,6 +19,10 @@
 
 **设置门控**：`enableImageBrowser=false` 时命令不可用
 
+G3 后该 Modal 是本地/图床的共同外壳：默认本地视图保持既有搜索、孤立筛选和预览；图床视图位于独立的 `remote-image-browser.ts`，仅在用户点击扫描、翻页或刷新时请求 Provider。
+
+远程视图只显示 key、大小、修改时间、ETag、存储类型和保守引用状态。没有远程 `<img>`、预览、选择或删除按钮。空前缀会在每个 Modal 会话首次扫描前确认；取消不会请求网络。尚未实现 list 能力的图床显示原因且不显示扫描按钮。
+
 ## 2. ImagePreviewModal (`image-preview-modal.ts`)
 
 **功能**：全屏图片预览

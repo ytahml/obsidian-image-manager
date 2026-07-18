@@ -42,6 +42,16 @@ interface ImageHostingConfig {
     config: AliyunOSSConfig | QiniuConfig | S3Config | CustomConfig;
     uploadPath: string;  // 上传路径模板
     urlPrefix: string;   // 公共访问 URL 基础路径，可包含 bucket 或目录
+    remoteManagement?: RemoteManagementConfig;
+}
+
+interface RemoteManagementConfig {
+    enabled: boolean;                 // 旧配置默认 false
+    prefix: string;                   // 空值表示当前 Bucket 根
+    pageSize: number;                 // 默认 100，通用范围 1–1000
+    previewMode: 'manual' | 'viewport'; // G3 固定为 manual
+    deleteEnabled: boolean;           // G3 固定为 false
+    publicUrlAliases: string[];       // CDN 或自定义域名映射
 }
 
 interface UploadContext {
@@ -217,6 +227,8 @@ IMAGE_MIME_TYPES: {
 - `RemoteObjectReferenceLookup`：按 `referenced`、`possibly-referenced`、`unmappable`、`not-referenced-in-current-vault` 的保守顺序分类对象；未扫描或 stale 时不产生未引用结论。
 
 这些类型属于 Issue #17 的远程管理领域；既有 `ImageHostingConfig`、`UploadResult` 与上传器 API 在 G1 保持不变。
+
+G3 增加 `RemoteBrowseSession`：会话保存 opaque cursor 和已访问页，下一页未缓存时只请求一页，上一页读取缓存；刷新替换当前页并丢弃其后的游标链。停止、范围变更和关闭会使迟到结果失效，但不承诺取消已经发送的 Provider HTTP 请求。
 
 ## 新增设置项流程
 

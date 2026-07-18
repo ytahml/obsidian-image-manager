@@ -344,6 +344,8 @@ MinIO 专项：
 
 ### G3：远程图片浏览器外壳与元数据分页
 
+**状态：进行中（代码与自动化验证已完成，等待 Obsidian 手动验收）。**
+
 **阶段目标**
 
 提供 Issue 所需的本地/远程切换和手动分页列表，同时保证打开界面不产生远程图片流量。
@@ -368,6 +370,13 @@ MinIO 专项：
 - 快速切换两个图床不会显示前一个图床的迟到结果。
 - 空结果、无权限、游标失效、限流和解析失败均有明确提示。
 - 本地图片浏览、孤立筛选和预览行为无回归。
+
+**当前证据（2026-07-18）**
+
+- 在共享 G 系列分支新增每图床远程管理配置、`RemoteBrowseSession`、本地/图床切换和独立 metadata-only 远程视图；旧配置默认关闭。
+- 生产 registry 尚无真实 list Provider，因此已配置图床显示明确 unsupported 状态，不显示无效扫描按钮；真实 Cloudflare R2/MinIO 列举人工验收留给 S3-1/S3-2。
+- 会话使用 generation 隔离迟到响应；停止可取消本地引用扫描并忽略远程迟到响应，但由于公共 Provider 接口未接受取消信号，不承诺中断已发出的 HTTP 请求。
+- `npm test` 109/109、`npm run build`、`git diff --check` 通过；仍需按本文件的 G3 独立手动验收清单确认本地浏览器回归、零网络请求和 unsupported UI 后才能标记完成。
 
 ### G4：按需预览与流量控制
 
@@ -927,7 +936,7 @@ P0 计划文件
 | G0 | 需求冻结、交互草图与测试矩阵 | 已完成 | P0 | 2026-07-16：S3-first 产品契约、文字线框、空前缀确认和 R2/MinIO 测试矩阵；`npm test` 75/75、`npm run build`、`git diff --check` 通过 |
 | G1 | 远程对象公共接口与测试底座 | 已完成 | G0 | 2026-07-17：G 系列共用分支 `feat/issue-17-g-series` 本地变更，关联 #19；新增公共类型、factory、错误脱敏、可 mock 请求边界和 opaque cursor 测试；`npm test` 94/94、`npm run build`、`git diff --check` 通过 |
 | G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；`.canvas` 显式未覆盖且未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
-| G3 | 远程图片浏览器外壳与元数据分页 | 未开始 | G1 | |
+| G3 | 远程图片浏览器外壳与元数据分页 | 进行中 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；真实 Provider 列举与 R2/MinIO 人工验收留给 S3-1/S3-2；`npm test` 109/109、`npm run build`、`git diff --check` 通过，等待 G3 Obsidian 手动验收 |
 | G4 | 按需预览与流量控制 | 未开始 | G3 | |
 | G5 | 删除安全框架 | 未开始 | G2、G3 | |
 | G6 | 统一上传结果与持久化上传清单 | 未开始 | G1 | |
@@ -1016,6 +1025,7 @@ P0 计划文件
 | 2026-07-17 | 远程 Provider factory 使用可注册 builder 与显式 `ready` / `unsupported` 结果 | 让各 Provider 按阶段接入，同时避免 UI 用未捕获异常判断能力 | G1、全部 Provider |
 | 2026-07-17 | Issue #17 按阶段系列共用开发分支，G1–G7 使用 `feat/issue-17-g-series` | 减少分支与 PR 数量，同时保留 G、S3 等系列边界 | 全部阶段 |
 | 2026-07-17 | G2 保持纯索引层，仅扫描 `.md`，扫描状态 UI 延后至 G3 | 避免在没有远程浏览器视图时提前扩张 Modal；删除开放前仍必须补齐 `.canvas` | G2、G3、G5 |
+| 2026-07-18 | G3 在无真实 Provider 时交付 metadata-only 浏览器外壳和可注入分页会话；unsupported 图床不显示扫描操作 | 保持 UI、安全边界和测试可先行，避免把假列表能力当成 Provider 支持 | G3、S3-1、S3-2 |
 
 ## 15. 变更记录
 
@@ -1025,6 +1035,7 @@ P0 计划文件
 | 2026-07-16 | 完成 G0 产品契约：冻结 S3-first、R2/MinIO、空前缀确认、交互线框、引用状态与测试矩阵。 |
 | 2026-07-17 | 完成 G1：建立独立远程 Provider 公共类型、显式 unsupported factory、脱敏错误模型、可 mock `requestUrl` 边界与 opaque cursor 契约；上传 API 保持不变。 |
 | 2026-07-17 | 完成 G2：建立按需 Vault Markdown 远程引用索引、URL/object key 保守匹配、扫描取消/原子发布与 Markdown 文件变更失效；不请求远程服务，不扫描 `.canvas`。 |
+| 2026-07-18 | 推进 G3：图片浏览器支持本地/图床切换；图床视图仅展示元数据，手动分页会话缓存已访问页并隔离迟到响应；旧配置默认关闭，未实现 Provider 明确显示 unsupported；等待 Obsidian 手动验收。 |
 
 ## 16. 服务商官方参考
 

@@ -18,7 +18,9 @@ main.ts（入口）
 │   ├── request.ts（可注入的 `requestUrl` 边界）
 │   ├── errors.ts（错误分类与敏感信息脱敏）
 │   ├── reference-index.ts（按需 Markdown 远程引用索引）
-│   └── object-reference-matcher.ts（受管 URL 到 object key 的保守匹配）
+│   ├── object-reference-matcher.ts（受管 URL 到 object key 的保守匹配）
+│   ├── management-settings.ts（每个图床的远程管理默认值与规范化）
+│   └── browse-session.ts（手动分页、游标缓存与迟到响应隔离）
 ├── utils/（工具模块）
 │   ├── ref-converter.ts ← constants.ts（正则）
 │   ├── public-url.ts（Markdown URL 的 Unicode 可读化）
@@ -66,6 +68,8 @@ main.ts（入口）
 - `RemoteListRequest.cursor` 属于 Provider 的不透明字符串，公共层只原样透传。
 - `RemoteReferenceIndex` 只在调用方显式扫描时读取 `.md`，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，也不包含 `.canvas`。
 - `RemoteObjectReferenceLookup` 将标准 Markdown 图片引用标记为 `referenced`，受管原始 URL 标记为 `possibly-referenced`；未完成或已失效索引一律不返回“未检测到引用”。
+- `RemoteBrowseSession` 只在用户明确扫描、翻页或刷新时调用 `listObjects()`；上一页命中会话缓存，不会预取或自动遍历后续页。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
+- 远程浏览器仅创建对象元数据表格，不创建远程 `<img>`、预览 URL 或删除操作；真实 Provider 列表能力由后续专项阶段注册。
 
 ## 关键数据流
 
