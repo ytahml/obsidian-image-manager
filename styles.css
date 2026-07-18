@@ -993,15 +993,15 @@
 
 .hosting-config-basic {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 32px;
     margin-bottom: 4px;
 }
 
 .hosting-config-basic-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 160px) minmax(200px, 320px);
+    display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 12px;
     min-width: 0;
     padding: 7px 0;
 }
@@ -1009,9 +1009,14 @@
 .hosting-config-basic-label {
     color: var(--text-normal);
     font-weight: var(--font-medium);
+    white-space: nowrap;
 }
 
-.hosting-config-basic-control,
+.hosting-config-basic-control {
+    flex: 0 0 220px;
+    width: 220px;
+}
+
 .hosting-config-basic-control input,
 .hosting-config-basic-control select {
     width: 100%;
@@ -1130,6 +1135,24 @@
     gap: 8px;
     margin-top: 8px;
     padding-top: 8px;
+}
+
+@media (max-width: 760px) {
+    .hosting-config-basic {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+    }
+
+    .hosting-config-basic-row {
+        display: grid;
+        grid-template-columns: minmax(120px, 160px) minmax(180px, 320px);
+        gap: 24px;
+    }
+
+    .hosting-config-basic-control {
+        width: 100%;
+    }
 }
 
 @media (max-width: 600px) {
