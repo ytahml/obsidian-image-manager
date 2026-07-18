@@ -970,16 +970,16 @@
 }
 
 .hosting-config-basic {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(210px, 0.85fr);
+    gap: 4px 24px;
+    margin-bottom: 4px;
 }
 
-.hosting-config-basic-item,
 .hosting-config-field-grid > .setting-item,
 .hosting-config-body > .setting-item {
     display: grid;
-    grid-template-columns: minmax(180px, 0.85fr) minmax(260px, 1.15fr);
+    grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr);
     align-items: center;
     gap: 24px;
     min-width: 0;
@@ -987,13 +987,26 @@
     background: transparent;
 }
 
-.hosting-config-basic-item .setting-item-control,
 .hosting-config-field-grid > .setting-item .setting-item-control,
 .hosting-config-body > .setting-item .setting-item-control {
     width: 100%;
     max-width: 380px;
     justify-self: end;
     justify-content: flex-end;
+}
+
+.hosting-config-basic-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 0;
+    padding: 4px 0 8px;
+}
+
+.hosting-config-basic-item .setting-item-control {
+    width: 100%;
+    justify-content: flex-start;
 }
 
 .hosting-config-basic-item input,
@@ -1008,11 +1021,16 @@
 }
 
 .hosting-config-basic-item.is-toggle .setting-item-control {
+    width: auto;
     min-height: 0;
     align-items: center;
 }
 
 .hosting-config-basic-item.is-toggle {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     white-space: nowrap;
 }
 
@@ -1064,6 +1082,10 @@
     flex-direction: column;
 }
 
+.hosting-config-upload-fields {
+    margin-bottom: 12px;
+}
+
 .hosting-config-section-label {
     margin: 4px 0 6px;
     color: var(--text-muted);
@@ -1107,6 +1129,10 @@
         gap: 6px;
     }
 
+    .hosting-config-basic {
+        grid-template-columns: 1fr;
+    }
+
     .hosting-config-basic-item .setting-item-control,
     .hosting-config-field-grid > .setting-item .setting-item-control,
     .hosting-config-body > .setting-item .setting-item-control {
@@ -1116,6 +1142,7 @@
     }
 
     .hosting-config-basic-item.is-toggle {
+        grid-column: auto;
         white-space: normal;
     }
 

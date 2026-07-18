@@ -276,13 +276,10 @@ export const en: Record<string, string> = {
     'modal.hosting.sections': 'Image hosting configuration sections',
     'modal.hosting.tabConnection': 'Hosting configuration',
     'modal.hosting.tabRemote': 'Remote management',
-    'modal.hosting.uploadAccess': 'Upload and access',
     'modal.hosting.uploadPath': 'Upload Path',
-    'modal.hosting.uploadPathDesc':
-        'Override the global template. Leave empty to use the global setting. {sourceDir} sends the image folder path to the hosting provider.',
+    'modal.hosting.uploadPathDesc': 'Leave empty for the global template. {sourceDir} preserves the image folder path.',
     'modal.hosting.urlPrefix': 'Public access URL base',
-    'modal.hosting.urlPrefixDesc':
-        'Base path for publicly accessible image URLs. It can include a bucket, for example https://img.example.com or https://minio.example.com/obsidian',
+    'modal.hosting.urlPrefixDesc': 'Base for public image URLs. It may include a bucket, such as https://img.example.com/bucket.',
     'modal.hosting.providerConfig': 'Provider Configuration',
     'modal.hosting.save': 'Save',
     'modal.hosting.s3RegionDesc': 'Must match the S3 server configuration. MinIO typically uses us-east-1.',

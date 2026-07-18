@@ -275,13 +275,10 @@ export const zh: Record<string, string> = {
     'modal.hosting.sections': '图床配置区域',
     'modal.hosting.tabConnection': '图床配置',
     'modal.hosting.tabRemote': '远程管理',
-    'modal.hosting.uploadAccess': '上传与访问',
     'modal.hosting.uploadPath': '上传路径',
-    'modal.hosting.uploadPathDesc':
-        '覆盖全局模板，留空则使用全局设置。{sourceDir} 会将图片所在目录发送给图床服务商。',
+    'modal.hosting.uploadPathDesc': '留空使用全局模板；{sourceDir} 保留图片所在目录。',
     'modal.hosting.urlPrefix': '公共访问 URL 基础路径',
-    'modal.hosting.urlPrefixDesc':
-        '公开访问图片URL的基础路径，可包含bucket，例如https://img.example.com 或https://minio.example.com/obsidian',
+    'modal.hosting.urlPrefixDesc': '图片公开地址的基础路径，可包含 Bucket，如 https://img.example.com/bucket。',
     'modal.hosting.providerConfig': '服务商配置',
     'modal.hosting.save': '保存',
     'modal.hosting.s3RegionDesc': '必须与 S3 服务端配置一致；MinIO 通常填写 us-east-1。',
