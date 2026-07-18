@@ -4,6 +4,7 @@ import type {
     RemoteListPage,
     RemoteListRequest,
     RemoteObject,
+    RemotePreviewUrl,
     RemoteUrlMapping,
 } from './types';
 
@@ -12,7 +13,7 @@ export interface RemoteObjectProvider {
     readonly capabilities: ReadonlySet<RemoteCapability>;
     readonly referenceMapping?: RemoteUrlMapping;
     listObjects(request: RemoteListRequest): Promise<RemoteListPage>;
-    createPreviewUrl?(object: RemoteObject): Promise<string>;
+    createPreviewUrl?(object: RemoteObject): Promise<RemotePreviewUrl>;
     deleteObject?(object: RemoteObject): Promise<RemoteDeleteResult>;
 }
 

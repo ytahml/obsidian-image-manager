@@ -10,12 +10,20 @@ import { createRemoteObjectProvider } from '../remote/provider-factory';
 import type { RemoteObject, RemoteReferenceState, RemoteUrlMapping } from '../remote/types';
 import type { RemoteBrowseFailure } from '../remote/browse-session';
 import { getRemoteResultPage, type RemoteResultSort } from '../remote/result-page';
+import { RemotePreviewSession } from '../remote/preview-session';
+import type { RemoteObjectProvider } from '../remote/provider';
+import { RemoteImagePreviewModal } from './remote-image-preview';
+import {
+    getRemotePreviewUnavailableReason,
+    type RemotePreviewUnavailableReason,
+} from '../remote/preview-policy';
 
 const REMOTE_SCAN_REQUESTS_PER_BATCH = 10;
 
-/** Metadata-only browser view. It must never create remote image elements. */
+/** Metadata-first browser view. Remote images are created only in an explicit preview modal. */
 export class RemoteImageBrowserView {
     private session = new RemoteBrowseSession();
+    private previewSession = new RemotePreviewSession();
     private selectedHostingId = '';
     private emptyPrefixConfirmed = new Set<string>();
     private scanAbortController: AbortController | null = null;
@@ -25,6 +33,8 @@ export class RemoteImageBrowserView {
     private sortBy: RemoteResultSort = 'key';
     private localPageIndex = 0;
     private pageResultsEl: HTMLElement | null = null;
+    private previewCountEl: HTMLElement | null = null;
+    private activePreviewModal: RemoteImagePreviewModal | null = null;
 
     constructor(
         private app: App,
@@ -41,12 +51,14 @@ export class RemoteImageBrowserView {
     }
 
     close() {
+        this.invalidatePreview();
         this.clearSearchDebounce();
         this.flushScheduledSettingsSave();
         this.scanAbortController?.abort();
         this.scanAbortController = null;
         this.session.stop();
         this.pageResultsEl = null;
+        this.previewCountEl = null;
         this.containerEl.empty();
     }
 
@@ -63,6 +75,7 @@ export class RemoteImageBrowserView {
     private render() {
         this.clearSearchDebounce();
         this.pageResultsEl = null;
+        this.previewCountEl = null;
         this.containerEl.empty();
         this.containerEl.addClass('remote-image-browser');
         const configs = this.getConfigs();
@@ -87,6 +100,7 @@ export class RemoteImageBrowserView {
             this.keyword = '';
             this.localPageIndex = 0;
             this.emptyPrefixConfirmed.clear();
+            this.invalidatePreview();
             this.session.invalidate();
             this.render();
         });
@@ -114,6 +128,7 @@ export class RemoteImageBrowserView {
             this.keyword = '';
             this.localPageIndex = 0;
             this.emptyPrefixConfirmed.clear();
+            this.invalidatePreview();
             this.session.invalidate();
             if (this.pageResultsEl) this.renderPageResults(config, this.pageResultsEl);
             range.textContent = t('modal.imageBrowser.remoteRange', {
@@ -166,6 +181,10 @@ export class RemoteImageBrowserView {
                 requests: String(snapshot.pages.length),
             }),
         });
+        this.previewCountEl = actions.createSpan({
+            cls: 'remote-image-browser-page-note',
+            text: this.getPreviewCountText(),
+        });
 
         this.renderReferenceStatus();
         this.renderPage(config);
@@ -195,6 +214,7 @@ export class RemoteImageBrowserView {
     private async runScan(config: ImageHostingConfig) {
         const result = createRemoteObjectProvider(config);
         if (result.status !== 'ready' || !result.provider.capabilities.has('list')) return;
+        this.invalidatePreview();
         this.scanAbortController?.abort();
         const controller = new AbortController();
         this.scanAbortController = controller;
@@ -323,14 +343,19 @@ export class RemoteImageBrowserView {
         } else if (objects.length > 0) {
             const table = container.createEl('table', { cls: 'remote-image-browser-table' });
             const header = table.createEl('thead').createEl('tr');
-            for (const text of ['Key', 'Size', 'Modified', 'ETag', 'Storage', 'Reference']) header.createEl('th', { text });
+            for (const text of ['Key', 'Size', 'Modified', 'ETag', 'Storage', 'Reference', t('modal.imageBrowser.remoteAction')]) {
+                header.createEl('th', { text });
+            }
             const body = table.createEl('tbody');
             const providerResult = createRemoteObjectProvider(config);
             const mapping = providerResult.status === 'ready'
                 ? providerResult.provider.referenceMapping ?? toUrlMapping(config)
                 : toUrlMapping(config);
             const lookup = this.plugin.remoteReferenceIndex.createLookup(mapping);
-            for (const object of objects) this.renderObjectRow(body, object, lookup.classify(object));
+            const provider = providerResult.status === 'ready' ? providerResult.provider : undefined;
+            for (const object of objects) {
+                this.renderObjectRow(body, config, provider, object, lookup.classify(object));
+            }
         }
 
         const pagination = container.createDiv({ cls: 'remote-image-browser-pagination' });
@@ -372,7 +397,13 @@ export class RemoteImageBrowserView {
         void this.plugin.saveSettings();
     }
 
-    private renderObjectRow(rowParent: HTMLElement, object: RemoteObject, state: RemoteReferenceState) {
+    private renderObjectRow(
+        rowParent: HTMLElement,
+        config: ImageHostingConfig,
+        provider: RemoteObjectProvider | undefined,
+        object: RemoteObject,
+        state: RemoteReferenceState
+    ) {
         const row = rowParent.createEl('tr');
         row.createEl('td', { text: object.key });
         row.createEl('td', { text: formatFileSize(object.size) });
@@ -380,6 +411,59 @@ export class RemoteImageBrowserView {
         row.createEl('td', { text: object.etag ?? '—' });
         row.createEl('td', { text: object.storageClass ?? '—' });
         row.createEl('td', { text: referenceLabel(state) });
+        const actionCell = row.createEl('td');
+        const unavailableReason = getRemotePreviewUnavailableReason(
+            config,
+            provider,
+            object,
+            this.plugin.settings.supportedExtensions
+        );
+        const unavailable = unavailableReason
+            ? getPreviewUnavailableMessage(unavailableReason)
+            : undefined;
+        const preview = actionCell.createEl('button', {
+            text: t('modal.imageBrowser.remotePreview'),
+            attr: unavailable ? { title: unavailable } : {},
+        });
+        preview.disabled = unavailable !== undefined;
+        if (provider && !unavailable) {
+            preview.addEventListener('click', () => this.openPreview(provider, object));
+        }
+    }
+
+    private openPreview(provider: RemoteObjectProvider, object: RemoteObject): void {
+        this.activePreviewModal?.close();
+        let modal: RemoteImagePreviewModal;
+        modal = new RemoteImagePreviewModal(
+            this.app,
+            object,
+            (force) => this.previewSession.resolveUrl(provider, object, { force }),
+            () => {
+                this.previewSession.recordImageRequest();
+                if (this.previewCountEl) this.previewCountEl.textContent = this.getPreviewCountText();
+            },
+            () => {
+                if (this.activePreviewModal === modal) {
+                    this.activePreviewModal = null;
+                    this.previewSession.invalidate();
+                }
+            }
+        );
+        this.activePreviewModal = modal;
+        modal.open();
+    }
+
+    private invalidatePreview(): void {
+        const modal = this.activePreviewModal;
+        this.activePreviewModal = null;
+        modal?.close();
+        this.previewSession.invalidate();
+    }
+
+    private getPreviewCountText(): string {
+        return t('modal.imageBrowser.remotePreviewCount', {
+            count: String(this.previewSession.getRequestCount()),
+        });
     }
 }
 
@@ -410,6 +494,16 @@ function referenceLabel(state: RemoteReferenceState): string {
         unmappable: 'modal.imageBrowser.remoteUnmappable',
     };
     return t(keys[state]);
+}
+
+function getPreviewUnavailableMessage(reason: RemotePreviewUnavailableReason): string {
+    const keys: Record<RemotePreviewUnavailableReason, string> = {
+        unsupported: 'modal.remotePreview.unsupported',
+        'public-url-required': 'modal.remotePreview.publicUrlRequired',
+        archived: 'modal.remotePreview.archived',
+        'not-image': 'modal.remotePreview.notImage',
+    };
+    return t(keys[reason]);
 }
 
 function getRemoteFailureMessage(failure: RemoteBrowseFailure | undefined): string {

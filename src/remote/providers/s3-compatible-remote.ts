@@ -3,22 +3,33 @@ import { getRemoteManagementConfig } from '../management-settings';
 import { RemoteProviderError, codeForHttpStatus, sanitizeRemoteEndpoint } from '../errors';
 import { RemoteRequestClient } from '../request';
 import type { RemoteObjectProvider } from '../provider';
-import type { RemoteListPage, RemoteListRequest, RemoteObject, RemoteUrlMapping } from '../types';
+import type {
+    RemoteListPage,
+    RemoteListRequest,
+    RemoteObject,
+    RemotePreviewUrl,
+    RemoteUrlMapping,
+} from '../types';
 import {
     S3RequestConfigurationError,
     buildS3RequestTarget,
+    presignS3GetRequest,
     signS3Request,
     type S3QueryParameter,
 } from '../../s3/sigv4';
-import { normalizePublicUrlBase } from '../../uploaders/public-url';
+import {
+    encodePublicPath,
+    joinPublicUrl,
+    normalizePublicUrlBase,
+} from '../../uploaders/public-url';
 
 export type S3XmlDocumentParser = (xml: string) => Document;
 
-const LIST_CAPABILITIES = new Set<'list'>(['list']);
+const S3_CAPABILITIES = new Set<'list' | 'preview'>(['list', 'preview']);
 
 /** Metadata-only S3-compatible remote provider. */
 export class S3RemoteObjectProvider implements RemoteObjectProvider {
-    readonly capabilities = LIST_CAPABILITIES;
+    readonly capabilities = S3_CAPABILITIES;
     readonly referenceMapping: RemoteUrlMapping;
     private readonly s3Config: S3Config;
 
@@ -70,6 +81,37 @@ export class S3RemoteObjectProvider implements RemoteObjectProvider {
             this.hostingConfig.id,
             this.parseXml
         );
+    }
+
+    async createPreviewUrl(object: RemoteObject): Promise<RemotePreviewUrl> {
+        const settings = getRemoteManagementConfig(this.hostingConfig);
+        if (settings.previewAccess === 'public') {
+            const base = normalizePublicUrlBase(this.hostingConfig.urlPrefix);
+            if (!base) throw new RemoteProviderError('configuration');
+            return {
+                url: joinPublicUrl(base, encodePublicPath(object.key)),
+                access: 'public',
+            };
+        }
+
+        try {
+            const preview = await presignS3GetRequest({
+                config: this.s3Config,
+                key: object.key,
+                expiresInSeconds: 300,
+                now: this.now(),
+            });
+            return {
+                url: preview.url,
+                access: 'presigned',
+                expiresAt: preview.expiresAt,
+            };
+        } catch (error) {
+            if (error instanceof S3RequestConfigurationError) {
+                throw new RemoteProviderError('configuration');
+            }
+            throw error;
+        }
     }
 }
 

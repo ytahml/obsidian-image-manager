@@ -42,6 +42,7 @@ function hostingConfig(overrides: Partial<ImageHostingConfig> = {}): ImageHostin
             prefix: 'vault-a',
             pageSize: 2,
             previewMode: 'manual',
+            previewAccess: 'presigned',
             deleteEnabled: false,
             publicUrlAliases: ['https://origin.example.com/root/'],
         },
@@ -165,6 +166,59 @@ describe('S3 remote provider', () => {
 
         await expect(provider.listObjects({ prefix: '', limit: 1 }))
             .rejects.toMatchObject({ code: 'configuration' });
+    });
+
+    it('creates a 300-second private preview without making a provider request', async () => {
+        const execute = vi.fn();
+        const provider = new S3RemoteObjectProvider(
+            hostingConfig(), new RemoteRequestClient(execute), parseXml,
+            () => new Date('2026-07-18T04:05:06.000Z')
+        );
+
+        const preview = await provider.createPreviewUrl({
+            hostingId: 's3-hosting',
+            key: 'vault-a/中文 image.png',
+            size: 42,
+        });
+
+        expect(preview).toMatchObject({
+            access: 'presigned',
+            expiresAt: Date.parse('2026-07-18T04:10:06.000Z'),
+        });
+        expect(preview.url).toContain('/proxy/s3/images/vault-a/%E4%B8%AD%E6%96%87%20image.png?');
+        expect(preview.url).toContain('X-Amz-Expires=300');
+        expect(execute).not.toHaveBeenCalled();
+    });
+
+    it('uses only urlPrefix for an explicitly public preview', async () => {
+        const config = hostingConfig();
+        config.remoteManagement!.previewAccess = 'public';
+        const provider = new S3RemoteObjectProvider(config);
+
+        await expect(provider.createPreviewUrl({
+            hostingId: config.id,
+            key: 'images/中文 #?%()+&=.png',
+            size: 1,
+        })).resolves.toEqual({
+            access: 'public',
+            url: 'https://cdn.example.com/vault/images/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png',
+        });
+    });
+
+    it('rejects a public preview without retaining or guessing an endpoint URL', async () => {
+        const config = hostingConfig({ urlPrefix: '' });
+        config.remoteManagement!.previewAccess = 'public';
+        const provider = new S3RemoteObjectProvider(config);
+
+        const promise = provider.createPreviewUrl({
+            hostingId: config.id,
+            key: 'images/a.png',
+            size: 1,
+        });
+        await expect(promise).rejects.toMatchObject({ code: 'configuration' });
+        await promise.catch((error: unknown) => {
+            expect(JSON.stringify(error)).not.toContain('minio.example.com');
+        });
     });
 });
 

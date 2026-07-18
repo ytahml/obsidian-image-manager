@@ -19,6 +19,7 @@ function config(prefix = 'vault-a'): ImageHostingConfig {
             prefix,
             pageSize: 100,
             previewMode: 'manual',
+            previewAccess: 'presigned',
             deleteEnabled: false,
             publicUrlAliases: [],
         },

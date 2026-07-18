@@ -9,7 +9,11 @@ vi.mock('obsidian', () => ({ requestUrl }));
 import { S3Uploader } from '../src/uploaders/s3-compatible';
 import { buildS3CanonicalUri, buildS3Url } from '../src/uploaders/s3-path';
 import { createUploader } from '../src/uploaders/uploader-factory';
-import { buildS3CanonicalQuery, signS3Request } from '../src/s3/sigv4';
+import {
+    buildS3CanonicalQuery,
+    presignS3GetRequest,
+    signS3Request,
+} from '../src/s3/sigv4';
 
 function createS3Config(overrides: Partial<S3Config> = {}): S3Config {
     return {
@@ -133,6 +137,62 @@ describe('S3 path construction', () => {
             method: 'GET',
             key: '',
         })).rejects.toThrow('S3 region is required');
+    });
+
+    it('presigns a path-style GET with only host and an unsigned payload', async () => {
+        const request = await presignS3GetRequest({
+            config: createS3Config({ endpoint: 'http://minio.example.com:9000/proxy/s3/' }),
+            key: 'images/中文 #?%()+&=.png',
+            now: new Date('2026-07-18T04:05:06.000Z'),
+        });
+        const url = new URL(request.url);
+
+        expect(request.url).toBe(
+            'http://minio.example.com:9000/proxy/s3/images/images/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png' +
+            '?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access-key%2F20260718%2Fus-east-1%2Fs3%2Faws4_request' +
+            '&X-Amz-Date=20260718T040506Z&X-Amz-Expires=300&X-Amz-SignedHeaders=host' +
+            '&X-Amz-Signature=8a00a0968401eca06f00786931188dea456c49a5bc6d8faa04f78c4aed01c9e2'
+        );
+        expect(`${url.origin}${url.pathname}`).toBe(
+            'http://minio.example.com:9000/proxy/s3/images/images/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png'
+        );
+        expect(Object.fromEntries(url.searchParams)).toMatchObject({
+            'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+            'X-Amz-Credential': 'access-key/20260718/us-east-1/s3/aws4_request',
+            'X-Amz-Date': '20260718T040506Z',
+            'X-Amz-Expires': '300',
+            'X-Amz-SignedHeaders': 'host',
+        });
+        expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[a-f0-9]{64}$/);
+        expect(request.canonicalRequest).toBe([
+            'GET',
+            '/proxy/s3/images/images/%E4%B8%AD%E6%96%87%20%23%3F%25%28%29%2B%26%3D.png',
+            'X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access-key%2F20260718%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260718T040506Z&X-Amz-Expires=300&X-Amz-SignedHeaders=host',
+            'host:minio.example.com:9000',
+            '',
+            'host',
+            'UNSIGNED-PAYLOAD',
+        ].join('\n'));
+        expect(request.expiresAt).toBe(Date.parse('2026-07-18T04:10:06.000Z'));
+    });
+
+    it('presigns virtual-hosted R2 with auto region and validates the expiry', async () => {
+        const config = createS3Config({
+            endpoint: 'https://account.r2.cloudflarestorage.com',
+            region: '',
+            forcePathStyle: false,
+        });
+        const request = await presignS3GetRequest({
+            config,
+            key: 'folder/a b.png',
+            expiresInSeconds: 1,
+            now: new Date('2026-07-18T04:05:06.000Z'),
+        });
+
+        expect(request.url).toContain('Credential=access-key%2F20260718%2Fauto%2Fs3%2Faws4_request');
+        expect(request.url).toContain('https://images.account.r2.cloudflarestorage.com/folder/a%20b.png?');
+        await expect(presignS3GetRequest({ config, key: '', expiresInSeconds: 604801 }))
+            .rejects.toThrow('S3 presigned URL expiry is invalid');
     });
 });
 

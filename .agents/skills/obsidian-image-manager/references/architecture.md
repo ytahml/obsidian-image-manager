@@ -20,7 +20,8 @@ main.ts（入口）
 │   ├── reference-index.ts（按需 Markdown 远程引用索引）
 │   ├── object-reference-matcher.ts（受管 URL 到 object key 的保守匹配）
 │   ├── management-settings.ts（每个图床的远程管理默认值与规范化）
-│   └── browse-session.ts（自动批次扫描、游标缓存与迟到响应隔离）
+│   ├── browse-session.ts（自动批次扫描、游标缓存与迟到响应隔离）
+│   └── preview-session.ts（会话内预览 URL 缓存、到期重签与请求计数）
 │   ├── result-page.ts（已扫描元数据的本地搜索、排序与结果分页）
 │   └── providers/s3-compatible-remote.ts（S3 ListObjectsV2、XML 解析、错误映射与引用 URL bases）
 ├── s3/
@@ -74,7 +75,7 @@ main.ts（入口）
 - `RemoteObjectReferenceLookup` 将标准 Markdown 图片引用标记为 `referenced`，受管原始 URL 标记为 `possibly-referenced`；未完成或已失效索引一律不返回“未检测到引用”。
 - `RemoteBrowseSession` 只在用户明确扫描、继续或刷新时调用 `listObjects()`；扫描内部以 1000 项为请求批次自动追踪 opaque cursor，每最多 10 次请求暂停并等待用户继续。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
 - S3-compatible 已注册首个真实 list Provider：共享 SigV4 层保证请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和结果分页在本地对已扫描集合执行。
-- 远程浏览器仅创建对象元数据表格，不创建远程 `<img>`、预览 URL 或删除操作；当前不支持 OSS、七牛和 Custom 的列表能力。
+- 远程浏览器初始只创建对象元数据表格；S3 对象只有在用户点击“预览”后才由独立 Modal 创建一个远程 `<img>`。私有模式使用 300 秒 presigned GET，公开模式只使用明确配置的 `urlPrefix`；关闭或范围变化会清空会话 URL 并隔离迟到结果。当前不支持 OSS、七牛和 Custom 的列表能力。
 
 ## 关键数据流
 

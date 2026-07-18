@@ -24,6 +24,22 @@ export interface S3SignedRequest extends S3RequestTarget {
     canonicalRequest: string;
 }
 
+export interface S3PresignGetOptions {
+    config: S3Config;
+    key: string;
+    expiresInSeconds?: number;
+    now?: Date;
+}
+
+export interface S3PresignedGetRequest {
+    url: string;
+    expiresAt: number;
+    canonicalRequest: string;
+}
+
+const MAX_PRESIGN_EXPIRY_SECONDS = 7 * 24 * 60 * 60;
+const DEFAULT_PRESIGN_EXPIRY_SECONDS = 300;
+
 /** A configuration failure that is safe to show without retaining credentials. */
 export class S3RequestConfigurationError extends Error {
     constructor(message: string) {
@@ -130,6 +146,60 @@ export async function signS3Request(options: S3SignRequestOptions): Promise<S3Si
     if (options.contentType) headers['Content-Type'] = options.contentType;
 
     return { ...target, headers, canonicalRequest };
+}
+
+/** Create a query-authenticated GET URL without requiring browser-controlled headers. */
+export async function presignS3GetRequest(
+    options: S3PresignGetOptions
+): Promise<S3PresignedGetRequest> {
+    const expiresInSeconds = options.expiresInSeconds ?? DEFAULT_PRESIGN_EXPIRY_SECONDS;
+    if (
+        !Number.isInteger(expiresInSeconds) ||
+        expiresInSeconds < 1 ||
+        expiresInSeconds > MAX_PRESIGN_EXPIRY_SECONDS
+    ) {
+        throw new S3RequestConfigurationError('S3 presigned URL expiry is invalid.');
+    }
+
+    const now = options.now ?? new Date();
+    const amzDate = formatAmzDate(now);
+    const dateStamp = formatDateStamp(now);
+    const region = resolveS3SigningRegion(options.config);
+    const credentialScope = `${dateStamp}/${region}/s3/aws4_request`;
+    const query: S3QueryParameter[] = [
+        ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+        ['X-Amz-Credential', `${options.config.accessKeyId}/${credentialScope}`],
+        ['X-Amz-Date', amzDate],
+        ['X-Amz-Expires', String(expiresInSeconds)],
+        ['X-Amz-SignedHeaders', 'host'],
+    ];
+    const target = buildS3RequestTarget(options.config, options.key, query);
+    const canonicalRequest = [
+        'GET',
+        target.canonicalUri,
+        target.canonicalQuery,
+        `host:${target.host}\n`,
+        'host',
+        'UNSIGNED-PAYLOAD',
+    ].join('\n');
+    const stringToSign = [
+        'AWS4-HMAC-SHA256',
+        amzDate,
+        credentialScope,
+        await sha256Hex(new TextEncoder().encode(canonicalRequest)),
+    ].join('\n');
+    const signingKey = await getSignatureKey(
+        options.config.secretAccessKey,
+        dateStamp,
+        region
+    );
+    const signature = await hmacSha256Hex(signingKey, stringToSign);
+
+    return {
+        url: `${target.url}&X-Amz-Signature=${signature}`,
+        expiresAt: now.getTime() + expiresInSeconds * 1000,
+        canonicalRequest,
+    };
 }
 
 export function resolveS3SigningRegion(config: S3Config): string {

@@ -5,6 +5,7 @@ export const DEFAULT_REMOTE_MANAGEMENT_CONFIG: Readonly<RemoteManagementConfig> 
     prefix: '',
     pageSize: 100,
     previewMode: 'manual',
+    previewAccess: 'presigned',
     deleteEnabled: false,
     publicUrlAliases: [],
 };
@@ -17,6 +18,7 @@ export function getRemoteManagementConfig(config: ImageHostingConfig): RemoteMan
         prefix: normalizeRemotePrefix(value?.prefix ?? DEFAULT_REMOTE_MANAGEMENT_CONFIG.prefix),
         pageSize: normalizeRemotePageSize(value?.pageSize),
         previewMode: value?.previewMode === 'viewport' ? 'viewport' : 'manual',
+        previewAccess: value?.previewAccess === 'public' ? 'public' : 'presigned',
         deleteEnabled: value?.deleteEnabled ?? DEFAULT_REMOTE_MANAGEMENT_CONFIG.deleteEnabled,
         publicUrlAliases: normalizePublicUrlAliases(value?.publicUrlAliases ?? []),
     };

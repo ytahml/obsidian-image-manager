@@ -149,6 +149,27 @@ export class HostingConfigModal extends Modal {
                     remote.pageSize = normalizeRemotePageSize(Number(value));
                 });
             });
+        if (this.config.type === 's3') {
+            new Setting(container)
+                .setName(t('modal.hosting.remotePreviewAccess'))
+                .setDesc(t('modal.hosting.remotePreviewAccessDesc'))
+                .addDropdown((dropdown) =>
+                    dropdown
+                        .addOption('presigned', t('modal.hosting.remotePreviewPresigned'))
+                        .addOption('public', t('modal.hosting.remotePreviewPublic'))
+                        .setValue(remote.previewAccess)
+                        .onChange((value) => {
+                            remote.previewAccess = value === 'public' ? 'public' : 'presigned';
+                            this.renderForm();
+                        })
+                );
+            if (remote.previewAccess === 'public' && !this.config.urlPrefix.trim()) {
+                container.createDiv({
+                    cls: 'setting-item-description mod-warning',
+                    text: t('modal.hosting.remotePreviewPublicWarning'),
+                });
+            }
+        }
         new Setting(container)
             .setName(t('modal.hosting.remoteAliases'))
             .setDesc(t('modal.hosting.remoteAliasesDesc'));

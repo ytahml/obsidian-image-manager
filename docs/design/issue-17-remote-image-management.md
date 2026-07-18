@@ -2,11 +2,11 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：G0–G3、S3-1 与 S3-2 已完成；Issue #23 的合并后修复已通过 Cloudflare R2 与 MinIO 验收。
+> 文档状态：G0–G4、S3-1～S3-3 已完成；S3 列举、浏览器接入及公开/私有手动预览均已通过 Cloudflare R2 与 MinIO 验收。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
-> S3 后续交付约定：剩余 S3 预览、删除与兼容性收尾统一由子 Issue [#26](https://github.com/ytahml/obsidian-image-manager/issues/26) 跟踪，并持续使用分支 `feat/issue-26-s3-remote-management`，直到 S3-3～S3-5 全部完成；不再为内部 S3 小阶段创建额外 Issue 或分支。
+> S3 后续交付约定：剩余 S3 删除与兼容性收尾统一由子 Issue [#26](https://github.com/ytahml/obsidian-image-manager/issues/26) 跟踪，并持续使用分支 `feat/issue-26-s3-remote-management`，直到 S3-4～S3-5 全部完成；不再为内部 S3 小阶段创建额外 Issue 或分支。
 
 ## 1. 目标与产品结论
 
@@ -405,13 +405,14 @@ MinIO 专项：
 
 **实施内容**
 
-1. 默认 `manual`：点击对象后才生成/请求预览 URL。
-2. `viewport` 作为后续可选模式，使用 `IntersectionObserver`，并发上限建议为 3。
-3. 离开视口或关闭 Modal 后停止继续调度；清理对象 URL、计时器和 observer。
-4. 私有图床只生成短时临时 URL，不写入设置、持久缓存或日志。
-5. 对失败预览显示占位符和重试按钮，不自动无限重试。
-6. 显示本次会话已请求预览数量；若能可靠获得响应大小，再显示已下载量。
-7. Provider 图片处理参数只作为可选优化，不作为基础预览依赖。
+1. 默认 `manual`：对象行只提供操作按钮，点击后才在独立预览 Modal 生成/请求预览 URL；同一时间只保留一个活动预览。
+2. S3 必须明确选择 `presigned | public`；旧配置默认 presigned，公开模式只使用 `urlPrefix`，不得猜测 ACL 或回退。
+3. 私有图床只生成 300 秒临时 URL；会话内可复用，但距到期不足 30 秒或用户重试时重新生成，不写入设置、持久缓存或日志。
+4. 关闭预览/浏览器、切换图床、修改前缀或刷新扫描时清除 URL 缓存并作废迟到结果；图片元素使用 `no-referrer`。
+5. 对失败预览显示占位符和重试按钮，不自动无限重试；列表、搜索、排序和本地分页保持可用。
+6. 显示本次会话实际设置远程 `<img src>` 的次数，失败与人工重试分别计数；首版不统计下载字节。
+7. 非支持图片类型与已知归档存储类型不请求；Provider 图片处理参数不作为基础预览依赖。
+8. `viewport`、列表缩略图和后台预加载继续延期，不进入 Issue #26 当前预览交付。
 
 **阶段验收标准**
 
@@ -757,10 +758,12 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 
 **实施内容**
 
-1. presigned GET 继承 endpoint、region、path style 和 object key 编码逻辑。
-2. 设置短有效期并支持到期重签，不持久化 URL。
-3. 若 endpoint 不支持 presigned GET，保留元数据列表并显示 preview unsupported。
-4. 不假设 S3-compatible 服务具有统一图片缩略处理能力。
+1. presigned GET 继承 endpoint、region、path style、base path 和 object key 编码逻辑，只签 `host` 并使用 `UNSIGNED-PAYLOAD`。
+2. 固定 300 秒有效期；会话内缓存、距到期不足 30 秒或人工重试时重签，不持久化 URL。
+3. 公开模式只使用用户明确配置的 `urlPrefix + encoded key`；缺少 `urlPrefix` 时只禁用预览，不影响列表和上传。
+4. 独立预览 Modal 同时只保留一个活动图片；关闭或范围变化清理 URL 并隔离迟到签名/图片事件。
+5. 若 endpoint 不支持 presigned GET，保留元数据列表并显示脱敏预览失败，不回退为无签名访问。
+6. 不假设 S3-compatible 服务具有统一图片缩略处理能力。
 
 **阶段验收标准**
 
@@ -968,7 +971,7 @@ P0 计划文件
 | G1 | 远程对象公共接口与测试底座 | 已完成 | G0 | 2026-07-17：G 系列共用分支 `feat/issue-17-g-series` 本地变更，关联 #19；新增公共类型、factory、错误脱敏、可 mock 请求边界和 opaque cursor 测试；`npm test` 94/94、`npm run build`、`git diff --check` 通过 |
 | G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；`.canvas` 显式未覆盖且未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
 | G3 | 远程图片浏览器外壳与元数据分页 | 已完成 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；`npm test` 109/109、`npm run build`、`git diff --check` 通过，用户已完成 Obsidian 基本验收；真实 Provider 列举由 Issue #23 覆盖 |
-| G4 | 按需预览与流量控制 | 进行中 | G3 | Issue #26：先交付手动按需预览、短时 URL、会话失效和并发控制；viewport 自动预览不在首版范围 |
+| G4 | 按需预览与流量控制 | 已完成 | G3 | Issue #26：手动独立预览 Modal、显式公开/签名访问、短时 URL、会话失效与请求计数已实现；自动化 140/140，Cloudflare R2 与 MinIO 公开/私有预览验收通过；viewport 不在范围 |
 | G5 | 删除安全框架 | 未开始 | G2、G3 | Issue #26 同一长期分支承接；须先完成 `.canvas` 引用扫描和公共删除门禁 |
 | G6 | 统一上传结果与持久化上传清单 | 未开始 | G1 | |
 | G7 | 跨图床整合、文档与发布门禁 | 未开始 | 已交付 Provider 阶段 | |
@@ -984,7 +987,7 @@ P0 计划文件
 | QN-5 | 七牛加固与文档 | 未开始 | QN-3、QN-4 | |
 | S3-1 | SigV4 与 ListObjectsV2 | 已完成 | G1 | Issue #23：共享 SigV4、ListObjectsV2、XML 解析、1000 项内部批次与游标保护已实现；Cloudflare R2、MinIO 验收通过；`npm test` 130/130、`npm run build`、`git diff --check` 通过 |
 | S3-2 | 兼容性探测、URL 映射与 UI | 已完成 | G2、G3、S3-1 | Issue #23：生产 registry、结构化错误、URL bases、自动批次扫描、本地搜索/排序/分页与 metadata-only UI 已验收；开发依赖未进入生产 bundle |
-| S3-3 | S3 presigned GET 预览 | 进行中 | G4、S3-2 | Issue #26，长期分支 `feat/issue-26-s3-remote-management` |
+| S3-3 | S3 presigned GET 预览 | 已完成 | G4、S3-2 | Issue #26：公开 `urlPrefix` 与 300 秒 presigned GET、到期重签、独立 Modal 和脱敏失败已实现；自动化 140/140，Cloudflare R2 与 MinIO 公开/私有人工验收通过 |
 | S3-4 | S3 DeleteObject | 未开始 | G5、S3-2 | Issue #26，同一长期分支，不另建内部阶段 Issue |
 | S3-5 | S3-compatible 兼容矩阵与文档 | 未开始 | S3-3、S3-4 | Issue #26，同一长期分支完成 R2/MinIO 真实验收与收尾 |
 | CU-0 | Custom unsupported 能力边界 | 未开始 | G1 | |
@@ -1065,6 +1068,7 @@ P0 计划文件
 
 | 日期 | 变更 |
 |------|------|
+| 2026-07-18 | 完成 Issue #26 手动预览：新增显式 `presigned | public` 设置、300 秒 SigV4 presigned GET、30 秒到期安全窗口、会话缓存/失效、独立预览 Modal、人工重试和请求计数；`npm test` 140/140、`npm run build`、`git diff --check` 通过，Cloudflare R2 与 MinIO 公开/私有人工验收通过。 |
 | 2026-07-18 | 完成 Issue #23 合并后修复并通过验收：前缀和结果页大小输入即时生效、防抖保存；远端分页改为自动批次扫描与本地搜索结果分页；修复终页无 cursor 被误判为重复 cursor 的问题；自动化基线 130/130。 |
 | 2026-07-18 | 创建 Issue #26 和长期 S3 分支，冻结手动按需预览、300 秒 presigned GET、`.canvas` 删除门禁、20 项/2 并发删除上限及 R2/MinIO 收尾计划。 |
 | 2026-07-15 | 创建 Issue #17 持续实施计划，覆盖公共阶段与四种图床专项阶段。 |

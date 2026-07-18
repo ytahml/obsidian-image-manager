@@ -48,6 +48,7 @@ export interface RemoteManagementConfig {
     prefix: string;
     pageSize: number;
     previewMode: 'manual' | 'viewport';
+    previewAccess: 'presigned' | 'public';
     deleteEnabled: boolean;
     publicUrlAliases: string[];
 }

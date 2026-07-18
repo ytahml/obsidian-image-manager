@@ -25,7 +25,7 @@
 
 | 文档 | 状态 | 关联 Issue | 说明 |
 |------|------|------------|------|
-| [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中（Issue #26 承接剩余 S3 工作） | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3 列表已验收；长期分支推进按需预览、安全删除与兼容性收尾 |
+| [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中（Issue #26 承接剩余 S3 工作） | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3 列表与公开/私有手动预览已验收；长期分支继续推进安全删除与兼容性收尾 |
 
 ## 新建设计文档模板
 

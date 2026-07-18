@@ -1,6 +1,16 @@
 /** Capabilities that a remote object provider can expose independently. */
 export type RemoteCapability = 'list' | 'preview' | 'delete';
 
+/** Explicit access contract for one manually requested remote preview. */
+export type RemotePreviewAccess = 'presigned' | 'public';
+
+/** Ephemeral URL returned for a remote preview request. */
+export interface RemotePreviewUrl {
+    url: string;
+    access: RemotePreviewAccess;
+    expiresAt?: number;
+}
+
 /** Conservative reference states for objects managed outside the Vault. */
 export type RemoteReferenceState =
     | 'referenced'
