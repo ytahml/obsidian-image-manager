@@ -956,6 +956,11 @@
     height: 100%;
 }
 
+.hosting-config-modal .setting-item {
+    border-top: 0;
+    border-bottom: 0;
+}
+
 .hosting-config-header {
     flex: 0 0 auto;
 }
@@ -965,53 +970,50 @@
 }
 
 .hosting-config-basic {
-    display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto;
-    gap: 16px;
+    display: flex;
+    flex-direction: column;
     margin-bottom: 14px;
 }
 
 .hosting-config-basic-item,
-.hosting-config-field-grid > .setting-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
+.hosting-config-field-grid > .setting-item,
+.hosting-config-body > .setting-item {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.85fr) minmax(260px, 1.15fr);
+    align-items: center;
+    gap: 24px;
     min-width: 0;
-    padding: 4px 0 8px;
-    border: 0;
+    padding: 8px 0;
     background: transparent;
 }
 
 .hosting-config-basic-item .setting-item-control,
-.hosting-config-field-grid > .setting-item .setting-item-control {
+.hosting-config-field-grid > .setting-item .setting-item-control,
+.hosting-config-body > .setting-item .setting-item-control {
     width: 100%;
-    justify-content: flex-start;
+    max-width: 380px;
+    justify-self: end;
+    justify-content: flex-end;
 }
 
 .hosting-config-basic-item input,
 .hosting-config-basic-item select,
 .hosting-config-field-grid input,
-.hosting-config-field-grid select {
+.hosting-config-field-grid select,
+.hosting-config-field-grid textarea,
+.hosting-config-body > .setting-item input,
+.hosting-config-body > .setting-item select,
+.hosting-config-body > .setting-item textarea {
     width: 100%;
 }
 
 .hosting-config-basic-item.is-toggle .setting-item-control {
-    width: auto;
     min-height: 0;
     align-items: center;
 }
 
 .hosting-config-basic-item.is-toggle {
-    flex-direction: row;
-    align-items: center;
-    align-self: end;
-    justify-content: flex-end;
-    padding-bottom: 12px;
     white-space: nowrap;
-}
-
-.hosting-config-basic-item.is-toggle .setting-item-info {
-    flex: 0 0 auto;
 }
 
 .hosting-config-tabs {
@@ -1053,14 +1055,8 @@
 }
 
 .hosting-config-field-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 24px;
-    row-gap: 4px;
-}
-
-.hosting-config-field-grid > .setting-item.is-wide {
-    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
 }
 
 .hosting-config-section-label {
@@ -1072,8 +1068,6 @@
 
 .hosting-config-section-label:not(:first-child) {
     margin-top: 18px;
-    padding-top: 14px;
-    border-top: 1px solid var(--background-modifier-border);
 }
 
 .hosting-config-remote-aliases {
@@ -1087,8 +1081,7 @@
     justify-content: flex-end;
     gap: 8px;
     margin-top: 8px;
-    padding-top: 12px;
-    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 8px;
 }
 
 @media (max-width: 600px) {
@@ -1101,19 +1094,24 @@
         max-height: calc(100dvh - 24px);
     }
 
-    .hosting-config-basic,
-    .hosting-config-field-grid {
+    .hosting-config-basic-item,
+    .hosting-config-field-grid > .setting-item,
+    .hosting-config-body > .setting-item {
         grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 6px;
     }
 
-    .hosting-config-field-grid > .setting-item.is-wide {
-        grid-column: auto;
+    .hosting-config-basic-item .setting-item-control,
+    .hosting-config-field-grid > .setting-item .setting-item-control,
+    .hosting-config-body > .setting-item .setting-item-control {
+        max-width: none;
+        justify-self: stretch;
+        justify-content: flex-start;
     }
 
     .hosting-config-basic-item.is-toggle {
-        align-self: auto;
-        justify-content: flex-start;
-        padding-bottom: 8px;
+        white-space: normal;
     }
 
     .hosting-config-tabs button {
@@ -1123,10 +1121,9 @@
 
 /* Extra Body Fields */
 .extra-body-container {
-    margin: 4px 0 8px;
-    padding: 8px;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 .extra-body-row {

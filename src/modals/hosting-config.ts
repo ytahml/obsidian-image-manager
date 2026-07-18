@@ -212,15 +212,14 @@ export class HostingConfigModal extends Modal {
         }
         new Setting(container)
             .setName(t('modal.hosting.remoteAliases'))
-            .setDesc(t('modal.hosting.remoteAliasesDesc'));
-        const aliasesInput = container.createEl('textarea', {
-            cls: 'hosting-config-remote-aliases',
-        });
-        aliasesInput.rows = 3;
-        aliasesInput.value = remote.publicUrlAliases.join('\n');
-        aliasesInput.addEventListener('input', () => {
-            remote.publicUrlAliases = normalizePublicUrlAliases(aliasesInput.value.split('\n'));
-        });
+            .setDesc(t('modal.hosting.remoteAliasesDesc'))
+            .addTextArea((text) => {
+                text.inputEl.classList.add('hosting-config-remote-aliases');
+                text.inputEl.rows = 3;
+                text.setValue(remote.publicUrlAliases.join('\n')).onChange((value) => {
+                    remote.publicUrlAliases = normalizePublicUrlAliases(value.split('\n'));
+                });
+            });
     }
 
     private renderConnectionFields(container: HTMLElement) {
@@ -436,10 +435,10 @@ export class HostingConfigModal extends Modal {
             });
         headers.settingEl.addClass('is-wide');
 
-        new Setting(container)
+        const extraBody = new Setting(container)
             .setName(t('modal.hosting.extraBody'))
             .setDesc(t('modal.hosting.extraBodyDesc'));
-        const extraBodyContainer = container.createDiv({ cls: 'extra-body-container' });
+        const extraBodyContainer = extraBody.controlEl.createDiv({ cls: 'extra-body-container' });
         this.renderExtraBodyFields(extraBodyContainer, cfg);
     }
 
