@@ -9,6 +9,9 @@ import { getRemoteManagementConfig, normalizeRemotePageSize, normalizeRemotePref
 import { createRemoteObjectProvider } from '../remote/provider-factory';
 import type { RemoteObject, RemoteReferenceState, RemoteUrlMapping } from '../remote/types';
 import type { RemoteBrowseFailure } from '../remote/browse-session';
+import { getRemoteResultPage, type RemoteResultSort } from '../remote/result-page';
+
+const REMOTE_SCAN_REQUESTS_PER_BATCH = 10;
 
 /** Metadata-only browser view. It must never create remote image elements. */
 export class RemoteImageBrowserView {
@@ -16,8 +19,12 @@ export class RemoteImageBrowserView {
     private selectedHostingId = '';
     private emptyPrefixConfirmed = new Set<string>();
     private scanAbortController: AbortController | null = null;
+    private searchDebounceTimer: number | null = null;
+    private settingsSaveTimer: number | null = null;
     private keyword = '';
-    private sortBy: 'key' | 'size' | 'modified' = 'key';
+    private sortBy: RemoteResultSort = 'key';
+    private localPageIndex = 0;
+    private pageResultsEl: HTMLElement | null = null;
 
     constructor(
         private app: App,
@@ -34,9 +41,12 @@ export class RemoteImageBrowserView {
     }
 
     close() {
+        this.clearSearchDebounce();
+        this.flushScheduledSettingsSave();
         this.scanAbortController?.abort();
         this.scanAbortController = null;
         this.session.stop();
+        this.pageResultsEl = null;
         this.containerEl.empty();
     }
 
@@ -51,6 +61,8 @@ export class RemoteImageBrowserView {
     }
 
     private render() {
+        this.clearSearchDebounce();
+        this.pageResultsEl = null;
         this.containerEl.empty();
         this.containerEl.addClass('remote-image-browser');
         const configs = this.getConfigs();
@@ -72,6 +84,8 @@ export class RemoteImageBrowserView {
         configSelect.value = config.id;
         configSelect.addEventListener('change', () => {
             this.selectedHostingId = configSelect.value;
+            this.keyword = '';
+            this.localPageIndex = 0;
             this.emptyPrefixConfirmed.clear();
             this.session.invalidate();
             this.render();
@@ -81,25 +95,41 @@ export class RemoteImageBrowserView {
             attr: { type: 'text', placeholder: t('modal.imageBrowser.remotePrefix') },
             value: settings.prefix,
         });
-        prefixInput.addEventListener('change', () => {
-            void this.updateConfig(config, (current) => {
-                current.prefix = normalizeRemotePrefix(prefixInput.value);
-            });
-        });
 
         const pageSizeInput = controls.createEl('input', {
             attr: { type: 'number', min: '1', max: '1000', title: t('modal.imageBrowser.remotePageSize') },
             value: String(settings.pageSize),
         });
-        pageSizeInput.addEventListener('change', () => {
-            void this.updateConfig(config, (current) => {
-                current.pageSize = normalizeRemotePageSize(Number(pageSizeInput.value));
-            });
-        });
 
-        this.containerEl.createDiv({
+        const range = this.containerEl.createDiv({
             cls: 'remote-image-browser-range',
             text: t('modal.imageBrowser.remoteRange', { scope: getScope(config, settings.prefix) }),
+        });
+        prefixInput.addEventListener('input', () => {
+            const remote = getRemoteManagementConfig(config);
+            const prefix = normalizeRemotePrefix(prefixInput.value);
+            if (prefix === remote.prefix) return;
+            remote.prefix = prefix;
+            config.remoteManagement = remote;
+            this.keyword = '';
+            this.localPageIndex = 0;
+            this.emptyPrefixConfirmed.clear();
+            this.session.invalidate();
+            if (this.pageResultsEl) this.renderPageResults(config, this.pageResultsEl);
+            range.textContent = t('modal.imageBrowser.remoteRange', {
+                scope: getScope(config, prefix),
+            });
+            this.scheduleSettingsSave();
+        });
+        pageSizeInput.addEventListener('input', () => {
+            const remote = getRemoteManagementConfig(config);
+            const pageSize = normalizeRemotePageSize(Number(pageSizeInput.value));
+            if (pageSize === remote.pageSize) return;
+            remote.pageSize = pageSize;
+            config.remoteManagement = remote;
+            this.localPageIndex = 0;
+            if (this.pageResultsEl) this.renderPageResults(config, this.pageResultsEl);
+            this.scheduleSettingsSave();
         });
 
         if (providerResult.status === 'unsupported' || !providerResult.provider.capabilities.has('list')) {
@@ -117,6 +147,10 @@ export class RemoteImageBrowserView {
         refreshButton.disabled = snapshot.status === 'scanning' || snapshot.pages.length === 0;
         refreshButton.addEventListener('click', () => void this.refresh(config));
 
+        const continueButton = actions.createEl('button', { text: t('modal.imageBrowser.remoteContinueScan') });
+        continueButton.disabled = snapshot.status === 'scanning' || !this.session.hasMore();
+        continueButton.addEventListener('click', () => void this.continueScan(config));
+
         const stopButton = actions.createEl('button', { text: t('modal.imageBrowser.remoteStop') });
         stopButton.disabled = snapshot.status !== 'scanning';
         stopButton.addEventListener('click', () => {
@@ -125,19 +159,16 @@ export class RemoteImageBrowserView {
             this.session.stop();
             this.render();
         });
+        actions.createSpan({
+            cls: 'remote-image-browser-page-note',
+            text: t('modal.imageBrowser.remoteScanProgress', {
+                count: String(this.session.getAllObjects().length),
+                requests: String(snapshot.pages.length),
+            }),
+        });
 
         this.renderReferenceStatus();
         this.renderPage(config);
-    }
-
-    private async updateConfig(config: ImageHostingConfig, update: (settings: ReturnType<typeof getRemoteManagementConfig>) => void) {
-        const remote = getRemoteManagementConfig(config);
-        update(remote);
-        config.remoteManagement = remote;
-        this.emptyPrefixConfirmed.clear();
-        this.session.invalidate();
-        await this.plugin.saveSettings();
-        this.render();
     }
 
     private async startScan(config: ImageHostingConfig) {
@@ -149,19 +180,19 @@ export class RemoteImageBrowserView {
                 confirmText: t('modal.imageBrowser.remoteConfirmContinue'),
                 onConfirm: async () => {
                     this.emptyPrefixConfirmed.add(config.id);
-                    await this.runScan(config, false);
+                    await this.runScan(config);
                 },
             }).open();
             return;
         }
-        await this.runScan(config, false);
+        await this.runScan(config);
     }
 
     private async refresh(config: ImageHostingConfig) {
-        await this.runScan(config, true);
+        await this.runScan(config);
     }
 
-    private async runScan(config: ImageHostingConfig, refresh: boolean) {
+    private async runScan(config: ImageHostingConfig) {
         const result = createRemoteObjectProvider(config);
         if (result.status !== 'ready' || !result.provider.capabilities.has('list')) return;
         this.scanAbortController?.abort();
@@ -178,9 +209,34 @@ export class RemoteImageBrowserView {
         }
         if (controller.signal.aborted) return;
 
-        const completed = refresh
-            ? await this.session.refresh(result.provider, config)
-            : await this.session.scan(result.provider, config);
+        this.localPageIndex = 0;
+        const firstPageLoaded = await this.session.scan(result.provider, config);
+        const completed = firstPageLoaded && await this.session.loadNextBatch(
+            result.provider,
+            config,
+            REMOTE_SCAN_REQUESTS_PER_BATCH - 1
+        );
+        if (controller.signal.aborted || this.scanAbortController !== controller) return;
+        this.scanAbortController = null;
+        if (!completed && this.session.getSnapshot().error?.code === 'invalid-cursor') {
+            this.session.stop();
+        }
+        this.render();
+    }
+
+    private async continueScan(config: ImageHostingConfig) {
+        const result = createRemoteObjectProvider(config);
+        if (result.status !== 'ready' || !this.session.hasMore()) return;
+        this.scanAbortController?.abort();
+        const controller = new AbortController();
+        this.scanAbortController = controller;
+        const pending = this.session.loadNextBatch(
+            result.provider,
+            config,
+            REMOTE_SCAN_REQUESTS_PER_BATCH
+        );
+        this.render();
+        const completed = await pending;
         if (controller.signal.aborted || this.scanAbortController !== controller) return;
         this.scanAbortController = null;
         if (!completed && this.session.getSnapshot().error?.code === 'invalid-cursor') {
@@ -216,10 +272,17 @@ export class RemoteImageBrowserView {
         }
 
         const tools = this.containerEl.createDiv({ cls: 'remote-image-browser-page-tools' });
+        const results = this.containerEl.createDiv({ cls: 'remote-image-browser-page-results' });
+        this.pageResultsEl = results;
         const search = tools.createEl('input', { attr: { type: 'text', placeholder: t('modal.imageBrowser.searchPlaceholder') }, value: this.keyword });
         search.addEventListener('input', () => {
             this.keyword = search.value;
-            this.render();
+            this.localPageIndex = 0;
+            this.clearSearchDebounce();
+            this.searchDebounceTimer = window.setTimeout(() => {
+                this.searchDebounceTimer = null;
+                this.renderPageResults(config, results);
+            }, 300);
         });
         const sort = tools.createEl('select');
         for (const [value, label] of [['key', t('modal.imageBrowser.sortName')], ['size', t('modal.imageBrowser.sortSize')], ['modified', t('modal.imageBrowser.sortModified')]] as const) {
@@ -228,15 +291,37 @@ export class RemoteImageBrowserView {
         sort.value = this.sortBy;
         sort.addEventListener('change', () => {
             this.sortBy = sort.value as typeof this.sortBy;
-            this.render();
+            this.localPageIndex = 0;
+            this.clearSearchDebounce();
+            this.renderPageResults(config, results);
         });
-        tools.createSpan({ cls: 'remote-image-browser-page-note', text: t('modal.imageBrowser.remoteCurrentPageOnly') });
+        tools.createSpan({ cls: 'remote-image-browser-page-note', text: t('modal.imageBrowser.remoteLoadedResultsOnly') });
 
-        const objects = this.getVisibleObjects();
+        this.renderPageResults(config, results);
+    }
+
+    private renderPageResults(config: ImageHostingConfig, container: HTMLElement) {
+        container.empty();
+        const snapshot = this.session.getSnapshot();
+        const settings = getRemoteManagementConfig(config);
+        const resultPage = getRemoteResultPage(
+            this.session.getAllObjects(),
+            this.keyword,
+            this.sortBy,
+            settings.pageSize,
+            this.localPageIndex
+        );
+        this.localPageIndex = resultPage.pageIndex;
+        const { objects, pageCount } = resultPage;
         if (snapshot.pages.length > 0 && objects.length === 0) {
-            this.containerEl.createDiv({ cls: 'image-browser-empty', text: t('modal.imageBrowser.remoteNoObjects') });
+            container.createDiv({
+                cls: 'image-browser-empty',
+                text: t(this.keyword
+                    ? 'modal.imageBrowser.remoteNoMatches'
+                    : 'modal.imageBrowser.remoteNoObjects'),
+            });
         } else if (objects.length > 0) {
-            const table = this.containerEl.createEl('table', { cls: 'remote-image-browser-table' });
+            const table = container.createEl('table', { cls: 'remote-image-browser-table' });
             const header = table.createEl('thead').createEl('tr');
             for (const text of ['Key', 'Size', 'Modified', 'ETag', 'Storage', 'Reference']) header.createEl('th', { text });
             const body = table.createEl('tbody');
@@ -248,37 +333,43 @@ export class RemoteImageBrowserView {
             for (const object of objects) this.renderObjectRow(body, object, lookup.classify(object));
         }
 
-        const pagination = this.containerEl.createDiv({ cls: 'remote-image-browser-pagination' });
+        const pagination = container.createDiv({ cls: 'remote-image-browser-pagination' });
         const previous = pagination.createEl('button', { text: t('modal.imageBrowser.remotePrevious') });
-        previous.disabled = snapshot.status === 'scanning' || snapshot.currentPageIndex === 0;
+        previous.disabled = this.localPageIndex === 0;
         previous.addEventListener('click', () => {
-            if (this.session.previous()) this.render();
+            if (this.localPageIndex === 0) return;
+            this.localPageIndex--;
+            this.renderPageResults(config, container);
         });
-        pagination.createSpan({ text: `${snapshot.currentPageIndex + 1}` });
-        const current = snapshot.pages[snapshot.currentPageIndex];
+        pagination.createSpan({ text: `${this.localPageIndex + 1} / ${pageCount}` });
         const next = pagination.createEl('button', { text: t('modal.imageBrowser.remoteNext') });
-        next.disabled = snapshot.status === 'scanning' || !current?.result.isTruncated || !current.result.nextCursor;
-        next.addEventListener('click', () => void this.next(config));
+        next.disabled = this.localPageIndex >= pageCount - 1;
+        next.addEventListener('click', () => {
+            if (this.localPageIndex >= pageCount - 1) return;
+            this.localPageIndex++;
+            this.renderPageResults(config, container);
+        });
     }
 
-    private async next(config: ImageHostingConfig) {
-        const result = createRemoteObjectProvider(config);
-        if (result.status !== 'ready') return;
-        const pending = this.session.next(result.provider, config);
-        this.render();
-        await pending;
-        this.render();
+    private clearSearchDebounce() {
+        if (this.searchDebounceTimer === null) return;
+        window.clearTimeout(this.searchDebounceTimer);
+        this.searchDebounceTimer = null;
     }
 
-    private getVisibleObjects(): RemoteObject[] {
-        const keyword = this.keyword.toLocaleLowerCase();
-        return [...this.session.getCurrentObjects()]
-            .filter((object) => object.key.toLocaleLowerCase().includes(keyword))
-            .sort((left, right) => {
-                if (this.sortBy === 'size') return left.size - right.size;
-                if (this.sortBy === 'modified') return (left.lastModified ?? 0) - (right.lastModified ?? 0);
-                return left.key.localeCompare(right.key);
-            });
+    private scheduleSettingsSave() {
+        if (this.settingsSaveTimer !== null) window.clearTimeout(this.settingsSaveTimer);
+        this.settingsSaveTimer = window.setTimeout(() => {
+            this.settingsSaveTimer = null;
+            void this.plugin.saveSettings();
+        }, 300);
+    }
+
+    private flushScheduledSettingsSave() {
+        if (this.settingsSaveTimer === null) return;
+        window.clearTimeout(this.settingsSaveTimer);
+        this.settingsSaveTimer = null;
+        void this.plugin.saveSettings();
     }
 
     private renderObjectRow(rowParent: HTMLElement, object: RemoteObject, state: RemoteReferenceState) {
