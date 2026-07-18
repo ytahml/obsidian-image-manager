@@ -2,11 +2,11 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：G0–G4、S3-1～S3-3 已完成；G5 与 S3-4 的代码和自动化已完成，等待 Cloudflare R2 与 MinIO 真实删除验收。
+> 文档状态：S3-compatible 首期轨道（G0～G5、S3-1～S3-5）已完成并通过 Cloudflare R2、MinIO 人工验收；Issue #17 继续跟踪其他 Provider、上传清单与跨图床收尾。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
-> S3 后续交付约定：剩余 S3 删除与兼容性收尾统一由子 Issue [#26](https://github.com/ytahml/obsidian-image-manager/issues/26) 跟踪，并持续使用分支 `feat/issue-26-s3-remote-management`，直到 S3-4～S3-5 全部完成；不再为内部 S3 小阶段创建额外 Issue 或分支。
+> S3 交付结果：子 Issue [#26](https://github.com/ytahml/obsidian-image-manager/issues/26) 已完成并关闭，长期分支 `feat/issue-26-s3-remote-management` 经 [PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27) 合并；远端分支按用户要求保留，后续 S3 回归以 `master` 为事实来源。
 
 ## 1. 目标与产品结论
 
@@ -15,7 +15,7 @@ Issue #17 希望图片浏览器可以在“本地图片”和“图床图片”�
 项目接受该功能方向，但实现目标不是把完整的云存储控制台复制到 Obsidian，而是提供一个受范围约束、默认节流、删除保守的远程图片管理能力：
 
 1. 用户必须先选择一个已配置图床和明确的管理范围。
-2. 只有用户明确开始扫描后才自动分批列举范围内的对象元数据，始终不自动加载远程图片。
+2. 只有用户明确开始扫描后才自动分批列举范围内的对象元数据；扫描结果进入可视区域时才懒加载缩略图，并在设置处明确提示相应流量与费用。
 3. 将远程对象与当前 Vault 中检测到的引用进行比对。
 4. 完成当前仓库的 Markdown 扫描后，未检测到引用的对象在 UI 显示为“孤立图片”；删除确认仍说明其他位置可能存在引用。
 5. 远程预览按需加载；启用远程管理后提供受门禁保护的删除，并在执行前二次确认。
@@ -361,6 +361,8 @@ MinIO 专项：
 
 ### G3：远程图片浏览器外壳与元数据分页
 
+> 本节保留 G3 首次交付的历史验收边界；当前扫描、搜索、卡片和缩略图行为以 1.3 节及 G4 最终交付为准，不再恢复远端页码或纯元数据表格。
+
 **状态：已完成。**
 
 **阶段目标**
@@ -398,35 +400,35 @@ MinIO 专项：
 
 ### G4：按需预览与流量控制
 
-> 当前交付：Issue #26，分支 `feat/issue-26-s3-remote-management`。首版仅实现手动按需预览；viewport 自动预览不在该 Issue 范围。
+> 最终交付：Issue #26 / PR #27。历史上的“仅手动预览”方案已被响应式卡片与可视区域懒加载取代；独立大图预览继续保留。
 
 **阶段目标**
 
-允许用户查看远程图片，但远程内容请求必须由明确操作触发并受到限制。
+允许用户在明确开启远程管理并发起扫描后直接浏览图片，同时限制签名并发、渲染规模和会话生命周期。
 
 **实施内容**
 
-1. 默认 `manual`：对象行只提供操作按钮，点击后才在独立预览 Modal 生成/请求预览 URL；同一时间只保留一个活动预览。
+1. 扫描前不创建远程图片；扫描后卡片进入可视区域前约 200px 时自动加载缩略图，URL 解析最多 4 并发，卡片按 60 项渐进追加。
 2. S3 必须明确选择 `presigned | public`；旧配置默认 presigned，公开模式只使用 `urlPrefix`，不得猜测 ACL 或回退。
 3. 私有图床只生成 300 秒临时 URL；会话内可复用，但距到期不足 30 秒或用户重试时重新生成，不写入设置、持久缓存或日志。
-4. 关闭预览/浏览器、切换图床、修改前缀或刷新扫描时清除 URL 缓存并作废迟到结果；图片元素使用 `no-referrer`。
-5. 对失败预览显示占位符和重试按钮，不自动无限重试；列表、搜索、排序和本地分页保持可用。
-6. 显示本次会话实际设置远程 `<img src>` 的次数，失败与人工重试分别计数；首版不统计下载字节。
-7. 非支持图片类型与已知归档存储类型不请求；Provider 图片处理参数不作为基础预览依赖。
-8. `viewport`、列表缩略图和后台预加载继续延期，不进入 Issue #26 当前预览交付。
+4. 点击卡片打开独立大图 Modal；loading、失败与重试均在图片画布区域显示，同时只保留一个活动大图预览。
+5. 关闭预览/浏览器、切换图床、修改前缀或刷新扫描时清除 URL 缓存并作废迟到结果；图片元素使用 `no-referrer`。
+6. 对失败预览显示占位符和重试按钮，不自动无限重试；列表、搜索、排序和引用筛选保持可用。
+7. 显示本次会话实际设置远程 `<img src>` 的次数，失败与人工重试分别计数；不统计下载字节。
+8. 非支持图片类型与已知归档存储类型不请求；Provider 图片处理参数不作为基础预览依赖。
 
 **阶段验收标准**
 
-- 元数据页初始渲染远程图片请求数为 0。
-- 点击一个对象只请求该对象；连续点击受并发限制。
+- 打开浏览器、切换图床和扫描前远程图片请求数为 0。
+- 扫描后只加载接近可视区域的支持图片，签名解析并发不超过 4。
 - 私有预览 URL 到期后可重新生成，旧 URL 不持久保存。
 - Modal 关闭后不存在继续加载或 DOM 更新。
-- 预览失败不影响列表、分页和其他对象。
+- 预览失败不影响列表、搜索、排序、筛选和其他对象。
 - 公共与私有测试 Bucket 均完成人工验收。
 
 ### G5：删除安全框架
 
-> 当前交付：Issue #26，分支 `feat/issue-26-s3-remote-management`。代码与自动化已完成，等待 R2/MinIO 真实删除验收；删除随远程管理启用，fresh Markdown 引用索引和最终确认仍是硬门槛。
+> 最终交付：Issue #26 / PR #27，Cloudflare R2 与 MinIO 真实删除验收已通过。删除随远程管理启用，fresh Markdown 引用索引和最终确认仍是硬门槛。
 
 **阶段目标**
 
@@ -701,15 +703,15 @@ MinIO 专项：
 
 S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为协议基准，首批实际兼容与人工验收只面向 Cloudflare R2 和 MinIO；不安排 RustFS 验证，其他服务商只在后续具有实际测试证据时列为已验证。
 
-### 7.1 剩余 S3 统一交付计划
+### 7.1 S3 统一交付结果
 
-- 跟踪 Issue：[#26](https://github.com/ytahml/obsidian-image-manager/issues/26)，作为 Issue #17 子 Issue。
-- 长期分支：`feat/issue-26-s3-remote-management`；从最新 `master` 创建，后续 S3-3、S3-4、S3-5 均在该分支持续提交，直到完整验收后再合并。
-- 实施顺序：公共 preview/delete 类型与安全边界 → SigV4 presigned GET → 手动按需预览 UI → Markdown 索引删除门禁 → S3 DeleteObject → R2/MinIO 兼容矩阵与文档收尾。
+- 跟踪 Issue：[#26](https://github.com/ytahml/obsidian-image-manager/issues/26)，作为 Issue #17 子 Issue，现已关闭。
+- 长期分支：`feat/issue-26-s3-remote-management`；已通过 [PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27) squash merge 到 `master`，远端分支保留。
+- 实施结果：公共 preview/delete 类型与安全边界 → SigV4 presigned GET → 卡片缩略图与独立大图预览 → Markdown 索引删除门禁 → S3 DeleteObject → R2/MinIO 兼容验收与文档收尾均已完成。
 - presigned GET 默认有效期 300 秒，只存在当前会话；R2 只对 S3 API endpoint 签名，不对自定义域名签名。
-- 首版不实现 viewport 自动预览、DeleteObjects、versionId 管理、MFA Delete、Object Lock/retention 绕过、临时凭证/session token。
+- 首版已实现扫描后的 viewport 缩略图懒加载；仍不实现扫描前预加载、DeleteObjects、versionId 管理、MFA Delete、Object Lock/retention 绕过、临时凭证/session token。
 - 删除随远程对象管理启用，只允许 fresh 索引中的 `not-referenced-in-current-vault` 对象；单批最多 20 项、最多 2 并发，204 无法证明永久删除时报告 `unknown`。
-- Cloudflare R2、MinIO 的公开/私有预览与专用测试范围删除均通过后，才允许将 S3-3～S3-5 和 Issue #26 标记完成。
+- Cloudflare R2、MinIO 的列表、公开/私有预览、缩略图和专用测试范围删除均已通过用户人工验收。
 
 ### S3-1：抽取通用 SigV4 与 ListObjectsV2
 
@@ -776,7 +778,7 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 
 ### S3-4：S3 DeleteObject
 
-> 实施状态：代码与自动化已完成，等待 Cloudflare R2 与 MinIO 专用测试范围人工验收。
+> 实施状态：已完成。代码、自动化及 Cloudflare R2、MinIO 专用测试范围人工验收均通过。
 
 **阶段目标**
 
@@ -807,6 +809,15 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 - 至少记录 Cloudflare R2、MinIO 的服务端/产品版本或测试日期、URL style、list/preview/delete 结果。
 - 新增兼容服务商必须附测试证据，不能仅凭“支持 S3 API”标记为已验证。
 - 文档明确对象锁、版本控制和请求/下行费用由具体服务商决定。
+
+**首期兼容矩阵（2026-07-19）**
+
+| 服务 | 测试入口与 region | URL style | 列举/目录 | 公开/私有预览 | 删除 | 证据边界 |
+|------|-------------------|-----------|-----------|---------------|------|----------|
+| Cloudflare R2 | account S3 endpoint；`auto` | path-style 为主 | 通过 | 通过 | 通过 | 用户完成真实环境验收；托管服务无本地版本号 |
+| MinIO | 测试 endpoint；`us-east-1` | path-style | 通过 | 通过 | 通过 | 用户完成真实环境验收；本次会话未将具体 MinIO 版本写入仓库，不据此承诺所有版本 |
+
+共同验证范围包含多级前缀、特殊字符 key、连续扫描与本地搜索、虚拟文件夹选择、可视区域缩略图、独立大图预览、引用状态及单对象删除。其他 S3-compatible 服务只保留协议级通用支持，未列入已验证兼容范围。对象版本控制、Object Lock、缓存、请求费用、下行费用及空间释放策略均由实际服务商配置决定。
 
 ## 8. Custom 图床专项阶段
 
@@ -975,8 +986,8 @@ P0 计划文件
 | G1 | 远程对象公共接口与测试底座 | 已完成 | G0 | 2026-07-17：G 系列共用分支 `feat/issue-17-g-series` 本地变更，关联 #19；新增公共类型、factory、错误脱敏、可 mock 请求边界和 opaque cursor 测试；`npm test` 94/94、`npm run build`、`git diff --check` 通过 |
 | G2 | Vault 远程引用索引与对象匹配 | 已完成 | G1 | 2026-07-17：新增按需 Markdown 引用索引、受管 URL/object key 保守匹配、URL/query 脱敏与 Markdown 文件事件失效；未扫描/stale 不产生未引用结论；`npm test` 103/103、`npm run build` 通过 |
 | G3 | 远程图片浏览器外壳与元数据分页 | 已完成 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；`npm test` 109/109、`npm run build`、`git diff --check` 通过，用户已完成 Obsidian 基本验收；真实 Provider 列举由 Issue #23 覆盖 |
-| G4 | 按需预览与流量控制 | 已完成 | G3 | Issue #26：手动独立预览 Modal、显式公开/签名访问、短时 URL、会话失效与请求计数已实现；自动化 140/140，Cloudflare R2 与 MinIO 公开/私有预览验收通过；viewport 不在范围 |
-| G5 | 删除安全框架 | 进行中 | G2、G3 | Issue #26：fresh Markdown 门禁、20 项/2 并发、数量确认、失败重试、缓存失效及 200 条脱敏审计已实现；自动化 166/166，等待 R2/MinIO 人工验收 |
+| G4 | 按需预览与流量控制 | 已完成 | G3 | Issue #26 / PR #27：显式公开/签名访问、300 秒会话 URL、4 并发 viewport 缩略图、60 项渐进卡片和独立大图 Modal 已实现；R2/MinIO 公开/私有验收通过 |
+| G5 | 删除安全框架 | 已完成 | G2、G3 | Issue #26 / PR #27：fresh Markdown 门禁、20 项/2 并发、数量与勾选确认、失败重试、缓存失效及 200 条脱敏审计已实现；R2/MinIO 真实删除验收通过 |
 | G6 | 统一上传结果与持久化上传清单 | 未开始 | G1 | |
 | G7 | 跨图床整合、文档与发布门禁 | 未开始 | 已交付 Provider 阶段 | |
 | OSS-1 | OSS V4 与 ListObjectsV2 | 未开始 | G1 | |
@@ -990,10 +1001,10 @@ P0 计划文件
 | QN-4 | 七牛资源删除 | 未开始 | G5、QN-2 | |
 | QN-5 | 七牛加固与文档 | 未开始 | QN-3、QN-4 | |
 | S3-1 | SigV4 与 ListObjectsV2 | 已完成 | G1 | Issue #23：共享 SigV4、ListObjectsV2、XML 解析、1000 项内部批次与游标保护已实现；Cloudflare R2、MinIO 验收通过；`npm test` 130/130、`npm run build`、`git diff --check` 通过 |
-| S3-2 | 兼容性探测、URL 映射与 UI | 已完成 | G2、G3、S3-1 | Issue #23：生产 registry、结构化错误、URL bases、自动批次扫描、本地搜索/排序/分页与 metadata-only UI 已验收；开发依赖未进入生产 bundle |
-| S3-3 | S3 presigned GET 预览 | 已完成 | G4、S3-2 | Issue #26：公开 `urlPrefix` 与 300 秒 presigned GET、到期重签、独立 Modal 和脱敏失败已实现；自动化 140/140，Cloudflare R2 与 MinIO 公开/私有人工验收通过 |
-| S3-4 | S3 DeleteObject | 进行中 | G5、S3-2 | Issue #26：单对象 SigV4 DELETE、特殊 key、204/delete-marker 保守语义及结构化错误已实现；自动化 166/166，等待 R2/MinIO 人工验收 |
-| S3-5 | S3-compatible 兼容矩阵与文档 | 未开始 | S3-3、S3-4 | Issue #26，同一长期分支完成 R2/MinIO 真实验收与收尾 |
+| S3-2 | 兼容性探测、URL 映射与 UI | 已完成 | G2、G3、S3-1 | Issue #23 建立 registry、结构化错误、URL bases 与自动批次扫描；Issue #26 最终升级为完整集合搜索/排序/筛选、60 项渐进卡片和虚拟目录选择，开发依赖未进入生产 bundle |
+| S3-3 | S3 presigned GET 预览 | 已完成 | G4、S3-2 | Issue #26 / PR #27：公开 `urlPrefix` 与 300 秒 presigned GET、到期重签、4 并发 viewport 缩略图、独立大图 Modal 和脱敏失败已实现；R2/MinIO 公开/私有人工验收通过 |
+| S3-4 | S3 DeleteObject | 已完成 | G5、S3-2 | Issue #26 / PR #27：单对象 SigV4 DELETE、特殊 key、204/delete-marker 保守语义及结构化错误已实现；R2/MinIO 专用范围人工验收通过 |
+| S3-5 | S3-compatible 兼容矩阵与文档 | 已完成 | S3-3、S3-4 | 2026-07-19：R2/MinIO 列举、目录、公开/私有预览、缩略图和删除验收完成；22 个测试文件、175 项测试及 CI build 通过，Issue #26 关闭 |
 | CU-0 | Custom unsupported 能力边界 | 未开始 | G1 | |
 | CU-1 | Custom 声明式 JSON 列表 | 未开始 | CU-0、G3 | |
 | CU-2 | Custom 预览映射 | 未开始 | G4、CU-1 | |
@@ -1077,6 +1088,8 @@ P0 计划文件
 | 2026-07-18 | 空前缀“继续扫描”确认按钮增加异步 spinner 与重复提交保护；引用徽标使用绿色已引用、橙色孤立图片、灰色无法判断 | 长时间扫描需要即时操作反馈，引用状态也需要比纯文字更容易快速辨认 | G3、G5、i18n |
 | 2026-07-18 | 图片浏览器标题与本地/图床切换合并为同一响应式标题栏；桌面 Modal 最终调整为最大约 1100px × 84vh，移动端按视口保留安全边距；已引用卡片只保留彩色状态徽标和悬停说明 | 在信息密度和编辑区遮挡之间保持平衡，并移除重复的引用状态正文 | G3、G4、UI |
 | 2026-07-18 | 实现 S3 虚拟目录选择器：使用独立、可分页的 `ListObjectsV2(prefix, delimiter='/')` 请求解析 `CommonPrefixes`，支持根目录、面包屑和选择当前目录，并保留手动前缀输入 | S3/R2 是扁平 key 空间，所谓文件夹只是 `/` 分隔的公共前缀；目录浏览和递归图片扫描需要不同请求语义 | S3-2、UI |
+| 2026-07-19 | 图床配置 Modal 最终采用固定基础字段与“图床配置 / 远程管理”两页签；名称和服务商类型宽屏同行，上传路径与公共 URL 固定在页签上方，启用/禁用移到图床列表 | 减少滚动和重复开关，消除主题 `Setting` 分隔线造成的错位，同时保持移动端响应式布局 | Settings、UI、i18n |
+| 2026-07-19 | S3 首期以卡片网格、虚拟文件夹、Markdown 广义 URL 引用、viewport 缩略图、独立预览和安全删除作为统一产品契约；Issue #26 / PR #27 完成后以 `master` 为实现基线 | 防止后续会话回退到技术表格、手动远端分页或“仅标准 Markdown 图片引用”等已取代方案 | G2～G5、S3-2～S3-5 |
 
 ## 15. 变更记录
 
@@ -1101,6 +1114,7 @@ P0 计划文件
 | 2026-07-17 | 完成 G2：建立按需 Vault Markdown 远程引用索引、URL/object key 保守匹配、扫描取消/原子发布与 Markdown 文件变更失效；不请求远程服务。 |
 | 2026-07-18 | 推进 G3：图片浏览器支持本地/图床切换；图床视图仅展示元数据，手动分页会话缓存已访问页并隔离迟到响应；旧配置默认关闭，未实现 Provider 明确显示 unsupported；等待 Obsidian 手动验收。 |
 | 2026-07-18 | 完成 G3 基本人工验收；推进 Issue #23：实现共享 S3 SigV4、ListObjectsV2 Provider、XML 元数据解析、结构化错误、引用 URL bases 和生产浏览器接入；`npm test` 126/126、`npm run build`、`git diff --check` 通过，等待 R2/MinIO 人工验收。 |
+| 2026-07-19 | 完成 Issue #26 与 S3-3～S3-5：R2/MinIO 列举、虚拟目录、公开/私有缩略图与大图预览、安全删除均通过用户人工验收；最终自动化基线为 22 个测试文件、175 项测试，CI build 通过；PR #27 已合并、Issue #26 已关闭，远端长期分支按要求保留。 |
 
 ## 16. 服务商官方参考
 
