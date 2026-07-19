@@ -5,7 +5,7 @@
 ```
 main.ts（入口）
 ├── settings.ts（设置面板）
-├── modals/（7 个 Modal）
+├── modals/（本地浏览、远程卡片/预览/目录、删除确认/结果及设置 Modal）
 ├── uploaders/（图床上传）
 │   ├── uploader-factory.ts → 4 个上传器
 │   ├── upload-path.ts（共享上传路径模板解析）
@@ -27,7 +27,7 @@ main.ts（入口）
 │   ├── delete-session.ts（20 项选择、2 并发、停止调度和部分失败）
 │   ├── delete-audit.ts（最近 200 条脱敏结果与串行持久化）
 │   ├── result-page.ts（已扫描元数据的本地搜索与排序）
-│   └── providers/s3-compatible-remote.ts（S3 ListObjectsV2、XML 解析、错误映射与引用 URL bases）
+│   └── providers/s3-compatible-remote.ts（S3 列举/目录/预览/删除、XML 解析、错误映射与引用 URL bases）
 ├── s3/
 │   └── sigv4.ts（上传与远程管理共享的请求目标、canonical query 与 SigV4）
 ├── utils/（工具模块）
@@ -78,7 +78,7 @@ main.ts（入口）
 - `RemoteReferenceIndex` 只在调用方显式扫描时读取 Markdown，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，非 Markdown 文件不属于远程引用管理范围。
 - `RemoteObjectReferenceLookup` 将标准 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和原始 URL 中可可靠映射的地址统一标记为 `referenced`，并保留笔记路径与行号供远程预览跳转；未完成、已失效或存在映射歧义的索引一律不返回“孤立图片”。
 - `RemoteBrowseSession` 只在用户明确扫描、继续或刷新时调用 `listObjects()`；扫描内部以 1000 项为请求批次自动追踪 opaque cursor，每最多 10 次请求暂停并等待用户继续。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
-- S3-compatible 已注册首个真实 list Provider：共享 SigV4 层保证请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和结果分页在本地对已扫描集合执行。
+- S3-compatible 已注册首个完整远程管理 Provider：共享 SigV4 层保证上传、列举、预览和删除的请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和引用筛选在完整已扫描集合上执行，不再显示结果页码。
 - S3 Provider 额外提供 `folders` 能力：目录选择器使用独立的 `ListObjectsV2(prefix, delimiter='/')` 请求解析 `CommonPrefixes`，按 opaque cursor 加载更多虚拟文件夹；选择结果只更新管理前缀，递归对象扫描仍走原有无 delimiter 流程。
 - 远程浏览器初始不请求列表或图片；用户明确扫描后以响应式卡片展示结果。进入可视区域前约 200px 的支持图片自动加载，URL 解析最多 4 并发；首批渲染 60 张卡片，滚动时渐进追加，搜索/排序/引用状态筛选作用于完整扫描集合。私有模式使用 300 秒 presigned GET，公开模式只使用明确配置的 `urlPrefix`；点击缩略图仍打开独立大图 Modal。关闭或范围变化会清空会话 URL 并隔离迟到结果。当前不支持 OSS、七牛和 Custom 的列表能力。
 - S3 删除随远程对象管理启用，不增加独立开关；仍只有 fresh Markdown 索引中的 `not-referenced-in-current-vault`、当前 hosting、当前前缀和当前扫描对象可选择，UI 将该状态显示为“孤立图片 / Orphan image”。最终确认要求输入数量并勾选不可撤销确认，每批最多 20 项、最多 2 并发且无自动重试。用户结果统一显示“请求成功”，底层仍保留 `delete-marker | unknown` 供脱敏审计；接受请求后列表/预览/选择失效。
@@ -159,3 +159,9 @@ reorganizeConvertFormat
 | `uploaders/` | 图床上传 | 引用替换（main.ts 处理） |
 | `remote/` | 远程对象公共类型、能力、错误与请求边界 | 具体 Provider 的列表、预览或删除协议（分阶段实现） |
 | `image-optimizer.ts` | 压缩、格式转换 | 文件保存（调用者处理） |
+
+## Issue #17 当前交付状态
+
+- S3-compatible 的 G0～G5、S3-1～S3-5 已通过 Cloudflare R2 与 MinIO 人工验收，并由 PR #27 合并到 `master`；Issue #26 已关闭。
+- 当前 S3 产品契约包含显式扫描、自动批次列举、虚拟文件夹选择、viewport 缩略图、独立大图预览、Markdown 广义 URL 引用定位和安全删除。
+- Issue #17 尚未完成的架构工作是 G6 上传清单、OSS/七牛/Custom Provider，以及最终跨图床发布门禁；这些能力不得被文档描述成已经可用。
