@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.1.0
+
+### 🇺🇸 English
+
+#### New features
+
+- Added remote image browser with responsive card grid, viewport-based thumbnail loading, search, sort, and reference-status filters ([PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27))
+- Added S3-compatible remote object listing with paged `ListObjectsV2` and virtual folder picker ([PR #24](https://github.com/ytahml/obsidian-image-manager/pull/24))
+- Added remote management settings with per-provider enable toggle and S3-only production gating ([PR #22](https://github.com/ytahml/obsidian-image-manager/pull/22))
+- Added safe remote deletion with Markdown reference gating, exact-count confirmation, 20-item/2-concurrency scheduling, and a 200-entry redacted local audit trail ([PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27))
+- Added remote image preview with public-URL and pre-signed-URL support, including Cloudflare R2 and MinIO ([PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27))
+- Added hosting config enable/disable toggle in the settings panel ([PR #29](https://github.com/ytahml/obsidian-image-manager/pull/29))
+
+#### Improvements
+
+- Expanded Markdown reference detection to cover `![]()`, `![[]]`, `<img>`, and Obsidian annotation syntax for remote existence checks ([PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27))
+- Remote browser scans are explicit (no auto-refresh); thumbnails load with 4-concurrency and cards append in batches of 60 ([PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27))
+- Remote management configuration and browser only expose providers with production `list` capability; unsupported providers show a concise notice ([PR #29](https://github.com/ytahml/obsidian-image-manager/pull/29))
+- Added remote scan and search pagination fixes ([PR #25](https://github.com/ytahml/obsidian-image-manager/pull/25))
+- Updated documentation, design specs, and canonical skill for remote management ([PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27))
+
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 新增远程图片浏览器，支持响应式卡片视图、可视区域懒加载缩略图、搜索、排序和引用状态筛选（[PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27)）
+- 新增 S3 兼容远程对象列举，支持分页 `ListObjectsV2` 和虚拟目录选择器（[PR #24](https://github.com/ytahml/obsidian-image-manager/pull/24)）
+- 新增远程管理设置，支持按图床启用开关，并限制仅 S3 兼容存储可使用生产列举能力（[PR #22](https://github.com/ytahml/obsidian-image-manager/pull/22)）
+- 新增安全远程删除，包含 Markdown 引用门禁、精确数量确认、20 条/2 并发调度和 200 条脱敏本地审计记录（[PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27)）
+- 新增远程图片预览，支持公开 URL 和预签名 URL，兼容 Cloudflare R2 和 MinIO（[PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27)）
+- 图床配置面板新增启用/禁用开关（[PR #29](https://github.com/ytahml/obsidian-image-manager/pull/29)）
+
+#### 改进
+
+- 扩展 Markdown 引用识别，覆盖 `![]()`、`![[]]`、`<img>` 和 Obsidian 标注语法，用于远程存在性检查（[PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27)）
+- 远程浏览器扫描为显式触发（不自动刷新）；缩略图 4 并发加载，卡片按 60 条批量追加（[PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27)）
+- 远程管理配置和浏览器仅展示具备生产 `list` 能力的图床；不支持的图床显示简洁提示（[PR #29](https://github.com/ytahml/obsidian-image-manager/pull/29)）
+- 修复远程扫描与搜索分页问题（[PR #25](https://github.com/ytahml/obsidian-image-manager/pull/25)）
+- 更新远程管理相关文档、设计规范和 canonical skill（[PR #27](https://github.com/ytahml/obsidian-image-manager/pull/27)）
+
+---
+
 ## 1.0.9
 
 ### 🇺🇸 English
