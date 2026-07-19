@@ -89,7 +89,8 @@ S3 扫描失败只影响当前浏览会话，结构化错误码在 UI 中映射�
 - 只保留“图床配置 / 远程管理”两个页签，选中页签使用主题强调色，页签分区上方保留一根横线；通用的上传路径与公共访问 URL 无分组标题、无相邻字段分隔线地固定在页签上方，图床配置页只承载服务商连接字段，切换时保留尚未保存的输入
 - 当前页签内容独立滚动，底部保存/取消操作固定可见；桌面端字段说明在左、控件沿右侧统一对齐，移动端自动改为上下排列
 - 远程管理关闭时折叠目录、预览和 URL alias 字段
-- “其他引用 URL 基础路径”仅帮助引用索引识别 CDN、旧域名或其他公开域名，不参与上传或预览
+- “远程管理”页签通过生产 Provider 的 `list` capability 门控，当前只对 S3-compatible 显示；页签顶部只提示“目前仅支持 S3 兼容存储”，其他图床在配置正文显示同一说明
+- “其他引用 URL 基础路径”仅帮助引用索引识别 CDN、旧域名或其他公开域名，不参与上传或预览；一行一个，提供多行 placeholder，并对无效 HTTP(S) 基础路径显示行号警告
 - 根据 `HostingType` 动态渲染字段
 - 阿里云 OSS、七牛和 S3 显示上传路径与公共访问 URL 基础路径；基础路径可包含 bucket 或目录
 - 自定义图床隐藏上述两个无效字段，保留已有配置数据，公开 URL 继续从响应 JSON 提取
@@ -99,6 +100,8 @@ S3 扫描失败只影响当前浏览会话，结构化错误码在 UI 中映射�
   - S3：endpoint、region、accessKeyId、secretAccessKey、bucket、forcePathStyle
   - 自定义：uploadUrl、method、headers、fileFieldName、jsonPath、extraBody
 - 保存/取消
+
+S3-only 远程页签门控、非 S3 提示和 URL alias 多行示例/无效行警告已于 2026-07-19 通过用户 Obsidian 验收。
 
 ## 6. ConfirmDialog (`confirm-dialog.ts`)
 
@@ -174,3 +177,8 @@ class MyModal extends Modal {
 3. **No static styles assignment**：用 CSS 类代替 `element.style.*`
 4. **Prefer activeDocument**：用 `activeDocument` 代替 `document`
 5. **Prefer window timers**：用 `window.setTimeout` 代替 `setTimeout`
+
+### CSS 审核约束
+
+- 同一规则内不要用重复的 `height` / `max-height` 声明提供单位 fallback；当前支持的移动端运行环境直接使用 `dvh`。
+- 不使用 `!important` 覆盖 Obsidian 主题。需要压过主题边框时，以 Modal 根类、内容类和字段容器组合成更具体且仍局部生效的选择器。

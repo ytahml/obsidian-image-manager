@@ -101,10 +101,13 @@ interface CustomConfig {
 interface UploadResult {
     success: boolean;
     url?: string;
+    objectKey?: string; // G6：原生图床成功时返回；Custom 不要求且不得从 URL 猜测
     error?: string;
     originalPath: string;
 }
 ```
+
+G6 计划不持久化上传结果或上传清单。`objectKey` 只用于当前操作的统一结果处理和对应远程会话失效；远端对象当前是否存在仍由 Provider 重新扫描确认。
 
 ### 迁移类型（未实现）
 
@@ -240,7 +243,7 @@ Issue #23 将 `RemoteBrowseSnapshot.error` 调整为结构化 `RemoteBrowseFailu
 
 Issue #26 的预览增加 `RemotePreviewSession`：公开模式只使用 `urlPrefix`，私有模式缓存 300 秒 presigned GET；距到期不足 30 秒或用户重试时重新生成。`RemoteThumbnailSession` 为进入可视区域的卡片提供 4 并发 URL 解析队列；缩略图和独立大图预览共用会话 URL 缓存。关闭、切换配置、修改前缀和刷新会清空缓存并隔离迟到结果。
 
-Issue #26 的删除闭环增加 `RemoteDeleteSession` 与 Provider 无关策略：只接受 fresh Markdown 索引的 `not-referenced-in-current-vault` 对象；校验 hostingId、目录前缀和当前扫描集合；20 项硬上限、2 并发、无自动重试。`remoteDeleteHistory` 旧配置默认空数组，逐项完成后串行保存并截断为最近 200 条。
+Issue #26 的删除闭环增加 `RemoteDeleteSession` 与 Provider 无关策略：只接受 fresh Markdown 索引的 `not-referenced-in-current-vault` 对象；校验 hostingId、目录前缀和当前扫描集合；20 项硬上限、2 并发、无自动重试。`remoteDeleteHistory` 旧配置默认空数组，逐项完成后串行保存并截断为最近 200 条。它严格定位为“本地诊断记录”，当前没有历史 UI，不是远程事实来源，也不参与任何删除安全门禁。
 
 ## 新增设置项流程
 

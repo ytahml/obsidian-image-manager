@@ -50,6 +50,7 @@ interface OptimizeResult {
 2. **PNG → WebP**：PNG 不支持质量参数，转为 WebP 获得更好的压缩
 3. **质量归一化**：`quality` 参数 1-100，内部转为 0-1
 4. **内存管理**：使用后必须 `URL.revokeObjectURL(img.src)`
+5. **DOM helper**：独立 Canvas 使用 Obsidian 全局 `createEl('canvas')` 创建，避免官方 `prefer-create-el` 告警
 
 ## 格式转换：`convertFormat`
 

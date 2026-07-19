@@ -63,3 +63,12 @@ export function createRemoteObjectProvider(
         reason: KNOWN_HOSTING_TYPES.has(config.type) ? 'not-implemented' : 'unknown-provider',
     };
 }
+
+/** Whether this hosting config currently has a production remote-list provider. */
+export function supportsRemoteObjectManagement(
+    config: ImageHostingConfig,
+    registry: RemoteProviderRegistry = DEFAULT_REMOTE_PROVIDER_REGISTRY
+): boolean {
+    const result = createRemoteObjectProvider(config, registry);
+    return result.status === 'ready' && result.provider.capabilities.has('list');
+}

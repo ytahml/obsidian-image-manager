@@ -1,7 +1,13 @@
 import { App, DropdownComponent, Modal, Setting, TextComponent } from 'obsidian';
 import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, CustomConfig } from '../types';
 import { t } from '../i18n';
-import { getRemoteManagementConfig, normalizePublicUrlAliases, normalizeRemotePrefix } from '../remote/management-settings';
+import {
+    getRemoteManagementConfig,
+    isValidPublicUrlAlias,
+    normalizePublicUrlAliases,
+    normalizeRemotePrefix,
+} from '../remote/management-settings';
+import { supportsRemoteObjectManagement } from '../remote/provider-factory';
 
 type HostingConfigTab = 'connection' | 'remote';
 
@@ -103,10 +109,13 @@ export class HostingConfigModal extends Modal {
             cls: 'hosting-config-tabs',
             attr: { role: 'tablist', 'aria-label': t('modal.hosting.sections') },
         });
-        for (const [value, label] of [
+        const availableTabs: ReadonlyArray<readonly [HostingConfigTab, string]> = [
             ['connection', t('modal.hosting.tabConnection')],
-            ['remote', t('modal.hosting.tabRemote')],
-        ] as const) {
+            ...(supportsRemoteObjectManagement(this.config)
+                ? [['remote', t('modal.hosting.tabRemote')] as const]
+                : []),
+        ];
+        for (const [value, label] of availableTabs) {
             const button = tabs.createEl('button', {
                 text: label,
                 cls: value === this.activeTab ? 'is-active' : '',
@@ -169,6 +178,10 @@ export class HostingConfigModal extends Modal {
     }
 
     private renderRemoteManagementFields(container: HTMLElement) {
+        container.createDiv({
+            cls: 'setting-item-description',
+            text: t('modal.hosting.remoteS3Only'),
+        });
         const remote = getRemoteManagementConfig(this.config);
         this.config.remoteManagement = remote;
 
@@ -211,16 +224,36 @@ export class HostingConfigModal extends Modal {
                 });
             }
         }
+        let aliasWarning: HTMLDivElement | undefined;
+        const updateAliasWarning = (value: string) => {
+            const invalidLines = value.split('\n')
+                .map((line, index) => ({ line: line.trim(), number: index + 1 }))
+                .filter((item) => item.line && !isValidPublicUrlAlias(item.line))
+                .map((item) => String(item.number));
+            if (!aliasWarning) return;
+            aliasWarning.toggleClass('is-hidden', invalidLines.length === 0);
+            aliasWarning.textContent = invalidLines.length === 0
+                ? ''
+                : t('modal.hosting.remoteAliasesInvalid', { lines: invalidLines.join(', ') });
+        };
+        const aliasValue = remote.publicUrlAliases.join('\n');
         new Setting(container)
             .setName(t('modal.hosting.remoteAliases'))
             .setDesc(t('modal.hosting.remoteAliasesDesc'))
             .addTextArea((text) => {
                 text.inputEl.classList.add('hosting-config-remote-aliases');
                 text.inputEl.rows = 3;
-                text.setValue(remote.publicUrlAliases.join('\n')).onChange((value) => {
+                text.setPlaceholder(t('modal.hosting.remoteAliasesPlaceholder'));
+                text.setValue(aliasValue).onChange((value) => {
                     remote.publicUrlAliases = normalizePublicUrlAliases(value.split('\n'));
+                    updateAliasWarning(value);
                 });
             });
+        aliasWarning = container.createDiv({
+            cls: 'setting-item-description mod-warning is-hidden',
+            attr: { role: 'status', 'aria-live': 'polite' },
+        });
+        updateAliasWarning(aliasValue);
     }
 
     private renderConnectionFields(container: HTMLElement) {
@@ -242,6 +275,12 @@ export class HostingConfigModal extends Modal {
         }
         if (this.config.type === 'custom') {
             this.renderCustomUploadFields(container);
+        }
+        if (!supportsRemoteObjectManagement(this.config)) {
+            container.createDiv({
+                cls: 'setting-item-description',
+                text: t('modal.hosting.remoteS3Only'),
+            });
         }
     }
 

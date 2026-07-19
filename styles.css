@@ -531,9 +531,7 @@
     .image-browser-modal {
         width: calc(100vw - 16px);
         max-width: calc(100vw - 16px);
-        height: calc(100vh - 24px);
         height: calc(100dvh - 24px);
-        max-height: calc(100vh - 24px);
         max-height: calc(100dvh - 24px);
     }
 
@@ -864,6 +862,12 @@
 }
 
 /* Hosting Config List */
+.image-hosting-settings-wrapper {
+    display: block;
+    padding: 0;
+    border: 0;
+}
+
 .hosting-config-list {
     margin-bottom: 8px;
 }
@@ -1106,9 +1110,9 @@
     margin-bottom: 8px;
 }
 
-.hosting-config-modal .hosting-config-upload-item {
-    border-top: 0 !important;
-    border-bottom: 0 !important;
+.hosting-config-dialog .hosting-config-modal .hosting-config-upload-fields > .hosting-config-upload-item {
+    border-top: 0;
+    border-bottom: 0;
     box-shadow: none;
 }
 
@@ -1159,9 +1163,7 @@
     .hosting-config-dialog {
         width: calc(100vw - 16px);
         max-width: calc(100vw - 16px);
-        height: calc(100vh - 24px);
         height: calc(100dvh - 24px);
-        max-height: calc(100vh - 24px);
         max-height: calc(100dvh - 24px);
     }
 

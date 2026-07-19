@@ -101,6 +101,8 @@ abstract class UploaderBase {
   - `extraBody`：额外表单字段
   - `jsonPath`：从响应中提取 URL 的路径
 
+Custom 固定为仅上传能力：不要求返回 `objectKey`，不从响应 URL 推断 key，也不接入 list/preview/delete。未来出现稳定服务协议时应新增原生 Provider 类型。
+
 ## 工厂函数：`uploader-factory.ts`
 
 ```typescript
@@ -115,6 +117,8 @@ function createUploader(config: ImageHostingConfig): UploaderBase {
 ```
 
 ## 并发队列：`upload-queue.ts`
+
+G6 将以统一 `UploadService` 承接单图、笔记、批量和粘贴上传，`UploadQueue` 复用该 Service 的执行与结果语义。结果只在当前操作内汇总，不写入 `data.json` 或独立上传清单；成功后只使对应远程会话失效。
 
 ```typescript
 class UploadQueue {

@@ -35,7 +35,8 @@
 | `obsidianmd/no-tfile-tfolder-cast` | 用 instanceof | 代替 `as TFile` |
 | `obsidianmd/prefer-file-manager-trash-file` | 用 trashFile | 代替 `vault.delete()` |
 | `obsidianmd/prefer-window-timers` | 用 window.* | 代替全局 setTimeout |
-| `obsidianmd/prefer-active-doc` | 用 activeDocument | 代替 document |
+| `obsidianmd/prefer-active-doc` | 事件与查询使用 activeDocument | 代替 document |
+| `obsidianmd/prefer-create-el` | 创建元素使用 Obsidian helper | `createEl()` 或父元素 `.createEl()` |
 | `obsidianmd/editor-drop-paste` | 事件处理器守卫 | 检查 defaultPrevented + preventDefault |
 | `obsidianmd/no-unsupported-api` | API 兼容性 | 不高于 minAppVersion |
 
@@ -146,7 +147,7 @@ window.setTimeout(() => {}, 100);
 window.clearTimeout(timer);
 ```
 
-### 10. activeDocument
+### 10. activeDocument 与 createEl
 
 ```typescript
 // ❌
@@ -154,11 +155,17 @@ document.createElement('canvas');
 document.addEventListener('keydown', handler);
 
 // ✅
-activeDocument.createElement('canvas');
+const canvas = createEl('canvas');
 activeDocument.addEventListener('keydown', handler);
 ```
 
-### 11. editor-paste/editor-drop 处理器
+`activeDocument.createElement()` 虽满足文档作用域要求，仍会触发官方 `prefer-create-el`；独立元素使用全局 `createEl()`，已有父容器时使用 `containerEl.createEl()`。
+
+### 11. ES2017 集合聚合
+
+项目 `lib` 为 `ES2017`，不要使用 ES2019 才加入类型库的 `Array.prototype.flatMap()`。官方类型检查会将缺失 API 解析为 error/any，并级联触发 `no-unsafe-return`、`no-unsafe-call` 与 `no-unsafe-member-access`。使用显式循环和类型明确的目标数组。
+
+### 12. editor-paste/editor-drop 处理器
 
 ```typescript
 // ❌ 直接在处理器中调用 preventDefault

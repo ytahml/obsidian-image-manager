@@ -159,6 +159,8 @@ npm run lint     # eslint-plugin-obsidianmd@0.3.0
 | `sentence-case` | First letter uppercase, rest lowercase |
 | `no-manual-html-headings` | `new Setting().setName().setHeading()` |
 | `no-static-styles-assignment` | CSS classes instead of `element.style.*` |
+| CSS duplicate properties | Keep one declaration per property in a rule |
+| CSS `!important` | Increase plugin-scoped selector specificity |
 | `no-tfile-tfolder-cast` | `instanceof TFile` instead of `as TFile` |
 | `prefer-file-manager-trash-file` | `fileManager.trashFile()` instead of `vault.delete()` |
 | `prefer-window-timers` | `window.setTimeout` instead of `setTimeout` |
@@ -192,9 +194,10 @@ new Setting(containerEl).setName('标题').setHeading();
 const file = vault.getAbstractFileByPath(path);
 if (!(file instanceof TFile)) throw new Error('Not a file');
 
-// Window timers + activeDocument (popout compat)
+// Window timers + DOM helpers (popout compat)
 window.setTimeout(() => {}, 100);
-activeDocument.createElement('canvas');
+const canvas = createEl('canvas');
+activeDocument.addEventListener('keydown', handler);
 
 // editor-paste/editor-drop handler
 private handlePaste(evt: ClipboardEvent, editor: Editor, file: TFile | null): boolean {
@@ -289,4 +292,4 @@ Detailed documentation for each module:
 
 - **Image hosting migration**: Command registered (`migrate-images`), types defined, shows "not implemented"
 - **Restore local refs**: Translation keys exist, no implementation code
-- **Remote image hosting management (Issue #17)**: The S3-first track G0–G5 and S3-1 through S3-5 is complete. Issue #26 closed through PR #27 after Cloudflare R2 and MinIO list, virtual-folder, public/private preview, viewport-thumbnail, reference-location, and delete acceptance. The current UI is a responsive card grid: scans remain explicit, visible thumbnails use a 4-concurrency queue, cards append locally in batches of 60, and search/sort/reference filters cover the complete scanned set without page controls. The S3 folder picker uses paged `ListObjectsV2(prefix, delimiter='/')` / `CommonPrefixes`, while manual prefix input remains available. Deletion follows remote-management `enabled` and retains fresh Markdown gates, exact-count plus acknowledgement confirmation, 20-item/2-concurrency scheduling, and a 200-entry redacted audit. Do not regress to the historical metadata table, remote page controls, manual-only thumbnails, standard-image-syntax-only reference detection, or a separate delete toggle. Remaining Issue #17 work is G6 upload-manifest support, non-S3 providers, and global cross-provider/release closure. The phased plan is maintained in [docs/design/issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md)
+- **Remote image hosting management (Issue #17)**: The S3-first track G0–G5 and S3-1 through S3-5 is complete. Issue #26 closed through PR #27 after Cloudflare R2 and MinIO list, virtual-folder, public/private preview, viewport-thumbnail, reference-location, and delete acceptance. The current UI is a responsive card grid: scans remain explicit, visible thumbnails use a 4-concurrency queue, cards append locally in batches of 60, and search/sort/reference filters cover the complete scanned set without page controls. The S3 folder picker uses paged `ListObjectsV2(prefix, delimiter='/')` / `CommonPrefixes`, while manual prefix input remains available. Remote-management configuration and the remote browser only expose enabled providers with a production `list` capability; currently that means S3-compatible storage, while Aliyun OSS, Qiniu, and Custom remain upload-only and show the concise unsupported notice. Other reference URL bases are newline-delimited, validated HTTP(S) bases; commas and semicolons are not delimiters. This S3-only release gate and alias UX passed user Obsidian acceptance on 2026-07-19, with 177 automated tests and the production build passing. Deletion follows remote-management `enabled` and retains fresh Markdown gates, exact-count plus acknowledgement confirmation, 20-item/2-concurrency scheduling, and a 200-entry redacted local diagnostic record. That record has no history UI and never participates in remote-existence, reference, or deletion decisions. Do not regress to the historical metadata table, remote page controls, manual-only thumbnails, standard-image-syntax-only reference detection, or a separate delete toggle. Remaining Issue #17 work is a unified G6 UploadService without a persistent upload manifest, native OSS/Qiniu providers, and global cross-provider/release closure. Upload results may invalidate remote sessions but never prove current remote existence. The phased plan is maintained in [docs/design/issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md)

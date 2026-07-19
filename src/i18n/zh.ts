@@ -102,7 +102,7 @@ export const zh: Record<string, string> = {
     'modal.imageBrowser.orphanScanning': '正在扫描孤立图片...',
     'modal.imageBrowser.localTab': '本地图片',
     'modal.imageBrowser.remoteTab': '图床图片',
-    'modal.imageBrowser.remoteNoConfig': '请先在图床配置中启用远程对象管理，才能浏览远程元数据。',
+    'modal.imageBrowser.remoteNoConfig': '请先在 S3 兼容图床配置中启用远程对象管理，才能浏览远程元数据。',
     'modal.imageBrowser.remoteProvider': '图床',
     'modal.imageBrowser.remoteRange': '范围：{scope}',
     'modal.imageBrowser.remotePrefix': '目录前缀',
@@ -229,7 +229,7 @@ export const zh: Record<string, string> = {
     'modal.remoteDeleteResults.conflict': '删除冲突',
     'modal.remoteDeleteResults.precondition': '删除前置条件失败',
     'modal.remoteDeleteResults.locked': '对象已锁定或处于保留期',
-    'modal.remoteDeleteResults.auditFailed': '一条删除结果未能写入本地审计记录。',
+    'modal.remoteDeleteResults.auditFailed': '一条删除结果未能写入本地诊断记录。',
 
     // 图片预览
     'modal.preview.path': '路径：',
@@ -297,6 +297,7 @@ export const zh: Record<string, string> = {
     'modal.hosting.extraBodyValue': '字段值',
     'modal.hosting.extraBodyAdd': '添加字段',
     'modal.hosting.remoteManagement': '远程对象管理',
+    'modal.hosting.remoteS3Only': '目前仅支持 S3 兼容存储',
     'modal.hosting.remoteManagementEnabled': '启用远程对象浏览器',
     'modal.hosting.remoteManagementEnabledDesc': '允许该配置出现在图床图片浏览器中。扫描仍需手动发起；扫描后可视区域图片会自动加载，可能产生对象读取、原图下载流量和服务商费用。',
     'modal.hosting.remotePrefix': '管理目录前缀',
@@ -309,7 +310,9 @@ export const zh: Record<string, string> = {
     'modal.hosting.remotePreviewPublic': '公开地址（urlPrefix）',
     'modal.hosting.remotePreviewPublicWarning': '请配置公共访问 URL 基础路径以启用预览；列表和上传不受影响。',
     'modal.hosting.remoteAliases': '其他引用 URL 基础路径',
-    'modal.hosting.remoteAliasesDesc': '当前仓库若通过 CDN、旧域名或其他公开域名引用同一批图片，请每行填写一个基础路径。仅用于识别引用，不用于上传或预览。',
+    'modal.hosting.remoteAliasesDesc': '当前仓库若通过 CDN、旧域名或其他公开域名引用同一批图片，请每行填写一个基础路径，不要使用逗号或分号分隔。路径应指向对象 key 开始前的位置，仅用于识别引用，不用于上传或预览。',
+    'modal.hosting.remoteAliasesPlaceholder': 'https://cdn.example.com/vault-images\nhttps://old.example.com/bucket/vault-images',
+    'modal.hosting.remoteAliasesInvalid': '第 {lines} 行不是有效的 URL 基础路径；请使用 HTTP/HTTPS，且不要包含账号、查询参数或片段。',
 
     // 图片命名
     'modal.imageName.title': '图片名称',

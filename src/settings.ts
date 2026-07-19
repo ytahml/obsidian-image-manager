@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, type SettingDefinitionItem } from 'obsidian';
 import type ImageManagerPlugin from './main';
 import { DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { t, setLocale, type Locale } from './i18n';
@@ -13,6 +13,158 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         this.plugin = plugin;
     }
 
+    getSettingDefinitions(): SettingDefinitionItem[] {
+        return [
+            {
+                name: t('settings.language'),
+                desc: t('settings.languageDesc'),
+                render: (setting) => {
+                    setting.addDropdown((dropdown) =>
+                        dropdown
+                            .addOption('en', 'English')
+                            .addOption('zh', '中文')
+                            .setValue(this.plugin.settings.locale)
+                            .onChange(async (value: string) => {
+                                this.plugin.settings.locale = value as Locale;
+                                setLocale(value as Locale);
+                                await this.plugin.saveSettings();
+                                this.refresh();
+                            })
+                    );
+                },
+            },
+            {
+                type: 'group',
+                heading: t('settings.general'),
+                items: [
+                    {
+                        name: t('settings.imagePathTemplate'),
+                        desc: t('settings.imagePathTemplateDesc'),
+                        render: (setting) => {
+                            setting.addText((text) =>
+                                text
+                                    .setPlaceholder(DEFAULT_SETTINGS.imagePathTemplate)
+                                    .setValue(this.plugin.settings.imagePathTemplate)
+                                    .onChange(async (value) => {
+                                        this.plugin.settings.imagePathTemplate =
+                                            value || DEFAULT_SETTINGS.imagePathTemplate;
+                                        await this.plugin.saveSettings();
+                                    })
+                            );
+                        },
+                    },
+                    {
+                        name: t('settings.imagePathBase'),
+                        desc: t('settings.imagePathBaseDesc'),
+                        control: {
+                            type: 'dropdown',
+                            key: 'imagePathBase',
+                            options: {
+                                vault: t('settings.imagePathBase.vault'),
+                                note: t('settings.imagePathBase.note'),
+                            },
+                        },
+                    },
+                    {
+                        name: t('settings.useMarkdownFormat'),
+                        desc: t('settings.useMarkdownFormatDesc'),
+                        render: (setting) => {
+                            setting.addToggle((toggle) =>
+                                toggle
+                                    .setValue(this.plugin.settings.reorganizeConvertFormat)
+                                    .onChange(async (value) => {
+                                        this.plugin.settings.reorganizeConvertFormat = value;
+                                        await this.plugin.saveSettings();
+                                        this.refresh();
+                                    })
+                            );
+                        },
+                    },
+                    {
+                        name: t('settings.skipWikiRefsOnReorganize'),
+                        desc: t('settings.skipWikiRefsOnReorganizeDesc'),
+                        control: { type: 'toggle', key: 'skipWikiRefsOnReorganize' },
+                    },
+                ],
+            },
+            {
+                type: 'group',
+                heading: t('settings.imageNaming'),
+                items: [
+                    {
+                        name: t('settings.imageNamingTemplate'),
+                        desc: t('settings.imageNamingTemplateDesc'),
+                        render: (setting) => {
+                            setting.addText((text) =>
+                                text
+                                    .setPlaceholder(DEFAULT_SETTINGS.imageNamingTemplate)
+                                    .setValue(this.plugin.settings.imageNamingTemplate)
+                                    .onChange(async (value) => {
+                                        this.plugin.settings.imageNamingTemplate =
+                                            value || DEFAULT_SETTINGS.imageNamingTemplate;
+                                        await this.plugin.saveSettings();
+                                    })
+                            );
+                        },
+                    },
+                    {
+                        name: t('settings.promptImageName'),
+                        desc: t('settings.promptImageNameDesc'),
+                        control: { type: 'toggle', key: 'promptImageName' },
+                    },
+                ],
+            },
+            {
+                type: 'group',
+                heading: t('settings.compression'),
+                items: [
+                    {
+                        name: t('settings.autoCompress'),
+                        desc: t('settings.autoCompressDesc'),
+                        control: { type: 'toggle', key: 'autoCompress' },
+                    },
+                    {
+                        name: t('settings.compressQuality'),
+                        desc: t('settings.compressQualityDesc'),
+                        control: { type: 'slider', key: 'compressQuality', min: 1, max: 100, step: 1 },
+                    },
+                ],
+            },
+            {
+                type: 'group',
+                heading: t('settings.gallery'),
+                items: [
+                    {
+                        name: t('settings.enableImageBrowser'),
+                        desc: t('settings.enableImageBrowserDesc'),
+                        control: { type: 'toggle', key: 'enableImageBrowser' },
+                    },
+                    {
+                        name: t('settings.thumbnailSize'),
+                        desc: t('settings.thumbnailSizeDesc'),
+                        control: { type: 'slider', key: 'thumbnailSize', min: 80, max: 400, step: 20 },
+                    },
+                ],
+            },
+            {
+                name: t('settings.imageHosting'),
+                aliases: [
+                    t('settings.addHosting'),
+                    t('settings.defaultHosting'),
+                    t('settings.uploadPathTemplate'),
+                    t('settings.autoReplaceAfterUpload'),
+                    t('settings.autoUploadOnPaste'),
+                    t('settings.keepLocalCopy'),
+                ],
+                render: (setting) => {
+                    setting.settingEl.empty();
+                    setting.settingEl.addClass('image-hosting-settings-wrapper');
+                    this.renderImageHosting(setting.settingEl);
+                },
+            },
+        ];
+    }
+
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
@@ -25,9 +177,14 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         this.renderImageHosting(containerEl);
     }
 
-    /** 刷新设置面板（避免直接调用已废弃的 display()） */
+    /** 刷新声明式设置；Obsidian 1.12 继续使用 imperative fallback。 */
     refresh() {
-        this.display();
+        const update: unknown = Reflect.get(this, 'update');
+        if (typeof update === 'function') {
+            Reflect.apply(update, this, []);
+        } else {
+            this.display();
+        }
     }
 
     // --- Language ---

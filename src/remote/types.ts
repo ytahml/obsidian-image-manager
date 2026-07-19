@@ -85,7 +85,7 @@ export interface RemoteDeleteResult {
     retryable?: boolean;
 }
 
-/** Redacted persistent record for one completed remote delete request. */
+/** Redacted local diagnostic record for one completed remote delete request. Never a safety input. */
 export interface RemoteDeleteAuditEntry {
     completedAt: number;
     hostingId: string;
