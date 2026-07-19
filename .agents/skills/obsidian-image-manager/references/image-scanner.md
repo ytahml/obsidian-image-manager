@@ -17,14 +17,14 @@ class ImageScanner {
     // 判断是否为图片文件
     isImageFile(file: TFile): boolean;
 
-    // 过滤
-    filterByKeyword(images: TFile[], keyword: string): TFile[];
-    filterByExtensions(images: TFile[], extensions: string[]): TFile[];
-    filterBySize(images: TFile[], minSize?: number, maxSize?: number): TFile[];
-    filterByDirectory(images: TFile[], directory: string): TFile[];
+    // 按 ImageFilter 统一过滤关键词、扩展名、大小和目录
+    filterImages(images: TFile[], filter: ImageFilter): TFile[];
 
     // 排序
     sortImages(images: TFile[], sortBy: SortBy, order: SortOrder): TFile[];
+
+    // 获取 MIME 类型
+    getMimeType(file: TFile): string;
 }
 ```
 
@@ -51,13 +51,15 @@ class ImageScanner {
 class OrphanFinder {
     constructor(app: App, supportedExtensions: string[]);
 
-    // 查找孤立图片
-    findOrphanImages(): Promise<ImageFile[]>;
+    // 查找孤立图片及统计
+    findOrphans(): Promise<OrphanResult>;
 
-    // 查找引用某图片的所有笔记
-    findReferencesToImage(imagePath: string): Promise<{ path: string; line: number }[]>;
+    // 查找引用某图片的笔记与全部行号
+    getReferencingNotes(file: TFile): Promise<Array<{ path: string; lines: number[] }>>;
 }
 ```
+
+`OrphanResult` 包含 `orphans: TFile[]`、`total` 和 `referenced`。
 
 ### 孤立图片检测流程
 
@@ -85,12 +87,12 @@ class OrphanFinder {
 3. 包含 `/` 的路径 → 先尝试绝对路径，再尝试相对路径
 4. 仅文件名 → 先查笔记目录，再查 vault 根，最后全局搜索
 
-### 引用查找：`findReferencesToImage`
+### 引用查找：`getReferencingNotes`
 
 查找所有引用指定图片的笔记，返回路径和行号：
 ```typescript
-const refs = await orphanFinder.findReferencesToImage('assets/photo.png');
-// [{ path: 'notes/blog.md', line: 5 }, { path: 'notes/gallery.md', line: 12 }]
+const refs = await orphanFinder.getReferencingNotes(file);
+// [{ path: 'notes/blog.md', lines: [5, 12] }]
 ```
 
 ## 使用场景
@@ -98,9 +100,9 @@ const refs = await orphanFinder.findReferencesToImage('assets/photo.png');
 | 场景 | 调用方法 | 说明 |
 |------|----------|------|
 | 图片浏览器 | `scanner.getAllImages()` + 过滤/排序 | ImageBrowserModal |
-| 孤立图片检测 | `orphanFinder.findOrphanImages()` | OrphanImagesModal |
+| 孤立图片检测 | `orphanFinder.findOrphans()` | OrphanImagesModal |
 | 批量上传 | `scanner.getAllImages()` | main.ts batchUpload |
-| 预览引用列表 | `orphanFinder.findReferencesToImage()` | ImagePreviewModal |
+| 预览引用列表 | `orphanFinder.getReferencingNotes(file)` | ImagePreviewModal |
 
 ## 性能优化
 

@@ -181,4 +181,4 @@ new ConfirmDialog(this.app, {
 
 ## 待重构：display() → getSettingDefinitions()
 
-参见 `display-refactor-solution.md`，Obsidian 1.13.0 起 `display()` 已废弃，应迁移到声明式 `getSettingDefinitions()` API。当前 `minAppVersion` 为 1.12.0，需升级到 1.13.0 后才能迁移。
+Obsidian 1.13.0 起 `display()` 已废弃，应迁移到声明式 `getSettingDefinitions()` API。项目当前使用 1.13.x 类型进行开发，但 `minAppVersion` 仍为 1.12.0；只有在最低兼容版本升级到 1.13.0 后，才能移除 imperative `display()` fallback。

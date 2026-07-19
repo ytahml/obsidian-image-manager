@@ -107,10 +107,10 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
 
 | 场景 | 调用方法 | 说明 |
 |------|----------|------|
-| 粘贴时压缩 | `savePastedImage` 内联代码 | main.ts L806-831 |
-| 上传前压缩 | `compressImage(file, quality)` | main.ts L383 |
-| 批量上传压缩 | `compressImage(file, quality)` | upload-queue.ts L139 |
-| 手动压缩命令 | `compressImage(file, quality)` | main.ts L225 |
+| 粘贴时压缩 | `savePastedImage` 内联代码 | `src/main.ts` |
+| 上传前压缩 | `compressImage(file, quality)` | `src/main.ts` |
+| 批量上传压缩 | `compressImage(file, quality)` | `src/uploaders/upload-queue.ts` |
+| 手动压缩命令 | `compressImage(file, quality)` | `src/main.ts` |
 
 ## 性能考虑
 

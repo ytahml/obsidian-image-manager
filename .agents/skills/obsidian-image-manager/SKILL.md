@@ -11,22 +11,28 @@ Development guide for the `md-image-manager` Obsidian plugin — TypeScript, zer
 
 Image management plugin for Obsidian: compression, hosting upload (4 providers), reference conversion (Wiki ↔ Markdown), image browser, orphan detection, resource reorganization, batch rename.
 
-**Tech stack**: TypeScript 5.8.x strict, esbuild CJS bundle, Node 22 (Volta), `obsidian` as only devDependency.
+**Tech stack**: TypeScript 5.8.x strict, esbuild CJS bundle, Node 22 (Volta), Obsidian API types plus development-only build, lint, XML-fixture, and Vitest tooling.
 
-**Key constraint**: Zero external runtime dependencies. Use Web Crypto API for encryption, Obsidian `requestUrl` for HTTP, `require('electron')` for clipboard.
+**Key constraint**: Zero external runtime dependencies. Use Web Crypto API for encryption, Obsidian `requestUrl` for HTTP, and the browser `navigator.clipboard` API for clipboard writes.
 
 ## Architecture
 
 ```
-main.ts (entry, ~995 lines)
-├── settings.ts (6 render methods)
-├── modals/ (7 Modal components)
+main.ts (entry and orchestration)
+├── settings.ts (settings tab and hosting list)
+├── modals/ (local browser plus remote browser, folder, preview, and delete UI)
 ├── uploaders/
 │   ├── uploader-factory.ts → 4 uploaders
 │   ├── upload-path.ts (shared template resolution)
 │   ├── oss-path.ts (Aliyun OSS URL path encoding)
 │   ├── public-url.ts (public URL base normalization and joining)
 │   └── upload-queue.ts (3 concurrent, 3 retries)
+├── remote/
+│   ├── provider/types/factory/request (provider-independent contracts)
+│   ├── browse/preview/thumbnail/delete sessions and policies
+│   ├── reference index and object-key matcher
+│   └── providers/s3-compatible-remote.ts
+├── s3/sigv4.ts (shared S3 upload/list/preview/delete signing)
 ├── utils/
 │   ├── ref-converter.ts ← constants.ts (regex)
 │   ├── public-url.ts (Markdown-safe Unicode URL display)
@@ -37,7 +43,7 @@ main.ts (entry, ~995 lines)
 │   ├── batch-rename.ts ← ref-converter.ts + path-utils.ts
 │   └── path-utils.ts
 ├── types.ts (DEFAULT_SETTINGS)
-└── i18n/ (zh/en, ~180 keys)
+└── i18n/ (zh/en, 300+ keys per locale)
 ```
 
 ### Design Patterns
@@ -68,7 +74,7 @@ editor-paste/editor-drop event
       → optional autoUploadAfterPaste
 ```
 
-### Upload → Replace Reference
+### Direct Upload → Copy/Replace Reference
 
 ```
 doUpload(file, config)
@@ -77,8 +83,16 @@ doUpload(file, config)
   → success: clipboard.writeText(ref)
     → Markdown URL display decodes Unicode path bytes only; reserved ASCII stays encoded
   → optional replaceReferenceInNote
-    → skip the current editor note when it was already updated in memory
     → replace local references only; never rewrite remote URL references
+```
+
+### Paste Auto-upload → Replace Reference → Optional Local Cleanup
+
+```
+autoUploadAfterPaste(savedFile, data, editor, currentFile)
+  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
+  → replace the newly inserted local reference in the active editor
+  → replace matching local references in other notes; skip the active note already changed in memory
   → optional trashFile (!keepLocalCopy)
   → permanently remove the exact direct attachment folder when it is still empty
 ```

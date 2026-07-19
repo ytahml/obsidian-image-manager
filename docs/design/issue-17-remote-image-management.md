@@ -89,7 +89,13 @@ Issue 提交者建议每个 Obsidian Vault 使用独立图床。计划认可这�
 建议在 `src/remote/` 下建立独立领域模型，不把远程管理方法直接加入 `UploaderBase`：
 
 ```typescript
-type RemoteCapability = 'list' | 'preview' | 'delete';
+type RemoteCapability = 'list' | 'folders' | 'preview' | 'delete';
+
+interface RemotePreviewUrl {
+    url: string;
+    access: 'presigned' | 'public';
+    expiresAt?: number;
+}
 
 type RemoteReferenceState =
     | 'referenced'
@@ -120,6 +126,18 @@ interface RemoteListPage {
     isTruncated: boolean;
 }
 
+interface RemoteFolderListRequest {
+    prefix: string;
+    cursor?: string;
+    limit: number;
+}
+
+interface RemoteFolderListPage {
+    prefixes: string[];
+    nextCursor?: string;
+    isTruncated: boolean;
+}
+
 interface RemoteDeleteResult {
     key: string;
     success: boolean;
@@ -132,7 +150,8 @@ interface RemoteDeleteResult {
 interface RemoteObjectProvider {
     readonly capabilities: ReadonlySet<RemoteCapability>;
     listObjects(request: RemoteListRequest): Promise<RemoteListPage>;
-    createPreviewUrl?(object: RemoteObject): Promise<string>;
+    listFolders?(request: RemoteFolderListRequest): Promise<RemoteFolderListPage>;
+    createPreviewUrl?(object: RemoteObject): Promise<RemotePreviewUrl>;
     deleteObject?(object: RemoteObject): Promise<RemoteDeleteResult>;
 }
 ```
@@ -154,13 +173,15 @@ src/remote/
 ├── management-settings.ts           # 管理范围与安全设置
 ├── reference-index.ts               # 当前 Vault 远程引用索引
 ├── object-reference-matcher.ts       # URL ↔ object key 规范化和匹配
-├── scan-session.ts                  # 当前会话分页、取消、过期状态
-├── deletion-service.ts              # 删除确认后的队列与结果汇总
+├── browse-session.ts                 # 自动批次扫描、停止与迟到响应隔离
+├── preview-session.ts                # 会话预览 URL 缓存与到期重签
+├── thumbnail-session.ts              # 可视区域缩略图 URL 并发队列
+├── result-page.ts                    # 完整扫描集合的搜索与排序
+├── delete-policy.ts                  # 引用、范围和扫描快照门禁
+├── delete-session.ts                 # 删除选择、并发调度与结果汇总
+├── delete-audit.ts                   # 最近 200 条脱敏结果持久化
 └── providers/
-    ├── aliyun-oss-remote.ts
-    ├── qiniu-remote.ts
-    ├── s3-compatible-remote.ts
-    └── custom-remote.ts
+    └── s3-compatible-remote.ts       # 当前唯一已实现 Provider
 
 src/modals/
 ├── image-browser.ts                 # 外壳或本地入口
@@ -189,7 +210,7 @@ interface RemoteManagementConfig {
 - 默认 `enabled=false`；启用后在明确扫描完成时采用可视区域缩略图加载，并开放 Provider 已实现的浏览、预览和受门禁保护删除能力，不增加缩略图或删除独立开关。
 - `prefix` 允许为空；空值表示当前图床配置中的整个 Bucket。
 - 保存时去除前缀首尾多余 `/`，不修改中间路径，也不从上传路径模板自动推断管理前缀。
-- 每个图片浏览器会话首次用空前缀扫描时必须确认；同一会话内翻页不重复确认。
+- 每个图片浏览器会话首次用空前缀扫描时必须确认；同一会话内继续扫描不重复确认。
 - 旧 `pageSize`、`previewMode` 字段继续兼容读取，但页码 UI 已移除，`previewMode` 统一规范化为 `viewport`。
 - `publicUrlAliases` 用于 CDN、旧域名、自定义域名与源站域名的引用映射，仅影响当前 Vault 的引用识别，不参与上传、预览或删除请求。
 - 凭据继续沿用现有图床配置，不在缓存、日志或错误消息中复制。
@@ -333,6 +354,8 @@ MinIO 专项：
 
 ### G2：Vault 远程引用索引与对象匹配
 
+> 本节最初将标准图片语法与原始 URL 分成 `referenced` / `possibly-referenced`；该分类已被 2026-07-18 决策取代。当前实现对 Markdown 中任何可可靠映射的地址统一返回 `referenced`，`possibly-referenced` 仅保留为旧公共类型兼容值。
+
 **状态：已完成。**
 
 **阶段目标**
@@ -342,7 +365,7 @@ MinIO 专项：
 **实施内容**
 
 1. 使用 `RefConverter` 解析标准 Markdown 图片引用。
-2. 对 `.md` 内容增加受管 URL 的原始文本扫描，把 HTML、frontmatter、普通链接等命中标记为 `possibly-referenced`。
+2. 对 `.md` 内容增加受管 URL 的原始文本扫描；HTML、frontmatter、普通链接、Wiki 包裹和原始 URL 只要可可靠映射，统一标记为 `referenced` 并记录位置。
 3. 删除门禁只接受 fresh Markdown 索引；未扫描或 stale 时不得得出未引用结论。
 4. URL 规范化仅处理可证明安全的部分：协议/主机大小写、默认端口、fragment、provider 允许忽略的查询参数。
 5. 路径按段解码，禁止把编码的 `%2F` 误解成目录分隔符，禁止重复解码 `%2520`。
@@ -354,7 +377,7 @@ MinIO 专项：
 
 - 中文、空格、保留字符、查询参数、CDN 别名、嵌套前缀测试通过。
 - 相同文件名、不同目录的对象不会互相误判。
-- 普通 Markdown 图片引用得到 `referenced`；仅原始 URL 命中得到 `possibly-referenced`。
+- 标准 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和原始 URL 中可可靠映射的地址都得到 `referenced`。
 - 外部域名或不匹配任何受管 URL base 的引用不会被错误映射。
 - 无法映射时不降级到 basename 猜测。
 - 扫描范围和最后扫描时间在 UI 可见。
@@ -526,7 +549,7 @@ MinIO 专项：
 - 现有 OSS 上传签名测试全部通过。
 - 单页、空页、多页、CommonPrefixes、归档 storage class fixture 解析正确。
 - 中文、空格、保留字符前缀与 continuation token 的 canonical query 测试通过。
-- 每次 UI 翻页只调用一次 ListObjectsV2，不请求对象内容。
+- Provider 单次调用只返回一页；公共浏览会话按当前契约自动追踪游标，每批最多 10 次请求后暂停并等待用户继续，不请求对象内容。
 - 使用专用测试 Bucket 完成至少两页人工验收。
 
 ### OSS-2：OSS URL 映射与远程列表接入
@@ -547,13 +570,13 @@ MinIO 专项：
 - 默认 OSS 域名、CDN 域名和带目录 `urlPrefix` 映射测试通过。
 - URL 查询参数和 fragment 不进入 object key。
 - 不在管理前缀内的 URL 不会被判为该范围引用。
-- 列表刷新、分页、引用状态在 Obsidian 中人工验收通过。
+- 扫描、继续、停止、刷新、完整集合搜索/排序/筛选和引用状态在 Obsidian 中人工验收通过。
 
 ### OSS-3：OSS 公共与私有按需预览
 
 **阶段目标**
 
-公开 Bucket 使用对象 URL，私有 Bucket 使用短时签名 GET URL，并保持默认不加载。
+公开 Bucket 使用对象 URL，私有 Bucket 使用短时签名 GET URL；明确扫描前不加载，扫描后遵循公共 viewport 缩略图契约。
 
 **实施内容**
 
@@ -564,7 +587,7 @@ MinIO 专项：
 
 **阶段验收标准**
 
-- 公共预览和私有临时 URL 均只在用户点击后产生。
+- 扫描前不产生预览 URL；扫描后只为接近可视区域的图片生成缩略图 URL，点击卡片时复用公共独立大图预览流程。
 - 特殊字符 object key 可正常预览。
 - 临时 URL 过期后重新生成，日志中没有签名参数。
 - 未配置图片处理时不调用额外处理服务。
@@ -662,7 +685,7 @@ MinIO 专项：
 
 **阶段验收标准**
 
-- 公开/私有预览均只在用户操作后请求。
+- 扫描前不产生预览请求；扫描后公开/私有图片均遵守公共 viewport 缩略图队列和独立大图预览契约。
 - 私有 URL 过期与时钟偏差有明确错误提示。
 - 开启图片处理和不开启两条路径均有测试。
 - token、deadline 不持久保存或写入日志。
@@ -868,7 +891,7 @@ S3-compatible 是首个开发与发布目标。实现以 AWS S3 API 文档作为
 1. 支持可选 preview URL JSON path。
 2. 支持声明式 `urlPrefix + encodedKey`。
 3. 不提供任意脚本签名；动态鉴权不支持时明确提示编写原生适配器。
-4. 仍遵守 G4 手动/懒加载与并发限制。
+4. 仍遵守 G4 的显式扫描、viewport 懒加载、独立大图预览与并发限制。
 
 **阶段验收标准**
 
@@ -1095,6 +1118,7 @@ P0 计划文件
 
 | 日期 | 变更 |
 |------|------|
+| 2026-07-19 | 对照 `master` 收敛知识库：标准模型补充 folders 与结构化预览 URL，模块结构同步实际会话/删除组件，G2 与未来 OSS/七牛/Custom 轨道统一继承当前自动批次扫描、可靠地址引用和 viewport 缩略图契约；历史 G0/G3 方案继续保留并标记为已取代。 |
 | 2026-07-18 | 图床配置 Modal 从三页签纠正为“图床配置 / 远程管理”两页签；连接与上传设置在同页轻量分组，移除逐字段外框，并保证启用项不换行。 |
 | 2026-07-18 | 图床配置 Modal 改为固定基础信息、连接/上传/远程管理三个页签、独立滚动正文和固定操作栏；桌面两列、移动单列，远程管理关闭时折叠后续字段。 |
 | 2026-07-18 | 管理前缀增加 S3 虚拟文件夹选择器：主动打开和导航时按层读取 `CommonPrefixes`，支持面包屑、根目录、加载更多和选择当前目录；手动输入与原有递归扫描保持兼容。 |

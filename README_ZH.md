@@ -41,7 +41,7 @@ Wiki 格式不利于统一管理图片路径和引用，因此更推荐使用标
 | Markdown → Wiki 引用格式转换         | ❌ 暂不支持 |
 | 图床上传（阿里云 OSS / 七牛云 / S3 / 自定义） | ✅ 已实现  |
 | S3 卡片浏览、可视区域缩略图与预览（R2 / MinIO） | ✅ 已实现  |
-| 受安全门禁保护的 S3 远程删除                | 🚧 Issue #26 验收中 |
+| 受安全门禁保护的 S3 远程删除（R2 / MinIO）       | ✅ 已实现并通过验收 |
 | 粘贴自动上传图床                       | ✅ 已实现  |
 | 笔记图片批量上传图床                     | ✅ 已实现  |
 | 全库批量上传                         | ✅ 已实现  |
@@ -125,10 +125,16 @@ src/
 ├── constants.ts            # 正则表达式、MIME 类型映射
 ├── i18n/
 │   ├── index.ts            # 国际化系统（locale 切换、变量插值）
-│   ├── en.ts               # 英文翻译（~183 条）
-│   └── zh.ts               # 中文翻译（~180 条）
+│   ├── en.ts               # 英文翻译（300+ 条）
+│   └── zh.ts               # 中文翻译（300+ 条）
 ├── modals/
 │   ├── image-browser.ts    # 图片画廊浏览器（网格、搜索、排序、孤立筛选）
+│   ├── remote-image-browser.ts # 远程扫描编排与安全门禁
+│   ├── remote-image-grid.ts # 渐进卡片网格与可视区域缩略图
+│   ├── remote-image-preview.ts # 远程大图预览与引用位置
+│   ├── remote-folder-picker.ts # Provider 虚拟文件夹选择
+│   ├── remote-delete-confirm.ts # 远程删除安全确认
+│   ├── remote-delete-results.ts # 逐对象删除结果
 │   ├── image-preview-modal.ts  # 图片预览（元数据、引用列表、上传操作）
 │   ├── orphan-images.ts    # 孤立图片检测与批量删除
 │   ├── hosting-config.ts   # 图床配置表单（4 种服务商）
@@ -144,6 +150,9 @@ src/
 │   ├── public-url.ts       # 公共访问 URL 基础路径规范化与拼接
 │   ├── custom-uploader.ts  # 自定义 HTTP 端点
 │   └── upload-queue.ts     # 并发上传队列（3 并发、3 次重试、进度回调）
+├── remote/                 # Provider 公共会话、安全策略与 S3 Provider
+├── s3/
+│   └── sigv4.ts            # S3 上传、列举、预览和删除共享签名
 └── utils/
     ├── ref-converter.ts    # 引用格式解析与转换
     ├── image-scanner.ts    # 图片扫描、筛选、排序
@@ -382,11 +391,11 @@ src/
 
 - 暂不支持 Markdown → Wiki 格式转换（仅支持 Wiki → Markdown 单向转换）
 - 图床功能需要开启「使用 Markdown 标准格式」后才能使用
-- 剪贴板操作使用 `require('electron')`，移动端不兼容
+- 剪贴板写入使用浏览器 `navigator.clipboard` API；移动端行为仍取决于宿主平台与权限
 - 图床迁移功能尚未实现
 
 ---
 
 ## 许可证
 
-ISC License
+Zero-Clause BSD（`0BSD`）

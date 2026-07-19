@@ -9,9 +9,9 @@
 **根因**：`keydown` 事件未检查 `e.isComposing` 状态
 
 **修复文件**：
-- `modals/image-name-prompt.ts` L45
-- `modals/rename-image.ts` L57
-- `modals/confirm-dialog.ts` L22
+- `src/modals/image-name-prompt.ts`
+- `src/modals/rename-image.ts`
+- `src/modals/confirm-dialog.ts`
 
 **修复方式**：
 ```typescript
@@ -100,7 +100,7 @@ this.registerEvent(
 
 **临时修复**：新增 `refresh()` 方法封装所有 `display()` 调用，将警告从 5 处降至 1 处
 
-**完整修复**：需迁移到 `getSettingDefinitions()` 声明式 API（参见 `display-refactor-solution.md`）
+**完整修复**：最低兼容版本升级到 Obsidian 1.13.0 后，迁移到 `getSettingDefinitions()` 声明式 API
 
 ---
 

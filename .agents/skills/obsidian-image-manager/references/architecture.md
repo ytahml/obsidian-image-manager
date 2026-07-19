@@ -104,7 +104,7 @@ ClipboardEvent/DragEvent
       → autoUploadAfterPaste（可选）
 ```
 
-### 上传 → 替换引用
+### 直接上传 → 复制/替换引用
 
 ```
 doUpload(file, config)
@@ -113,6 +113,15 @@ doUpload(file, config)
   → 成功：clipboard.writeText(ref)
     → 仅在 Markdown 边界还原 URL 路径中的 Unicode，保留敏感 ASCII 编码
   → 可选 replaceReferenceInNote（遍历所有 MD 文件）
+```
+
+### 粘贴自动上传 → 替换引用 → 可选本地清理
+
+```
+autoUploadAfterPaste(savedFile, data, editor, currentFile)
+  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
+  → 替换当前 Editor 中刚插入的本地引用
+  → replaceReferenceInNote（跳过已在内存中更新的当前笔记，只替换其他本地引用）
   → 可选 trashFile（!keepLocalCopy）
   → 直接父附件目录仍为空时永久、非递归删除该目录
 ```
@@ -157,7 +166,7 @@ reorganizeConvertFormat
 | `image-reorganizer.ts` | 文件移动 + 引用更新 | 压缩、上传 |
 | `batch-rename.ts` | 重命名 + 引用同步 | 文件移动、格式转换 |
 | `uploaders/` | 图床上传 | 引用替换（main.ts 处理） |
-| `remote/` | 远程对象公共类型、能力、错误与请求边界 | 具体 Provider 的列表、预览或删除协议（分阶段实现） |
+| `remote/` | 远程对象公共类型、能力、会话、安全策略，以及已接入 Provider 的列表、预览和删除协议 | 上传行为与上传凭据编排（由 `uploaders/` 负责） |
 | `image-optimizer.ts` | 压缩、格式转换 | 文件保存（调用者处理） |
 
 ## Issue #17 当前交付状态

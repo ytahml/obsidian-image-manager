@@ -19,10 +19,12 @@ Node 版本：22.x
 
 ```yaml
 触发条件：推送 tag（如 1.0.0，无 v 前缀）
+Node 版本：20.x
 执行步骤：
   - npm ci
   - npm run build
   - 打包 zip：main.js + manifest.json + styles.css
+  - 为 main.js、styles.css 生成 build provenance attestation
   - softprops/action-gh-release@v2 创建 GitHub Release
 上传产物：
   - main.js
@@ -118,14 +120,14 @@ git push origin master --tags
 ## versions.json 格式
 
 ```json
-[
-    { "1.0.7": "1.12.0" },
-    { "1.0.6": "1.7.0" },
-    { "1.0.5": "1.4.0" }
-]
+{
+    "1.0.9": "1.12.0",
+    "1.0.8": "1.12.0",
+    "1.0.7": "1.12.0"
+}
 ```
 
-新版本插入到数组**开头**（最新版本在前）。
+`versions.json` 是“版本号 → 最低 Obsidian 版本”的对象映射。`version-bump.mjs` 将新版本键放在对象序列化结果的开头，便于最新版本优先阅读。
 
 ## 构建脚本
 
@@ -155,4 +157,4 @@ git push origin master --tags
 }
 ```
 
-锁定 Node 和 npm 版本，确保本地和 CI 环境一致。
+Volta 锁定本地 Node 与 npm；普通 Test & Build CI 使用 Node 22.x，Release 工作流目前显式使用 Node 20.x。

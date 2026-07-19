@@ -75,7 +75,7 @@ private buildUpdatedRef(ref, oldName, newName, oldPath): string {
     if (ref.format === 'wiki') {
         return ref.altText ? `![[${newRefPath}|${ref.altText}]]` : `![[${newRefPath}]]`;
     }
-    return `![${ref.altText}](${newRefPath})`;
+    return `![${ref.altText}](${encodePathSegments(newRefPath)})`;
 }
 ```
 

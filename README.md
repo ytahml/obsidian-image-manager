@@ -37,7 +37,7 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Markdown → Wiki Reference Conversion | ❌ Not Supported |
 | Image Hosting Upload (Aliyun OSS / Qiniu / S3 / Custom) | ✅ Implemented |
 | S3 Card Browser, Viewport Thumbnails, and Preview (R2 / MinIO) | ✅ Implemented |
-| Guarded S3 Remote Deletion | 🚧 Issue #26 acceptance in progress |
+| Guarded S3 Remote Deletion (R2 / MinIO) | ✅ Implemented and accepted |
 | Auto Upload on Paste | ✅ Implemented |
 | Batch Upload Note Images | ✅ Implemented |
 | Batch Upload Entire Vault | ✅ Implemented |
@@ -121,10 +121,16 @@ src/
 ├── constants.ts            # Regular expressions, MIME type mappings
 ├── i18n/
 │   ├── index.ts            # Internationalization system (locale switching, variable interpolation)
-│   ├── en.ts               # English translations (~183 entries)
-│   └── zh.ts               # Chinese translations (~180 entries)
+│   ├── en.ts               # English translations (300+ entries)
+│   └── zh.ts               # Chinese translations (300+ entries)
 ├── modals/
 │   ├── image-browser.ts    # Image gallery browser (grid, search, sort, orphan filter)
+│   ├── remote-image-browser.ts # Remote scan orchestration and safety gates
+│   ├── remote-image-grid.ts # Progressive card grid and viewport thumbnails
+│   ├── remote-image-preview.ts # Remote preview and reference locations
+│   ├── remote-folder-picker.ts # Provider virtual-folder picker
+│   ├── remote-delete-confirm.ts # Guarded remote delete confirmation
+│   ├── remote-delete-results.ts # Per-object delete results
 │   ├── image-preview-modal.ts  # Image preview (metadata, reference list, upload actions)
 │   ├── orphan-images.ts    # Orphan image detection and batch deletion
 │   ├── hosting-config.ts   # Image hosting config form (4 providers)
@@ -140,6 +146,9 @@ src/
 │   ├── public-url.ts       # Public URL base normalization and joining
 │   ├── custom-uploader.ts  # Custom HTTP endpoint
 │   └── upload-queue.ts     # Concurrent upload queue (3 concurrent, 3 retries, progress callback)
+├── remote/                 # Provider-independent remote sessions, safety policies, and S3 provider
+├── s3/
+│   └── sigv4.ts            # Shared S3 upload/list/preview/delete signing
 └── utils/
     ├── ref-converter.ts    # Reference format parsing and conversion
     ├── image-scanner.ts    # Image scanning, filtering, sorting
@@ -331,11 +340,11 @@ Provider-specific upload paths override the global template. Aliyun OSS, Qiniu, 
 
 - Does not support Markdown → Wiki format conversion (only Wiki → Markdown one-way conversion)
 - Image hosting requires "Use Markdown Standard Format" to be enabled
-- Clipboard operations use `require('electron')`, not compatible with mobile
+- Clipboard writes use the browser `navigator.clipboard` API; mobile behavior still depends on the host platform and permissions
 - Image hosting migration not yet implemented
 
 ---
 
 ## License
 
-ISC License
+Zero-Clause BSD (`0BSD`)

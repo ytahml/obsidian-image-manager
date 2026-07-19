@@ -192,4 +192,4 @@ npm run lint     # ESLint 检查
 npm run build    # TypeScript 编译 + esbuild 打包
 ```
 
-两项都通过后才能提交。CI（Node 20.x/22.x 矩阵）执行相同检查。
+两项都通过后才能提交。普通 Test & Build CI 使用 Node 22.x；Release 工作流在 Node 20.x 上重新执行生产构建。
