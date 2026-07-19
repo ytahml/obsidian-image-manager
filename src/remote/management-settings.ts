@@ -35,3 +35,22 @@ export function normalizeRemotePageSize(value: number | undefined): number {
 export function normalizePublicUrlAliases(values: readonly string[]): string[] {
     return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
+
+/** Validate a reference URL base using the same optional-https convention as urlPrefix. */
+export function isValidPublicUrlAlias(value: string): boolean {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) return false;
+    const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+        const url = new URL(candidate);
+        return (url.protocol === 'http:' || url.protocol === 'https:') &&
+            Boolean(url.hostname) &&
+            !url.username &&
+            !url.password &&
+            !url.search &&
+            !url.hash;
+    } catch {
+        return false;
+    }
+}

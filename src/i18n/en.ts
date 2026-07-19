@@ -103,7 +103,7 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.orphanScanning': 'Scanning for orphan images...',
     'modal.imageBrowser.localTab': 'Local images',
     'modal.imageBrowser.remoteTab': 'Hosting images',
-    'modal.imageBrowser.remoteNoConfig': 'Enable remote object management for a hosting configuration in settings to browse remote metadata.',
+    'modal.imageBrowser.remoteNoConfig': 'Enable remote object management for an S3-compatible hosting configuration to browse remote metadata.',
     'modal.imageBrowser.remoteProvider': 'Hosting',
     'modal.imageBrowser.remoteRange': 'Scope: {scope}',
     'modal.imageBrowser.remotePrefix': 'Prefix',
@@ -230,7 +230,7 @@ export const en: Record<string, string> = {
     'modal.remoteDeleteResults.conflict': 'Delete conflict',
     'modal.remoteDeleteResults.precondition': 'Delete precondition failed',
     'modal.remoteDeleteResults.locked': 'Object is locked or retained',
-    'modal.remoteDeleteResults.auditFailed': 'A delete result could not be saved to local audit history.',
+    'modal.remoteDeleteResults.auditFailed': 'A delete result could not be saved to the local diagnostic record.',
 
     // Image Preview Modal
     'modal.preview.path': 'Path: ',
@@ -298,6 +298,7 @@ export const en: Record<string, string> = {
     'modal.hosting.extraBodyValue': 'Field value',
     'modal.hosting.extraBodyAdd': 'Add field',
     'modal.hosting.remoteManagement': 'Remote object management',
+    'modal.hosting.remoteS3Only': 'Currently supports S3-compatible storage only',
     'modal.hosting.remoteManagementEnabled': 'Enable remote object browser',
     'modal.hosting.remoteManagementEnabledDesc': 'Allow this configuration to appear in the Hosting images browser. Scanning remains manual. Visible images load automatically afterward and may incur object-read, original-file transfer, and provider charges.',
     'modal.hosting.remotePrefix': 'Management prefix',
@@ -310,7 +311,9 @@ export const en: Record<string, string> = {
     'modal.hosting.remotePreviewPublic': 'Public address (urlPrefix)',
     'modal.hosting.remotePreviewPublicWarning': 'Configure a public access URL base to enable preview. Listing and upload remain available.',
     'modal.hosting.remoteAliases': 'Other reference URL bases',
-    'modal.hosting.remoteAliasesDesc': 'Add one base per line when this vault references the same images through a CDN, old domain, or another public domain. Used only to detect references, not for uploads or previews.',
+    'modal.hosting.remoteAliasesDesc': 'Add one base per line when this vault references the same images through a CDN, old domain, or another public domain. Do not separate bases with commas or semicolons. Each base must end where the object key begins. Used only to detect references, not for uploads or previews.',
+    'modal.hosting.remoteAliasesPlaceholder': 'https://cdn.example.com/vault-images\nhttps://old.example.com/bucket/vault-images',
+    'modal.hosting.remoteAliasesInvalid': 'Lines {lines} are not valid URL bases. Use HTTP/HTTPS without credentials, query parameters, or fragments.',
 
     // Image Name Prompt Modal
     'modal.imageName.title': 'Image Name',

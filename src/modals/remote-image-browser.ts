@@ -6,7 +6,7 @@ import { formatFileSize } from '../utils/path-utils';
 import { ConfirmDialog } from './confirm-dialog';
 import { RemoteBrowseSession } from '../remote/browse-session';
 import { getRemoteManagementConfig, normalizeRemotePrefix } from '../remote/management-settings';
-import { createRemoteObjectProvider } from '../remote/provider-factory';
+import { createRemoteObjectProvider, supportsRemoteObjectManagement } from '../remote/provider-factory';
 import type {
     RemoteObject,
     RemoteReferenceLocation,
@@ -110,7 +110,9 @@ export class RemoteImageBrowserView {
 
     private getConfigs(): ImageHostingConfig[] {
         return this.plugin.settings.hostingConfigs.filter(
-            (config) => config.enabled && getRemoteManagementConfig(config).enabled
+            (config) => config.enabled &&
+                getRemoteManagementConfig(config).enabled &&
+                supportsRemoteObjectManagement(config)
         );
     }
 

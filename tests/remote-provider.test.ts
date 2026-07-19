@@ -2,11 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('obsidian', () => ({ requestUrl: vi.fn() }));
 import type { HostingType, ImageHostingConfig } from '../src/types';
-import { createRemoteObjectProvider } from '../src/remote/provider-factory';
+import { createRemoteObjectProvider, supportsRemoteObjectManagement } from '../src/remote/provider-factory';
 import { listRemoteObjects } from '../src/remote/provider';
 import type { RemoteObjectProvider } from '../src/remote/provider';
 import type { RemoteListRequest } from '../src/remote/types';
-import { getRemoteManagementConfig, normalizeRemotePrefix } from '../src/remote/management-settings';
+import {
+    getRemoteManagementConfig,
+    isValidPublicUrlAlias,
+    normalizePublicUrlAliases,
+    normalizeRemotePrefix,
+} from '../src/remote/management-settings';
 
 function createHostingConfig(type: HostingType): ImageHostingConfig {
     return {
@@ -63,6 +68,26 @@ describe('remote provider factory', () => {
             expect([...result.provider.capabilities]).toEqual(['list', 'folders', 'preview', 'delete']);
             expect(result.provider.listFolders).toBeTypeOf('function');
         }
+    });
+
+    it('exposes remote management only for production providers with list capability', () => {
+        const s3 = createHostingConfig('s3');
+        s3.config = {
+            endpoint: 'https://account.r2.cloudflarestorage.com',
+            region: 'auto',
+            accessKeyId: 'access-key',
+            secretAccessKey: 'secret-key',
+            bucket: 'images',
+            forcePathStyle: true,
+        };
+
+        expect(supportsRemoteObjectManagement(s3)).toBe(true);
+        expect(supportsRemoteObjectManagement(createHostingConfig('aliyun-oss'))).toBe(false);
+        expect(supportsRemoteObjectManagement(createHostingConfig('qiniu'))).toBe(false);
+        expect(supportsRemoteObjectManagement(createHostingConfig('custom'))).toBe(false);
+        expect(supportsRemoteObjectManagement(s3, {
+            s3: () => ({ capabilities: new Set(), listObjects: vi.fn() }),
+        })).toBe(false);
     });
 
     it('creates a registered provider without changing the upload factory', () => {
@@ -132,5 +157,26 @@ describe('remote management settings', () => {
 
     it('normalizes only leading and trailing prefix separators', () => {
         expect(normalizeRemotePrefix('///vault-a//images///')).toBe('vault-a//images');
+    });
+
+    it('normalizes newline-delimited aliases and validates conservative URL bases', () => {
+        expect(normalizePublicUrlAliases([
+            ' https://cdn.example.com/vault ',
+            '',
+            'https://cdn.example.com/vault',
+            'old.example.com/images',
+        ])).toEqual([
+            'https://cdn.example.com/vault',
+            'old.example.com/images',
+        ]);
+        expect(isValidPublicUrlAlias('https://cdn.example.com/vault')).toBe(true);
+        expect(isValidPublicUrlAlias('old.example.com/images')).toBe(true);
+        expect(isValidPublicUrlAlias('minio.example.com:9000/images')).toBe(true);
+        expect(isValidPublicUrlAlias('https://cdn.example.com/path;value')).toBe(true);
+        expect(isValidPublicUrlAlias('https://cdn.example.com/path,value')).toBe(true);
+        expect(isValidPublicUrlAlias('ftp://cdn.example.com/images')).toBe(false);
+        expect(isValidPublicUrlAlias('https://user:secret@cdn.example.com/images')).toBe(false);
+        expect(isValidPublicUrlAlias('https://cdn.example.com/images?token=secret')).toBe(false);
+        expect(isValidPublicUrlAlias('https://cdn.example.com/images#fragment')).toBe(false);
     });
 });
