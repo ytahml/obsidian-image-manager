@@ -159,6 +159,8 @@ npm run lint     # eslint-plugin-obsidianmd@0.3.0
 | `sentence-case` | First letter uppercase, rest lowercase |
 | `no-manual-html-headings` | `new Setting().setName().setHeading()` |
 | `no-static-styles-assignment` | CSS classes instead of `element.style.*` |
+| CSS duplicate properties | Keep one declaration per property in a rule |
+| CSS `!important` | Increase plugin-scoped selector specificity |
 | `no-tfile-tfolder-cast` | `instanceof TFile` instead of `as TFile` |
 | `prefer-file-manager-trash-file` | `fileManager.trashFile()` instead of `vault.delete()` |
 | `prefer-window-timers` | `window.setTimeout` instead of `setTimeout` |
@@ -192,9 +194,10 @@ new Setting(containerEl).setName('标题').setHeading();
 const file = vault.getAbstractFileByPath(path);
 if (!(file instanceof TFile)) throw new Error('Not a file');
 
-// Window timers + activeDocument (popout compat)
+// Window timers + DOM helpers (popout compat)
 window.setTimeout(() => {}, 100);
-activeDocument.createElement('canvas');
+const canvas = createEl('canvas');
+activeDocument.addEventListener('keydown', handler);
 
 // editor-paste/editor-drop handler
 private handlePaste(evt: ClipboardEvent, editor: Editor, file: TFile | null): boolean {

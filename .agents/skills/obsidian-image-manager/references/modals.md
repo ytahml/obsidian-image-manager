@@ -177,3 +177,8 @@ class MyModal extends Modal {
 3. **No static styles assignment**：用 CSS 类代替 `element.style.*`
 4. **Prefer activeDocument**：用 `activeDocument` 代替 `document`
 5. **Prefer window timers**：用 `window.setTimeout` 代替 `setTimeout`
+
+### CSS 审核约束
+
+- 同一规则内不要用重复的 `height` / `max-height` 声明提供单位 fallback；当前支持的移动端运行环境直接使用 `dvh`。
+- 不使用 `!important` 覆盖 Obsidian 主题。需要压过主题边框时，以 Modal 根类、内容类和字段容器组合成更具体且仍局部生效的选择器。
