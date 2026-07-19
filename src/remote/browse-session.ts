@@ -102,7 +102,11 @@ export class RemoteBrowseSession {
     }
 
     getAllObjects(): RemoteObject[] {
-        return this.pages.flatMap((page) => page.result.objects);
+        const objects: RemoteObject[] = [];
+        for (const page of this.pages) {
+            objects.push(...page.result.objects);
+        }
+        return objects;
     }
 
     private async loadPage(

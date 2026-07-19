@@ -8,8 +8,9 @@
 class ImageManagerSettingTab extends PluginSettingTab {
     plugin: ImageManagerPlugin;
 
-    display(): void;           // 主渲染方法
-    refresh(): void;           // 封装 display()，减少 deprecated 警告
+    getSettingDefinitions(): SettingDefinitionItem[]; // Obsidian 1.13+ 声明式设置与搜索索引
+    display(): void;           // Obsidian 1.12 imperative fallback
+    refresh(): void;           // 1.13+ update() / 1.12 display() 兼容刷新
 
     // 6 个模块化渲染方法
     private renderLanguage(containerEl: HTMLElement): void;
@@ -24,10 +25,14 @@ class ImageManagerSettingTab extends PluginSettingTab {
 }
 ```
 
-## 渲染结构
+## 渲染结构与版本兼容
+
+Obsidian 1.13.0 及以上从 `getSettingDefinitions()` 渲染并建立设置搜索索引；语言、通用、命名、压缩、画廊均按单个设置项索引。图床管理含动态配置卡片和 Modal 操作，继续通过一个可搜索的自定义 `render` 定义复用既有渲染器，其 aliases 覆盖添加图床、默认图床、上传路径与自动上传等子项。
+
+`minAppVersion` 仍为 1.12.0，因此保留 `display()` 作为旧版 Obsidian fallback。两条路径必须维持相同设置顺序、默认值、保存副作用和条件门控；只有最低兼容版本升级到 1.13.0 后才可删除 fallback。
 
 ```
-display()
+getSettingDefinitions() / display() fallback
 ├── renderLanguage        // 语言切换（en/zh）
 ├── renderGeneral         // 通用设置（带 heading）
 │   ├── 图片路径模板 (text)
@@ -64,15 +69,20 @@ display()
 
 上述 S3-only 页签门控、精简提示、远程浏览配置筛选及 URL alias 多行输入/警告已于 2026-07-19 通过用户 Obsidian 验收。
 
-## refresh() 封装
+## refresh() 兼容封装
 
 ```typescript
 refresh() {
-    this.display();
+    const update: unknown = Reflect.get(this, 'update');
+    if (typeof update === 'function') {
+        Reflect.apply(update, this, []);
+    } else {
+        this.display();
+    }
 }
 ```
 
-1.0.7 新增，封装所有 `display()` 调用，将 deprecated 警告从 5 处降至 1 处。
+不能在兼容代码中直接调用 1.13.0 才提供的 `SettingTab.update()`，否则 `obsidianmd/no-unsupported-api` 会拒绝 `minAppVersion=1.12.0`。运行时能力检测让新版刷新声明式定义，旧版继续刷新 imperative UI。
 
 ## 条件渲染
 
@@ -160,7 +170,7 @@ new ConfirmDialog(this.app, {
 
 ## 设置保存模式
 
-所有设置项使用相同的模式：
+声明式 `control` 项由 `PluginSettingTab` 读取 `plugin.settings` 并持久化。需要额外副作用或空值归一化的语言、Markdown 格式开关和两个模板输入使用声明式 `render` 回调，继续显式保存：
 ```typescript
 .addToggle((toggle) =>
     toggle
@@ -177,10 +187,10 @@ new ConfirmDialog(this.app, {
 
 1. 在 `types.ts` 的 `ImageManagerSettings` 添加字段
 2. 在 `DEFAULT_SETTINGS` 添加默认值
-3. 在 `settings.ts` 的对应 `render*` 方法添加 UI 控件
+3. 在 `settings.ts` 的 `getSettingDefinitions()` 添加可搜索定义，并同步对应 `render*` fallback
 4. 在 `i18n/en.ts` 和 `i18n/zh.ts` 添加翻译键
 5. 在 `main.ts` 或相关 utils 中使用设置值
 
-## 待重构：display() → getSettingDefinitions()
+## 后续兼容清理
 
-Obsidian 1.13.0 起 `display()` 已废弃，应迁移到声明式 `getSettingDefinitions()` API。项目当前使用 1.13.x 类型进行开发，但 `minAppVersion` 仍为 1.12.0；只有在最低兼容版本升级到 1.13.0 后，才能移除 imperative `display()` fallback。
+声明式搜索支持已完成。待最低兼容版本升级到 Obsidian 1.13.0 后，可删除 `display()` 及重复的 `renderLanguage`、`renderGeneral`、`renderImageNaming`、`renderCompression`、`renderGallery` fallback；图床动态渲染器仍可保留为声明式 `render` 项。

@@ -864,6 +864,12 @@
 }
 
 /* Hosting Config List */
+.image-hosting-settings-wrapper {
+    display: block;
+    padding: 0;
+    border: 0;
+}
+
 .hosting-config-list {
     margin-bottom: 8px;
 }

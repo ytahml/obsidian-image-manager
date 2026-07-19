@@ -33,7 +33,7 @@ export class ImageOptimizer {
         const blob = new Blob([originalData], { type: mimeType });
         const img = await this.blobToImage(blob);
 
-        const canvas = activeDocument.createElement('canvas');
+        const canvas = createEl('canvas');
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         const ctx = canvas.getContext('2d')!;
@@ -75,7 +75,7 @@ export class ImageOptimizer {
         const blob = new Blob([originalData], { type: mimeType });
         const img = await this.blobToImage(blob);
 
-        const canvas = activeDocument.createElement('canvas');
+        const canvas = createEl('canvas');
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         const ctx = canvas.getContext('2d')!;
