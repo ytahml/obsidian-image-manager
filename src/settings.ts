@@ -421,6 +421,20 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     })
             );
 
+        // Custom reference template applied to references generated after upload
+        new Setting(containerEl)
+            .setName(t('settings.customReferenceTemplate'))
+            .setDesc(t('settings.customReferenceTemplateDesc'))
+            .addText((text) =>
+                text
+                    .setPlaceholder(t('settings.customReferenceTemplatePlaceholder'))
+                    .setValue(this.plugin.settings.customReferenceTemplate)
+                    .onChange(async (value) => {
+                        this.plugin.settings.customReferenceTemplate = value;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
         new Setting(containerEl)
             .setName(t('settings.autoReplaceAfterUpload'))
             .setDesc(t('settings.autoReplaceAfterUploadDesc'))

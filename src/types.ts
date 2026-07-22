@@ -151,6 +151,7 @@ export interface ImageManagerSettings {
     defaultHostingId: string;
     uploadPathTemplate: string;
     autoReplaceAfterUpload: boolean;
+    customReferenceTemplate: string;
     reorganizeConvertFormat: boolean;
     skipWikiRefsOnReorganize: boolean;
     enableImageBrowser: boolean;
@@ -175,6 +176,7 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     defaultHostingId: '',
     uploadPathTemplate: DEFAULT_UPLOAD_PATH_TEMPLATE,
     autoReplaceAfterUpload: false,
+    customReferenceTemplate: '',
     reorganizeConvertFormat: true,
     skipWikiRefsOnReorganize: true,
     enableImageBrowser: true,
