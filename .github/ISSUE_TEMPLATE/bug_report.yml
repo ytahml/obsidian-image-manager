@@ -1,0 +1,40 @@
+name: Bug report / 问题报告
+description: Report behavior that does not work as expected / 报告不符合预期的行为
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the plugin. Please remove any credentials or private vault content before submitting.
+
+        感谢你帮助改进插件。提交前请移除任何凭据或私有库内容。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened? / 发生了什么？
+      description: Describe the actual result and the expected result. / 请说明实际结果和预期结果。
+      placeholder: Tell us what you saw and what you expected instead. / 请描述你看到的现象，以及你预期的结果。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      description: Provide the smallest reliable set of steps. / 请提供可稳定复现的最短步骤。
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境信息
+      description: Include plugin version, Obsidian version, and operating system. / 请提供插件版本、Obsidian 版本和操作系统。
+      placeholder: |
+        Plugin version / 插件版本:
+        Obsidian version:
+        OS:

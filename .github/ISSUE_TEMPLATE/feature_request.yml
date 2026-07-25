@@ -1,0 +1,25 @@
+name: Feature request / 功能建议
+description: Suggest an improvement or a new capability / 建议改进或新功能
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case / 问题或使用场景
+      description: Explain what would become easier or possible. / 请说明它会解决什么问题，或带来什么能力。
+      placeholder: Describe the workflow or limitation. / 请描述当前流程或限制。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution / 建议方案
+      description: Tell us how you imagine it working. / 请说明你设想的使用方式。
+      placeholder: A concise example is especially helpful. / 简短示例会很有帮助。
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or additional context / 替代方案或补充信息
+      description: Include workarounds, related plugins, or screenshots if useful. / 如有帮助，请补充替代方案、相关插件或截图。

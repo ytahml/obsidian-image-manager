@@ -1,0 +1,21 @@
+name: Documentation / 文档改进
+description: Report missing, unclear, or incorrect documentation / 报告文档缺失、不清晰或不正确的问题
+title: "[Docs] "
+labels:
+  - documentation
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Documentation location / 文档位置
+      description: Link the page or name the section that needs attention. / 请提供页面链接或需要改进的章节名称。
+      placeholder: URL, file path, or section heading / URL、文件路径或章节标题
+    validations:
+      required: true
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Suggested improvement / 建议改进
+      description: Explain what is missing, unclear, or incorrect. / 请说明缺失、不清晰或不正确的内容。
+    validations:
+      required: true

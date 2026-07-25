@@ -1,0 +1,19 @@
+name: Question / 使用问题
+description: Ask for help using or configuring the plugin / 询问插件使用或配置问题
+title: "[Question] "
+labels:
+  - question
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question / 问题
+      description: Explain what you want to achieve and where you are stuck. / 请说明你的目标，以及当前卡在哪一步。
+      placeholder: Describe your goal, current setup, and the question. / 请描述目标、当前配置和具体问题。
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant context / 相关信息
+      description: Include plugin version, relevant settings, and error messages with secrets removed. / 请提供插件版本、相关配置及已脱敏的错误信息。

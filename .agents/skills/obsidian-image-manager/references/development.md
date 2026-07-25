@@ -178,3 +178,10 @@ Obsidian 内置更新可能剥离 Markdown 目录。普通 rename 事件等待�
 - `docs/design/` 保存需求、决策、安全契约、验收和历史证据。
 - README 只描述用户可见能力、配置、风险和使用方式。
 - 行为、架构或工作流变化后同步相应层；不要让 README、skill、design 与代码互相矛盾。
+
+## Issue 与 PR 分类
+
+- Issue 提供中英双语的 bug、功能建议、使用问题和文档改进表单；空白 issue 保持可用。
+- 表单会自动添加对应的 `bug`、`enhancement`、`question` 或 `documentation` 标签。
+- PR labeler 只添加标签：`fix/` 分支为 `bug`、`feat/` 分支为 `enhancement`、`docs/` 分支或文档路径为 `documentation`、`.github/` 改动为 `ci`。它不自动评论、指派、关闭或调整优先级。
+- `high`、`medium`、`low`、`in progress` 与 `needs design` 依赖实际判断，始终手动维护。

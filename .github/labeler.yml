@@ -1,0 +1,22 @@
+bug:
+  - head-branch:
+      - "^fix/"
+
+enhancement:
+  - head-branch:
+      - "^feat/"
+
+documentation:
+  - head-branch:
+      - "^docs/"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "CHANGELOG.md"
+          - "docs/**"
+          - ".agents/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
