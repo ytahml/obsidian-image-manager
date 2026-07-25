@@ -2,6 +2,8 @@ import { requestUrl } from 'obsidian';
 import { UploaderBase } from './uploader-base';
 import { encodePublicPath, joinPublicUrl, normalizePublicUrlBase } from './public-url';
 import type { UploadResult, ImageHostingConfig, QiniuConfig, UploadContext } from '../types';
+import { createQiniuUploadToken } from '../qiniu/auth';
+import { QiniuRemoteObjectProvider } from '../remote/providers/qiniu-remote';
 
 export class QiniuUploader extends UploaderBase {
     readonly name = 'Qiniu';
@@ -25,7 +27,7 @@ export class QiniuUploader extends UploaderBase {
             };
         }
         const targetPath = await this.resolveUploadPath(filename, data, context);
-        const token = await this.generateUploadToken(qiniuConfig, targetPath);
+        const token = await createQiniuUploadToken(qiniuConfig, targetPath);
         const uploadUrl = this.getUploadUrl(qiniuConfig.region);
 
         try {
@@ -78,37 +80,12 @@ export class QiniuUploader extends UploaderBase {
     }
 
     async testConnection(): Promise<boolean> {
-        const qiniuConfig = this.config.config as QiniuConfig;
         try {
-            // Test by generating a token
-            const token = await this.generateUploadToken(qiniuConfig, 'test');
-            return token.length > 0;
+            await new QiniuRemoteObjectProvider(this.config).listObjects({ prefix: '', limit: 1 });
+            return true;
         } catch {
             return false;
         }
-    }
-
-    private async generateUploadToken(config: QiniuConfig, key: string): Promise<string> {
-        const accessKey = config.accessKey.trim();
-        const secretKey = config.secretKey.trim();
-        const bucket = config.bucket.trim();
-
-        const policy = {
-            scope: `${bucket}:${key}`,
-            deadline: Math.floor(Date.now() / 1000) + 3600,
-        };
-        const policyStr = JSON.stringify(policy);
-        const encodedPolicy = this.base64UrlEncode(policyStr);
-        const sign = await this.hmacSha1(secretKey, encodedPolicy);
-        const encodedSign = this.base64UrlEncode(new Uint8Array(sign));
-        const token = `${accessKey}:${encodedSign}:${encodedPolicy}`;
-
-        return token;
-    }
-
-    private base64UrlEncode(input: string | Uint8Array): string {
-        const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
-        return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
     }
 
     private getUploadUrl(region: string): string {
@@ -121,17 +98,6 @@ export class QiniuUploader extends UploaderBase {
         };
         const r = (region || 'z0').trim().toLowerCase();
         return endpoints[r] || 'https://upload.qiniu.com/';
-    }
-
-    private async hmacSha1(secret: string, data: string): Promise<ArrayBuffer> {
-        const key = await crypto.subtle.importKey(
-            'raw',
-            new TextEncoder().encode(secret),
-            { name: 'HMAC', hash: 'SHA-1' },
-            false,
-            ['sign']
-        );
-        return crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
     }
 
     private buildMultipartBody(

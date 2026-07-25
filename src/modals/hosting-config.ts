@@ -203,7 +203,7 @@ export class HostingConfigModal extends Modal {
                     remote.prefix = normalizeRemotePrefix(value);
                 })
             );
-        if (this.config.type === 's3') {
+        if (this.config.type === 's3' || this.config.type === 'qiniu') {
             new Setting(container)
                 .setName(t('modal.hosting.remotePreviewAccess'))
                 .setDesc(t('modal.hosting.remotePreviewAccessDesc'))

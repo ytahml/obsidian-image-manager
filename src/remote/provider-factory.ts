@@ -2,6 +2,7 @@ import type { HostingType, ImageHostingConfig } from '../types';
 import type { RemoteCapability } from './types';
 import type { RemoteObjectProvider } from './provider';
 import { S3RemoteObjectProvider } from './providers/s3-compatible-remote';
+import { QiniuRemoteObjectProvider } from './providers/qiniu-remote';
 
 export type RemoteProviderUnsupportedReason =
     | 'not-implemented'
@@ -28,6 +29,7 @@ export type RemoteProviderRegistry = Partial<Record<HostingType, RemoteProviderB
 
 export const DEFAULT_REMOTE_PROVIDER_REGISTRY: RemoteProviderRegistry = {
     s3: (config) => new S3RemoteObjectProvider(config),
+    qiniu: (config) => new QiniuRemoteObjectProvider(config),
 };
 
 const NO_CAPABILITIES: ReadonlySet<RemoteCapability> = new Set<RemoteCapability>();

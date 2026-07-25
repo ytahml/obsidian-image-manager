@@ -83,7 +83,7 @@ describe('remote provider factory', () => {
 
         expect(supportsRemoteObjectManagement(s3)).toBe(true);
         expect(supportsRemoteObjectManagement(createHostingConfig('aliyun-oss'))).toBe(false);
-        expect(supportsRemoteObjectManagement(createHostingConfig('qiniu'))).toBe(false);
+        expect(supportsRemoteObjectManagement(createHostingConfig('qiniu'))).toBe(true);
         expect(supportsRemoteObjectManagement(createHostingConfig('custom'))).toBe(false);
         expect(supportsRemoteObjectManagement(s3, {
             s3: () => ({ capabilities: new Set(), listObjects: vi.fn() }),

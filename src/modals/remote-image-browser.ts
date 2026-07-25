@@ -790,6 +790,7 @@ function getPreviewUnavailableMessage(reason: RemotePreviewUnavailableReason): s
         unsupported: 'modal.remotePreview.unsupported',
         'public-url-required': 'modal.remotePreview.publicUrlRequired',
         archived: 'modal.remotePreview.archived',
+        disabled: 'modal.remotePreview.disabled',
         'not-image': 'modal.remotePreview.notImage',
     };
     return t(keys[reason]);

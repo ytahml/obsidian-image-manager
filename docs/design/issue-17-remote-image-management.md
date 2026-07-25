@@ -2,7 +2,7 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：S3-compatible 首期轨道（G0～G5、S3-1～S3-5）已完成并通过 Cloudflare R2、MinIO 人工验收；当前长期分支先完成 G6 统一上传 Service，再以七牛 Kodo 为下一优先 Provider，按 QN-1～QN-5 完成接入、预览、删除与收尾。
+> 文档状态：S3-compatible 首期轨道（G0～G5、S3-1～S3-5）已完成并通过 Cloudflare R2、MinIO 人工验收；长期分支已完成 G6，七牛 Kodo 的 QN-1～QN-5 代码实现与自动化正在进行真实公开/私有空间验收。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
@@ -634,6 +634,8 @@ MinIO 专项：
 
 ### QN-1：七牛管理凭证与资源列举
 
+**状态：进行中（代码与自动化完成，等待真实空间验收）。**
+
 **阶段目标**
 
 支持 `rsf.qiniuapi.com` 资源列举、marker 分页与 JSON 响应规范化。
@@ -655,6 +657,8 @@ MinIO 专项：
 
 ### QN-2：七牛 URL 映射与列表接入
 
+**状态：进行中（代码与自动化完成，等待真实空间验收）。**
+
 **阶段目标**
 
 使用用户配置域名与 object key 建立引用状态，不依赖已回收的测试域名。
@@ -674,6 +678,8 @@ MinIO 专项：
 - 列表和引用状态人工验收通过。
 
 ### QN-3：七牛公开与私有按需预览
+
+**状态：进行中（代码与自动化完成，等待真实空间验收）。**
 
 **阶段目标**
 
@@ -695,6 +701,8 @@ MinIO 专项：
 
 ### QN-4：七牛资源删除
 
+**状态：进行中（代码与自动化完成，等待专用范围真实删除验收）。**
+
 **阶段目标**
 
 使用管理凭证精确调用资源删除接口，并突出七牛删除不可恢复风险。
@@ -714,6 +722,8 @@ MinIO 专项：
 - 专用测试空间完成删除人工验收并确认无法恢复文案。
 
 ### QN-5：七牛加固与文档
+
+**状态：进行中（自动化与 canonical 文档已同步，等待兼容矩阵的真实验收记录）。**
 
 **阶段目标**
 
@@ -958,11 +968,11 @@ P0 计划文件
 | OSS-3 | OSS 按需预览 | 未开始 | G4、OSS-2 | |
 | OSS-4 | OSS DeleteObject | 未开始 | G5、OSS-2 | |
 | OSS-5 | OSS 加固与文档 | 未开始 | OSS-3、OSS-4 | |
-| QN-1 | 七牛管理凭证与资源列举 | 未开始 | G1 | 2026-07-25：指定为下一阶段；目标为当前 `/list` + `Qiniu` 管理签名的 Provider/fixture 纵向切片，完成前不注册 production capability |
-| QN-2 | 七牛 URL 映射与列表接入 | 未开始 | G2、G3、QN-1 | |
-| QN-3 | 七牛按需预览 | 未开始 | G4、QN-2 | |
-| QN-4 | 七牛资源删除 | 未开始 | G5、QN-2 | |
-| QN-5 | 七牛加固与文档 | 未开始 | QN-3、QN-4 | |
+| QN-1 | 七牛管理凭证与资源列举 | 进行中 | G1 | 2026-07-25：`/list`、`Qiniu` 管理签名、`X-Qiniu-Date`、opaque marker、目录和 JSON fixture 已实现；24 个测试文件、191 项测试与 build 通过，等待专用空间多页验收 |
+| QN-2 | 七牛 URL 映射与列表接入 | 进行中 | G2、G3、QN-1 | production registry、`urlPrefix`/aliases 映射与无下载域名时的 metadata-only 行为已实现，等待 Obsidian 人工验收 |
+| QN-3 | 七牛按需预览 | 进行中 | G4、QN-2 | 公开 URL 与 300 秒私有下载 token、viewport 缩略图公共链路已接入，等待公开/私有空间验收 |
+| QN-4 | 七牛资源删除 | 进行中 | G5、QN-2 | 精确 EncodedEntryURI、200/612 语义及公共删除门禁已实现，等待专用前缀真实删除验收 |
+| QN-5 | 七牛加固与文档 | 进行中 | QN-3、QN-4 | canonical 文档、帮助文案和自动化已同步；兼容矩阵待真实测试日期和环境补全 |
 | S3-1 | SigV4 与 ListObjectsV2 | 已完成 | G1 | Issue #23：共享 SigV4、ListObjectsV2、XML 解析、1000 项内部批次与游标保护已实现；Cloudflare R2、MinIO 验收通过；`npm test` 130/130、`npm run build`、`git diff --check` 通过 |
 | S3-2 | 兼容性探测、URL 映射与 UI | 已完成 | G2、G3、S3-1 | Issue #23 建立 registry、结构化错误、URL bases 与自动批次扫描；Issue #26 最终升级为完整集合搜索/排序/筛选、60 项渐进卡片和虚拟目录选择，开发依赖未进入生产 bundle |
 | S3-3 | S3 presigned GET 预览 | 已完成 | G4、S3-2 | Issue #26 / PR #27：公开 `urlPrefix` 与 300 秒 presigned GET、到期重签、4 并发 viewport 缩略图、独立大图 Modal 和脱敏失败已实现；R2/MinIO 公开/私有人工验收通过 |
@@ -1056,6 +1066,7 @@ P0 计划文件
 
 | 日期 | 变更 |
 |------|------|
+| 2026-07-25 | 在长期分支实现 QN-1～QN-5 的代码与自动化：原生 Qiniu Provider 使用 `/list`、管理签名和 virtual folders；接入 URL 映射、公开/私有 300 秒预览及精确删除，并复用 S3 的扫描、缩略图和删除门禁。自动化基线为 25 个测试文件、191 项测试；公开/私有空间与真实删除验收待补。 |
 | 2026-07-25 | 在 `feat/issue-17-qiniu-remote-management` 完成 G6：新增统一 UploadService，单图、笔记、批量和粘贴上传均经该层；原生上传返回 objectKey，成功只使同图床打开的远程会话失效，不持久化上传清单。自动化基线为 24 个测试文件、186 项测试。 |
 | 2026-07-25 | 指定七牛 Kodo 为 G6 后的下一优先 Provider，下一阶段为 QN-1；依据当前官方协议补充 `/list`、`Qiniu` 管理签名与 `X-Qiniu-Date` 边界。 |
 | 2026-07-19 | 按用户确认收紧后续范围：G6 不再创建或持久化上传清单，统一上传后仅失效远程会话；Custom 保留上传并退出 Issue #17 远程对象管理路线。 |
