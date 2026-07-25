@@ -182,6 +182,7 @@ Obsidian 内置更新可能剥离 Markdown 目录。普通 rename 事件等待�
 ## Issue 与 PR 分类
 
 - Issue 提供中英双语的 bug、功能建议、使用问题和文档改进表单；`Other / 其他` 保留普通自由编辑入口。
+- 模板文件使用两位数字前缀固定展示顺序：Bug、Documentation、Feature、Question、Other；新增或重命名模板时保持该顺序。
 - 表单会自动添加对应的 `bug`、`enhancement`、`question` 或 `documentation` 标签。
 - PR labeler 只添加标签：`fix/` 分支为 `bug`、`feat/` 分支为 `enhancement`、`docs/` 分支或文档路径为 `documentation`、`.github/` 改动为 `ci`。它不自动评论、指派、关闭或调整优先级。
 - `high`、`medium`、`low`、`in progress` 与 `needs design` 依赖实际判断，始终手动维护。
