@@ -13,6 +13,7 @@ import { ImageReorganizer } from './utils/image-reorganizer';
 import { UploadQueue } from './uploaders/upload-queue';
 import { UploadService } from './uploaders/upload-service';
 import { summarizeUploadError } from './uploaders/upload-error';
+import { readNoteContentForAction } from './utils/note-content';
 import { setLocale, t } from './i18n';
 import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
 import { makePublicUrlReadable } from './utils/public-url';
@@ -213,7 +214,7 @@ export default class ImageManagerPlugin extends Plugin {
                         menu.addItem((item) => {
                             item.setTitle(`Markdown Image Manager: ${t('command.uploadNoteImages')}`)
                                 .setIcon('upload')
-                                .onClick(() => this.uploadNoteImages(file));
+                                .onClick(() => { void this.uploadNoteImages(file); });
                         });
                     }
                     menu.addItem((item) => {
@@ -309,7 +310,7 @@ export default class ImageManagerPlugin extends Plugin {
         let filesChanged = 0;
 
         for (const file of mdFiles) {
-            const content = await this.app.vault.cachedRead(file);
+            const content = await readNoteContentForAction(this.app, file);
             const counts = this.refConverter.countReferences(content);
             const refCount = counts.wiki;
 
