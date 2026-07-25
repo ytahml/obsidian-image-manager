@@ -78,6 +78,8 @@ export const zh: Record<string, string> = {
     'notice.replaceSuccess': '已替换 {count} 处图片引用。',
     'notice.uploadFailed': '上传失败：{error}',
     'notice.noteUploadDone': '笔记图片上传完成：{success}/{total} 成功。',
+    'notice.noteUploadPartial': '笔记上传完成：{success}/{total} 成功，{failed} 个失败。首个失败：{file} — {error}',
+    'notice.noteUploadFileMissing': '未找到本地图片文件',
     'notice.noteUploadNoImages': '笔记中未找到本地图片引用。',
     'notice.noImagesToUpload': '未找到可上传的图片。',
     'notice.batchUploadStart': '开始批量上传 {count} 张图片...',

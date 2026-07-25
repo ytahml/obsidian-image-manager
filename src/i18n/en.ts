@@ -79,6 +79,8 @@ export const en: Record<string, string> = {
     'notice.replaceSuccess': 'Replaced {count} reference(s) across vault.',
     'notice.uploadFailed': 'Upload failed: {error}',
     'notice.noteUploadDone': 'Note images upload complete: {success}/{total} succeeded.',
+    'notice.noteUploadPartial': 'Note upload finished: {success}/{total} succeeded; {failed} failed. First failure: {file} — {error}',
+    'notice.noteUploadFileMissing': 'Local image file was not found',
     'notice.noteUploadNoImages': 'No local image references found in this note.',
     'notice.noImagesToUpload': 'No images found to upload.',
     'notice.batchUploadStart': 'Starting batch upload of {count} images...',

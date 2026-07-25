@@ -12,6 +12,7 @@ import { BatchRename } from './utils/batch-rename';
 import { ImageReorganizer } from './utils/image-reorganizer';
 import { UploadQueue } from './uploaders/upload-queue';
 import { UploadService } from './uploaders/upload-service';
+import { summarizeUploadError } from './uploaders/upload-error';
 import { setLocale, t } from './i18n';
 import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
 import { makePublicUrlReadable } from './utils/public-url';
@@ -458,6 +459,7 @@ export default class ImageManagerPlugin extends Plugin {
 
             let success = 0;
             let newContent = content;
+            const failures: Array<{ fileName: string; error: string }> = [];
             const progress = new Notice(t('notice.batchUploadProgress', { done: '0', total: String(localRefs.length), current: '' }), 0);
 
             // Process from end to start to preserve positions
@@ -465,7 +467,10 @@ export default class ImageManagerPlugin extends Plugin {
                 const ref = localRefs[i]!;
                 const resolved = this.resolveRefPath(noteDir, ref.path);
                 const imgFile = resolved ? this.app.vault.getAbstractFileByPath(resolved) : null;
-                if (!(imgFile instanceof TFile)) continue;
+                if (!(imgFile instanceof TFile)) {
+                    failures.push({ fileName: ref.path, error: t('notice.noteUploadFileMissing') });
+                    continue;
+                }
 
                 progress.setMessage(t('notice.batchUploadProgress', {
                     done: String(success),
@@ -488,9 +493,17 @@ export default class ImageManagerPlugin extends Plugin {
                         // Update references in other notes (skip current file, handled by newContent)
                         await this.replaceReferenceInNote(imgFile, result.url, file);
                     } else {
+                        failures.push({
+                            fileName: imgFile.name,
+                            error: summarizeUploadError(result.error),
+                        });
                         console.error(`[ImageManager] Upload failed for ${imgFile.name}: ${result.error}`);
                     }
                 } catch (e) {
+                    failures.push({
+                        fileName: imgFile.name,
+                        error: summarizeUploadError(e instanceof Error ? e.message : undefined),
+                    });
                     console.error(`[ImageManager] Failed to upload ${imgFile.path}:`, e);
                 }
             }
@@ -499,7 +512,18 @@ export default class ImageManagerPlugin extends Plugin {
             if (success > 0) {
                 await this.app.vault.process(file, () => newContent);
             }
-            new Notice(t('notice.noteUploadDone', { success: String(success), total: String(localRefs.length) }));
+            if (failures.length > 0) {
+                const firstFailure = failures[0]!;
+                new Notice(t('notice.noteUploadPartial', {
+                    success: String(success),
+                    total: String(localRefs.length),
+                    failed: String(failures.length),
+                    file: firstFailure.fileName,
+                    error: firstFailure.error,
+                }), 10_000);
+            } else {
+                new Notice(t('notice.noteUploadDone', { success: String(success), total: String(localRefs.length) }));
+            }
         };
 
         if (configs.length === 1) {

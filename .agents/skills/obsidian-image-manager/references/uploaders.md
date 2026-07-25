@@ -122,7 +122,7 @@ function createUploader(config: ImageHostingConfig): UploaderBase {
 
 ## 并发队列：`upload-queue.ts`
 
-G6 已由统一 `UploadService` 承接单图、笔记、批量和粘贴上传；`UploadQueue` 只负责批量并发、重试和进度，并复用该 Service 的执行与结果语义。原生图床结果返回稳定的 `hostingId` 与 `objectKey`，Custom 保持 URL-only。结果只在当前操作内汇总，不写入 `data.json` 或独立上传清单；成功后只使对应 hosting 的已打开远程会话失效，远端事实仍以用户下一次扫描为准。
+G6 已由统一 `UploadService` 承接单图、笔记、批量和粘贴上传；`UploadQueue` 只负责批量并发、重试和进度，并复用该 Service 的执行与结果语义。原生图床结果返回稳定的 `hostingId` 与 `objectKey`，Custom 保持 URL-only。结果只在当前操作内汇总，不写入 `data.json` 或独立上传清单；成功后只使对应 hosting 的已打开远程会话失效，远端事实仍以用户下一次扫描为准。笔记上传会聚合未解析本地文件、上传结果失败和异常；若任一失败，最终 Notice 显示成功/失败计数及首个安全摘要（HTTP 状态和服务商错误码），而不是只显示 `0/N` 成功。
 
 ```typescript
 class UploadQueue {
