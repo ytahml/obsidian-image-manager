@@ -1,4 +1,4 @@
-import { Notice, Plugin, TAbstractFile, TFile, TFolder, MarkdownView, SuggestModal, normalizePath } from 'obsidian';
+import { Notice, Plugin, TAbstractFile, TFile, TFolder, MarkdownView, SuggestModal } from 'obsidian';
 import { ImageManagerSettings, DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { ImageManagerSettingTab } from './settings';
 import { ImageBrowserModal } from './modals/image-browser';
@@ -13,7 +13,7 @@ import { ImageReorganizer } from './utils/image-reorganizer';
 import { UploadQueue } from './uploaders/upload-queue';
 import { UploadService } from './uploaders/upload-service';
 import { summarizeUploadError } from './uploaders/upload-error';
-import { readNoteContentForAction } from './utils/note-content';
+import { collectLocalNoteImages } from './uploaders/note-images';
 import { setLocale, t } from './i18n';
 import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
 import { makePublicUrlReadable } from './utils/public-url';
@@ -310,7 +310,7 @@ export default class ImageManagerPlugin extends Plugin {
         let filesChanged = 0;
 
         for (const file of mdFiles) {
-            const content = await readNoteContentForAction(this.app, file);
+            const content = await this.app.vault.cachedRead(file);
             const counts = this.refConverter.countReferences(content);
             const refCount = counts.wiki;
 
@@ -447,12 +447,11 @@ export default class ImageManagerPlugin extends Plugin {
         }
 
         const chooseAndUpload = async (hostingConfig: ImageHostingConfig) => {
-            const content = await this.app.vault.cachedRead(file);
-            const refs = this.refConverter.parseReferences(content);
-            const noteDir = file.parent?.path ?? '';
-
-            // Filter to local image references
-            const localRefs = refs.filter((r) => !r.path.startsWith('http://') && !r.path.startsWith('https://'));
+            const { content, references: localRefs } = await collectLocalNoteImages(
+                this.app,
+                file,
+                this.refConverter
+            );
             if (localRefs.length === 0) {
                 new Notice(t('notice.noteUploadNoImages'));
                 return;
@@ -465,10 +464,8 @@ export default class ImageManagerPlugin extends Plugin {
 
             // Process from end to start to preserve positions
             for (let i = localRefs.length - 1; i >= 0; i--) {
-                const ref = localRefs[i]!;
-                const resolved = this.resolveRefPath(noteDir, ref.path);
-                const imgFile = resolved ? this.app.vault.getAbstractFileByPath(resolved) : null;
-                if (!(imgFile instanceof TFile)) {
+                const { reference: ref, file: imgFile } = localRefs[i]!;
+                if (!imgFile) {
                     failures.push({ fileName: ref.path, error: t('notice.noteUploadFileMissing') });
                     continue;
                 }
@@ -536,47 +533,6 @@ export default class ImageManagerPlugin extends Plugin {
                 });
             }).open();
         }
-    }
-
-    private resolveRefPath(noteDir: string, refPath: string): string | null {
-        const decoded = refPath.replace(/%20/g, ' ');
-        // Absolute vault path (starts with /)
-        if (decoded.startsWith('/')) {
-            return normalizePath(decoded.substring(1));
-        }
-        // Explicit relative path (starts with ../ or ./)
-        if (decoded.startsWith('../') || decoded.startsWith('./')) {
-            const baseParts = noteDir.split('/').filter(Boolean);
-            const relParts = decoded.split('/').filter(Boolean);
-            const parts = [...baseParts];
-            for (const part of relParts) {
-                if (part === '..') parts.pop();
-                else if (part !== '.') parts.push(part);
-            }
-            return normalizePath(parts.join('/'));
-        }
-        // Path contains / — could be absolute vault path or relative path
-        if (decoded.includes('/')) {
-            // Try as absolute vault path first
-            const absolutePath = normalizePath(decoded);
-            if (this.app.vault.getAbstractFileByPath(absolutePath)) return absolutePath;
-            // Try as relative path to noteDir
-            const baseParts = noteDir.split('/').filter(Boolean);
-            const relParts = decoded.split('/').filter(Boolean);
-            const parts = [...baseParts];
-            for (const part of relParts) {
-                if (part === '..') parts.pop();
-                else if (part !== '.') parts.push(part);
-            }
-            return normalizePath(parts.join('/'));
-        }
-        // Just a filename — try noteDir first, then vault root, then search entire vault
-        const inNoteDir = normalizePath(`${noteDir}/${decoded}`);
-        if (this.app.vault.getAbstractFileByPath(inNoteDir)) return inNoteDir;
-        const inVaultRoot = normalizePath(decoded);
-        if (this.app.vault.getAbstractFileByPath(inVaultRoot)) return inVaultRoot;
-        const match = this.app.vault.getFiles().find((f) => f.name === decoded);
-        return match?.path ?? null;
     }
 
     private buildUploadedReference(filename: string, url: string, altText?: string): string {
