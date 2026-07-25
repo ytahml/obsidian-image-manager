@@ -51,6 +51,8 @@ abstract class UploaderBase {
 - **路径编码**：逻辑对象 key 保持 Unicode；请求 URL 与 V4 Canonical URI 使用相同的逐段编码结果
 - **V4 头部**：`x-oss-date`、`x-oss-content-sha256: UNSIGNED-PAYLOAD`；Canonical URI 为 `/{bucket}/{encodedKey}`；没有附加签名头时必须从 Authorization 中省略 `AdditionalHeaders` 字段，不能发送空的 `AdditionalHeaders=`；Canonical Headers 后仍需保留 OSS 规定的空字段换行，服务端 Canonical Request 在 `x-oss-date` 与 payload 之间包含 3 个 LF
 - **端点**：`https://{bucket}.{region}.aliyuncs.com`
+- **共享签名层**：`src/oss/sigv4.ts` 同时服务 PUT 上传、ListObjectsV2、300 秒私有预览与 DeleteObject；请求 URL、canonical URI、canonical query 与发送 headers 从同一结果生成。连接测试使用 `ListObjectsV2(max-keys=1)`，不会遍历 Bucket。
+- **远程管理**：`aliyun-oss-remote.ts` 支持 opaque continuation token、`CommonPrefixes` 虚拟目录、源站/`urlPrefix`/alias 引用映射、公开或私有预览与单对象删除。204 仅报告 `delete-marker` 或 `unknown`，不发送 versionId 或批量删除；Archive、ColdArchive、DeepColdArchive 默认不预览。
 
 ### 七牛云 (`qiniu.ts`)
 
@@ -120,7 +122,7 @@ function createUploader(config: ImageHostingConfig): UploaderBase {
 
 ## 并发队列：`upload-queue.ts`
 
-G6 已由统一 `UploadService` 承接单图、笔记、批量和粘贴上传；`UploadQueue` 只负责批量并发、重试和进度，并复用该 Service 的执行与结果语义。原生图床结果返回稳定的 `hostingId` 与 `objectKey`，Custom 保持 URL-only。结果只在当前操作内汇总，不写入 `data.json` 或独立上传清单；成功后只使对应 hosting 的已打开远程会话失效，远端事实仍以用户下一次扫描为准。
+G6 已由统一 `UploadService` 承接单图、笔记、批量和粘贴上传；`UploadQueue` 只负责批量并发、重试和进度，并复用该 Service 的执行与结果语义。原生图床结果返回稳定的 `hostingId` 与 `objectKey`，Custom 保持 URL-only。结果只在当前操作内汇总，不写入 `data.json` 或独立上传清单；成功后只使对应 hosting 的已打开远程会话失效，远端事实仍以用户下一次扫描为准。笔记上传通过 `note-images.ts` 读取并解析所选笔记：活动笔记使用编辑器内存文本，其他笔记读取 Vault 文件，避免 `cachedRead()` 延迟；本地引用先逐段完整 URL 解码，再用 Obsidian linkpath 语义解析，并保留旧版 Vault 根路径兼容回退，因此无需先执行“整理图片资源”。它还会聚合未解析本地文件、上传结果失败和异常。若任一失败，最终 Notice 显示成功/失败计数及首个安全摘要（HTTP 状态和服务商错误码），而不是只显示 `0/N` 成功。
 
 ```typescript
 class UploadQueue {

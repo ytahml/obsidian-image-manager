@@ -131,14 +131,14 @@ describe('AliyunOSSUploader', () => {
         expect(result.url).toBe('https://cdn.example.com/bucket/uploads/photo.png');
     });
 
-    it('uses OSS V4 headers when testing the bucket connection', async () => {
+    it('uses a non-destructive ListObjectsV2 request when testing the bucket connection', async () => {
         const uploader = new AliyunOSSUploader(createHostingConfig());
 
         await uploader.testConnection();
 
         const request: unknown = requestUrl.mock.calls[0]?.[0];
         expect(request).toMatchObject({
-            url: 'https://images.oss-cn-hangzhou.aliyuncs.com/',
+            url: 'https://images.oss-cn-hangzhou.aliyuncs.com/?list-type=2&max-keys=1',
             method: 'GET',
             headers: {
                 'x-oss-content-sha256': 'UNSIGNED-PAYLOAD',
@@ -151,6 +151,17 @@ describe('AliyunOSSUploader', () => {
         );
         expect(authorization).not.toContain('AdditionalHeaders=');
         expect(authorization).not.toMatch(/^OSS /);
+    });
+
+    it('returns a normal failure for incomplete OSS configuration', async () => {
+        const config = createHostingConfig();
+        (config.config as AliyunOSSConfig).bucket = '';
+        const uploader = new AliyunOSSUploader(config);
+
+        await expect(uploader.upload(new ArrayBuffer(0), 'photo.png'))
+            .resolves.toMatchObject({ success: false, originalPath: 'photo.png' });
+        await expect(uploader.testConnection()).resolves.toBe(false);
+        expect(requestUrl).not.toHaveBeenCalled();
     });
 
     it('matches the canonical request hash returned by OSS for a real PUT request', async () => {

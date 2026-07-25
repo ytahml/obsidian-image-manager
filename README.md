@@ -36,8 +36,8 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Wiki → Markdown Reference Conversion | ✅ Implemented |
 | Markdown → Wiki Reference Conversion | ❌ Not Supported |
 | Image Hosting Upload (Aliyun OSS / Qiniu / S3 / Custom) | ✅ Implemented |
-| S3 / Qiniu Card Browser, Viewport Thumbnails, and Preview | ✅ Implemented and accepted |
-| Guarded S3 / Qiniu Remote Deletion | ✅ Implemented and accepted |
+| Aliyun OSS / S3 / Qiniu Card Browser, Viewport Thumbnails, and Preview | ✅ Implemented; OSS awaits manual acceptance |
+| Guarded Aliyun OSS / S3 / Qiniu Remote Deletion | ✅ Implemented; OSS awaits manual acceptance |
 | Auto Upload on Paste | ✅ Implemented |
 | Batch Upload Note Images | ✅ Implemented |
 | Batch Upload Entire Vault | ✅ Implemented |
@@ -54,9 +54,9 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 
 ## Remote Management Safety
 
-S3-compatible and Qiniu remote browsing list objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
+Aliyun OSS, S3-compatible, and Qiniu remote browsing list objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
 
-Remote object management supports S3-compatible storage and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
+Remote object management supports Aliyun OSS, S3-compatible storage, and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. OSS ListObjectsV2 incurs API request charges; private preview uses a 300-second V4 presigned URL, while public preview uses the configured public access URL base. Grant only `oss:ListObjects`, `oss:GetObject` for private previews, and `oss:DeleteObject` when deletion is required. Archive, Cold Archive, and Deep Cold Archive objects are not previewed automatically. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
 
 Deletion requires selecting at most 20 eligible objects, typing the selected count, and acknowledging that cloud deletion cannot be undone. Requests run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the configured scope again. The plugin keeps up to 200 redacted local diagnostic records of completed delete requests; they never participate in remote-existence, reference, or deletion decisions, and do not contain presigned preview URLs or credentials.
 
@@ -148,7 +148,9 @@ src/
 │   ├── public-url.ts       # Public URL base normalization and joining
 │   ├── custom-uploader.ts  # Custom HTTP endpoint
 │   └── upload-queue.ts     # Concurrent upload queue (3 concurrent, 3 retries, progress callback)
-├── remote/                 # Provider-independent remote sessions, safety policies, and S3 provider
+├── remote/                 # Provider-independent remote sessions, safety policies, and native providers
+├── oss/
+│   └── sigv4.ts            # Shared OSS upload/list/preview/delete signing
 ├── s3/
 │   └── sigv4.ts            # Shared S3 upload/list/preview/delete signing
 └── utils/
@@ -294,7 +296,7 @@ src/
 
 | Provider | Status | Description |
 |----------|--------|-------------|
-| Aliyun OSS | ✅ Supported | PUT upload, OSS V4 (HMAC-SHA256) signing |
+| Aliyun OSS | ✅ Supported | OSS V4 upload, list, preview, and guarded delete; manual acceptance pending |
 | Qiniu Cloud | ✅ Supported | Token auth, multipart upload; public access URL base required |
 | S3 Compatible Storage | ✅ Supported | AWS SigV4, supports MinIO, Cloudflare R2, etc. |
 | Custom | ✅ Supported | Custom URL, Method, Headers, field mapping |

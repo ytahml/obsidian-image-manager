@@ -124,6 +124,12 @@ describe('remote preview policy', () => {
         expect(getRemotePreviewUnavailableReason(
             publicConfig, provider, { ...object, storageClass: 'DEEP_ARCHIVE' }, ['png']
         )).toBe('archived');
+        expect(getRemotePreviewUnavailableReason(
+            publicConfig, provider, { ...object, storageClass: 'ColdArchive' }, ['png']
+        )).toBe('archived');
+        expect(getRemotePreviewUnavailableReason(
+            publicConfig, provider, { ...object, storageClass: 'DeepColdArchive' }, ['png']
+        )).toBe('archived');
         expect(createPreviewUrl).not.toHaveBeenCalled();
     });
 
