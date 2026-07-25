@@ -26,13 +26,16 @@ main.ts (entry and orchestration)
 │   ├── upload-path.ts (shared template resolution)
 │   ├── oss-path.ts (Aliyun OSS URL path encoding)
 │   ├── public-url.ts (public URL base normalization and joining)
+│   ├── upload-service.ts (unified direct, note, batch, and paste uploads)
 │   └── upload-queue.ts (3 concurrent, 3 retries)
 ├── remote/
 │   ├── provider/types/factory/request (provider-independent contracts)
 │   ├── browse/preview/thumbnail/delete sessions and policies
 │   ├── reference index and object-key matcher
-│   └── providers/s3-compatible-remote.ts
+│   ├── providers/s3-compatible-remote.ts
+│   └── providers/qiniu-remote.ts
 ├── s3/sigv4.ts (shared S3 upload/list/preview/delete signing)
+├── qiniu/auth.ts (upload token, management signing, private download URLs)
 ├── utils/
 │   ├── ref-converter.ts ← constants.ts (regex)
 │   ├── public-url.ts (Markdown-safe Unicode URL display)
@@ -79,7 +82,7 @@ editor-paste/editor-drop event
 ```
 doUpload(file, config)
   → readBinary + optional compression
-  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
+  → UploadService.upload(data, filename, { sourcePath })
   → success: clipboard.writeText(ref)
     → Markdown URL display decodes Unicode path bytes only; reserved ASCII stays encoded
   → optional replaceReferenceInNote
@@ -90,7 +93,7 @@ doUpload(file, config)
 
 ```
 autoUploadAfterPaste(savedFile, data, editor, currentFile)
-  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
+  → UploadService.upload(data, filename, { sourcePath })
   → replace the newly inserted local reference in the active editor
   → replace matching local references in other notes; skip the active note already changed in memory
   → optional trashFile (!keepLocalCopy)
@@ -293,4 +296,4 @@ Detailed documentation for each module:
 
 - **Image hosting migration**: Command registered (`migrate-images`), types defined, shows "not implemented"
 - **Restore local refs**: Translation keys exist, no implementation code
-- **Remote image hosting management (Issue #17)**: The S3-first track G0–G5 and S3-1 through S3-5 is complete. Issue #26 closed through PR #27 after Cloudflare R2 and MinIO list, virtual-folder, public/private preview, viewport-thumbnail, reference-location, and delete acceptance. The current UI is a responsive card grid: scans remain explicit, visible thumbnails use a 4-concurrency queue, cards append locally in batches of 60, and search/sort/reference filters cover the complete scanned set without page controls. The S3 folder picker uses paged `ListObjectsV2(prefix, delimiter='/')` / `CommonPrefixes`, while manual prefix input remains available. Remote-management configuration and the remote browser only expose enabled providers with a production `list` capability; currently that means S3-compatible storage, while Aliyun OSS, Qiniu, and Custom remain upload-only and show the concise unsupported notice. Other reference URL bases are newline-delimited, validated HTTP(S) bases; commas and semicolons are not delimiters. This S3-only release gate and alias UX passed user Obsidian acceptance on 2026-07-19, with 177 automated tests and the production build passing. Deletion follows remote-management `enabled` and retains fresh Markdown gates, exact-count plus acknowledgement confirmation, 20-item/2-concurrency scheduling, and a 200-entry redacted local diagnostic record. That record has no history UI and never participates in remote-existence, reference, or deletion decisions. Do not regress to the historical metadata table, remote page controls, manual-only thumbnails, standard-image-syntax-only reference detection, or a separate delete toggle. Remaining Issue #17 work is a unified G6 UploadService without a persistent upload manifest, native OSS/Qiniu providers, and global cross-provider/release closure. Upload results may invalidate remote sessions but never prove current remote existence. The phased plan is maintained in [docs/design/issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md)
+- **Remote image hosting management (Issue #17)**: The S3-first track G0–G5 and S3-1 through S3-5 is complete. Issue #26 closed through PR #27 after Cloudflare R2 and MinIO list, virtual-folder, public/private preview, viewport-thumbnail, reference-location, and delete acceptance. Qiniu Kodo QN-1 through QN-5 is also complete and accepted in a real Obsidian environment: current `/list` management authorization with signed `X-Qiniu-Date`, opaque marker pagination, folders, URL mapping, public/private preview, and exact-key delete all use the same card-grid, traffic, reference, and deletion safeguards as S3. The current UI is a responsive card grid: scans remain explicit, visible thumbnails use a 4-concurrency queue, cards append locally in batches of 60, and search/sort/reference filters cover the complete scanned set without page controls. Remote-management configuration and the remote browser expose enabled providers with a production `list` capability; S3-compatible and Qiniu are accepted, while Aliyun OSS and Custom remain upload-only. Other reference URL bases are newline-delimited, validated HTTP(S) bases; commas and semicolons are not delimiters. Deletion follows remote-management `enabled` and retains fresh Markdown gates, exact-count plus acknowledgement confirmation, 20-item/2-concurrency scheduling, and a 200-entry redacted local diagnostic record. That record has no history UI and never participates in remote-existence, reference, or deletion decisions. Do not regress to the historical metadata table, remote page controls, manual-only thumbnails, standard-image-syntax-only reference detection, or a separate delete toggle. G6 is complete: `UploadService` owns all four upload entry points, native upload results include objectKey, and success only invalidates an open remote session for the matching hostingId. Upload results may invalidate remote sessions but never prove current remote existence. Remaining Issue #17 work includes native OSS and global cross-provider/release closure. The phased plan is maintained in [docs/design/issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md)

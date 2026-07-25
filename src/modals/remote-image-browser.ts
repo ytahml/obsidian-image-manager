@@ -61,6 +61,7 @@ export class RemoteImageBrowserView {
     private activeDeleteResultsModal: RemoteDeleteResultsModal | null = null;
     private activeFolderPicker: RemoteFolderPickerModal | null = null;
     private removeIndexInvalidationListener: (() => void) | null = null;
+    private removeUploadSuccessListener: (() => void) | null = null;
     private deleteSummaryEl: HTMLElement | null = null;
     private deleteButton: HTMLButtonElement | null = null;
     private deleteViewGeneration = 0;
@@ -76,6 +77,14 @@ export class RemoteImageBrowserView {
         this.removeIndexInvalidationListener ??= this.plugin.remoteReferenceIndex.onInvalidate(() => {
             this.deleteSession.clear();
             this.invalidatePreview();
+            this.render();
+        });
+        this.removeUploadSuccessListener ??= this.plugin.uploadService.onSuccess((result) => {
+            if (result.hostingId !== this.selectedHostingId) return;
+            this.invalidatePreview();
+            this.deleteViewGeneration++;
+            this.deleteSession.clear();
+            this.session.invalidate();
             this.render();
         });
         const configs = this.getConfigs();
@@ -100,6 +109,8 @@ export class RemoteImageBrowserView {
         this.activeFolderPicker = null;
         this.removeIndexInvalidationListener?.();
         this.removeIndexInvalidationListener = null;
+        this.removeUploadSuccessListener?.();
+        this.removeUploadSuccessListener = null;
         this.pageResultsEl = null;
         this.previewCountEl = null;
         this.resultCountEl = null;
@@ -779,6 +790,7 @@ function getPreviewUnavailableMessage(reason: RemotePreviewUnavailableReason): s
         unsupported: 'modal.remotePreview.unsupported',
         'public-url-required': 'modal.remotePreview.publicUrlRequired',
         archived: 'modal.remotePreview.archived',
+        disabled: 'modal.remotePreview.disabled',
         'not-image': 'modal.remotePreview.notImage',
     };
     return t(keys[reason]);

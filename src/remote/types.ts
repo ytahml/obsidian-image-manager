@@ -33,6 +33,7 @@ export interface RemoteObject {
     etag?: string;
     mimeType?: string;
     storageClass?: string;
+    availability?: 'enabled' | 'disabled';
 }
 
 /**

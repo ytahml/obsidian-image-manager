@@ -7,6 +7,7 @@ export type RemotePreviewUnavailableReason =
     | 'unsupported'
     | 'public-url-required'
     | 'archived'
+    | 'disabled'
     | 'not-image';
 
 const ARCHIVE_STORAGE_CLASSES = new Set(['GLACIER', 'DEEP_ARCHIVE']);
@@ -28,6 +29,7 @@ export function getRemotePreviewUnavailableReason(
     if (object.storageClass && ARCHIVE_STORAGE_CLASSES.has(object.storageClass.toUpperCase())) {
         return 'archived';
     }
+    if (object.availability === 'disabled') return 'disabled';
     const extension = object.key.split('/').pop()?.split('.').pop()?.toLowerCase() ?? '';
     if (!supportedExtensions.some((item) => item.toLowerCase() === extension)) {
         return 'not-image';

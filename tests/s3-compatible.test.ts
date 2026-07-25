@@ -270,6 +270,7 @@ describe('S3Uploader', () => {
         expect(result).toMatchObject({
             success: true,
             url: 'https://minio.example.com:9000/images/uploads/%E4%B8%AD%E6%96%87%20%E5%9B%BE.png',
+            objectKey: 'uploads/中文 图.png',
         });
     });
 

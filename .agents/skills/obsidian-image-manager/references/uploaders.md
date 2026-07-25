@@ -13,6 +13,7 @@ createUploader(config)  ← 工厂函数
 upload-path.ts          ← 共享模板解析与优先级
 oss-path.ts             ← Aliyun OSS 对象 key URL 编码
 public-url.ts           ← 公共访问 URL 基础路径规范化与拼接
+upload-service.ts       ← 单图、笔记、批量、粘贴上传的统一编排与结构化结果
 UploadQueue             ← 并发队列
 ```
 
@@ -64,6 +65,7 @@ abstract class UploaderBase {
 - **上传路径**：`https://{region}.qiniup.com`
 - **特殊字符**：policy 先按 UTF-8 编码后再 Base64URL，multipart `key` 保留逻辑路径，公开 URL 按路径段编码
 - **公开 URL**：必须配置公共访问 URL 基础路径
+- **远程管理**：`src/qiniu/auth.ts` 与上传 token 共用 Base64URL/HMAC 基础能力，但管理 API 使用独立的 `Qiniu <accessKey>:<signature>` 请求签名与 `X-Qiniu-Date`；签名输入必须保留协议要求的两个结尾换行。`qiniu-remote.ts` 以 `/list` 的 `marker` 作为不透明游标，支持虚拟目录、公开 URL 和 300 秒私有下载 token 预览，以及 `POST /delete/<EncodedEntryURI>` 的单对象删除。上传、管理和私有下载权限不得混为同一用途。
 
 ### S3 兼容 (`s3-compatible.ts`)
 
@@ -118,7 +120,7 @@ function createUploader(config: ImageHostingConfig): UploaderBase {
 
 ## 并发队列：`upload-queue.ts`
 
-G6 将以统一 `UploadService` 承接单图、笔记、批量和粘贴上传，`UploadQueue` 复用该 Service 的执行与结果语义。结果只在当前操作内汇总，不写入 `data.json` 或独立上传清单；成功后只使对应远程会话失效。
+G6 已由统一 `UploadService` 承接单图、笔记、批量和粘贴上传；`UploadQueue` 只负责批量并发、重试和进度，并复用该 Service 的执行与结果语义。原生图床结果返回稳定的 `hostingId` 与 `objectKey`，Custom 保持 URL-only。结果只在当前操作内汇总，不写入 `data.json` 或独立上传清单；成功后只使对应 hosting 的已打开远程会话失效，远端事实仍以用户下一次扫描为准。
 
 ```typescript
 class UploadQueue {

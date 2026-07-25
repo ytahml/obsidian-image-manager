@@ -53,6 +53,7 @@ export class S3Uploader extends UploaderBase {
             return {
                 success: true,
                 url: publicUrl,
+                objectKey: targetPath,
                 originalPath: filename,
             };
         } catch (e) {

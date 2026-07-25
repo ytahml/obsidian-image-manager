@@ -51,6 +51,7 @@ describe('QiniuUploader', () => {
         expect(result.url).toBe(
             'https://cdn.example.com/bucket/global/Projects/A/%E4%B8%AD%E6%96%87%20%E5%9B%BE%231%3F.png'
         );
+        expect(result.objectKey).toBe('global/Projects/A/中文 图#1?.png');
     });
 
     it('fails before uploading when the public access URL base is missing', async () => {

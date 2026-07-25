@@ -10,8 +10,8 @@ import { ImageOptimizer } from './utils/image-optimizer';
 import { ImageScanner } from './utils/image-scanner';
 import { BatchRename } from './utils/batch-rename';
 import { ImageReorganizer } from './utils/image-reorganizer';
-import { createUploader } from './uploaders/uploader-factory';
 import { UploadQueue } from './uploaders/upload-queue';
+import { UploadService } from './uploaders/upload-service';
 import { setLocale, t } from './i18n';
 import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
 import { makePublicUrlReadable } from './utils/public-url';
@@ -29,6 +29,7 @@ export default class ImageManagerPlugin extends Plugin {
     imageOptimizer: ImageOptimizer;
     batchRename: BatchRename;
     remoteReferenceIndex: RemoteReferenceIndex;
+    uploadService: UploadService;
     private isReorganizing = false;
     private remoteDeleteAuditWriter: RemoteDeleteAuditWriter;
     async onload() {
@@ -37,6 +38,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         this.refConverter = new RefConverter(this.app);
         this.imageOptimizer = new ImageOptimizer(this.app);
+        this.uploadService = new UploadService(this.app, this.settings);
         this.batchRename = new BatchRename(this.app, this.settings);
         this.remoteReferenceIndex = new RemoteReferenceIndex(this.app, this.refConverter);
         this.remoteDeleteAuditWriter = new RemoteDeleteAuditWriter(
@@ -375,7 +377,7 @@ export default class ImageManagerPlugin extends Plugin {
         const doBatch = async (hostingConfig: ImageHostingConfig) => {
             new Notice(t('notice.batchUploadStart', { count: String(images.length) }));
 
-            const queue = new UploadQueue(this.app, this.settings);
+            const queue = new UploadQueue(this.uploadService);
             queue.addFiles(images);
 
             queue.onProgressChange((progress) => {
@@ -412,15 +414,7 @@ export default class ImageManagerPlugin extends Plugin {
         new Notice(t('notice.uploading'));
 
         try {
-            let data = await this.app.vault.readBinary(file);
-
-            if (this.settings.autoCompress) {
-                const result = await this.imageOptimizer.compressImage(file, this.settings.compressQuality);
-                data = result.data;
-            }
-
-            const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
-            const result = await uploader.upload(data, file.name, { sourcePath: file.path });
+            const result = await this.uploadService.uploadFile(file, hostingConfig);
 
             if (result.success && result.url) {
                 const ref = this.buildUploadedReference(file.name, result.url);
@@ -480,16 +474,7 @@ export default class ImageManagerPlugin extends Plugin {
                 }));
 
                 try {
-                    let data = await this.app.vault.readBinary(imgFile);
-                    if (this.settings.autoCompress) {
-                        const result = await this.imageOptimizer.compressImage(imgFile, this.settings.compressQuality);
-                        data = result.data;
-                    }
-
-                    const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
-                    const result = await uploader.upload(data, imgFile.name, {
-                        sourcePath: imgFile.path,
-                    });
+                    const result = await this.uploadService.uploadFile(imgFile, hostingConfig);
 
                     if (result.success && result.url) {
                         const newRef = this.buildUploadedReference(
@@ -904,8 +889,7 @@ export default class ImageManagerPlugin extends Plugin {
         const notice = new Notice(t('notice.autoUploading'), 0);
 
         try {
-            const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
-            const result = await uploader.upload(data, savedFile.name, {
+            const result = await this.uploadService.uploadData(data, savedFile.name, hostingConfig, {
                 sourcePath: savedFile.path,
             });
 

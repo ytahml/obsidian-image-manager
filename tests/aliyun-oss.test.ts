@@ -119,6 +119,7 @@ describe('AliyunOSSUploader', () => {
         expect(result).toMatchObject({
             success: true,
             url: `https://cdn.example.com/root/${encodedPath}`,
+            objectKey: 'uploads/中文 图#1?.png',
         });
     });
 
