@@ -226,10 +226,10 @@ src/
 - **Management Prefix** — Limits remote scanning to a bucket prefix; an empty value means the current bucket root and requires confirmation
 - **Other Reference URL Bases** — One HTTP(S) base per line for recognizing CDN, legacy-domain, or alternate public URLs
 
-![设置-图床-EN.png](images/设置-图床-EN.png)
+![设置-图床-en.png](images/设置-图床-en.png)
 
 
-![图床配置-EN.png](images/图床配置-EN.png)
+![图床配置-en.png](images/图床配置-en.png)
 
 #### Remote Management Safety
 
