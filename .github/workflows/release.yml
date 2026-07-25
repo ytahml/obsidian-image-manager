@@ -28,6 +28,29 @@ jobs:
           node-version: "20.x"
           cache: "npm"
 
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+
+          const tag = process.env.RELEASE_TAG;
+          const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
+
+          if (!/^\d+\.\d+\.\d+$/.test(tag)) {
+            console.error(`Release tag must use the x.y.z format: ${tag}`);
+            process.exit(1);
+          }
+
+          if (tag !== manifest.version) {
+            console.error(
+              `Release tag ${tag} does not match manifest version ${manifest.version}`,
+            );
+            process.exit(1);
+          }
+          NODE
+
       - name: Build
         run: |
           npm ci

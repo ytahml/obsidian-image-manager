@@ -122,6 +122,7 @@ npm version major
 规则：
 
 - tag 与 `manifest.json.version` 完全一致，无 `v`。
+- release workflow 会拒绝非 `x.y.z` 格式或与 `manifest.json.version` 不一致的 tag，避免误打 tag 创建 Release。
 - `versions.json` 映射版本到最低 Obsidian 版本。
 - Release 上传 `main.js`、`manifest.json`、`styles.css` 和 zip。
 - 若使用了更高 Obsidian API，同步 `minAppVersion` 与 versions。
