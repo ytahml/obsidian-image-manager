@@ -29,7 +29,7 @@ const PLACEHOLDER_REGEX = /\{([A-Za-z][A-Za-z0-9]*)\}/g;
 export function validateReferenceTemplate(template: string): ReferenceTemplateValidation {
     if (!template.trim()) return { status: 'disabled' };
 
-    const variables = Array.from(template.matchAll(PLACEHOLDER_REGEX), (match) => match[1]!);
+    const variables = extractTemplateVariables(template);
     if (!variables.includes('fileUrl')) {
         return { status: 'invalid', reason: 'missing-file-url', unknownVariables: [] };
     }
@@ -46,6 +46,17 @@ export function validateReferenceTemplate(template: string): ReferenceTemplateVa
         variables,
         requiresDimensions: variables.includes('fileWidth') || variables.includes('fileHeight'),
     };
+}
+
+function extractTemplateVariables(template: string): string[] {
+    const variables: string[] = [];
+    const matcher = new RegExp(PLACEHOLDER_REGEX.source, PLACEHOLDER_REGEX.flags);
+    let match: RegExpExecArray | null;
+    while ((match = matcher.exec(template)) !== null) {
+        const variable = match[1];
+        if (variable !== undefined) variables.push(variable);
+    }
+    return variables;
 }
 
 export function referenceTemplateRequiresDimensions(template: string): boolean {

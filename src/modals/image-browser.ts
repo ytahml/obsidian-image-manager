@@ -112,7 +112,7 @@ export class ImageBrowserModal extends Modal {
             this.referenceFilter = this.referenceFilterSelect?.value as LocalReferenceFilter;
             this.applyFilterAndSort();
         });
-        this.countEl = controls.createEl('span', { cls: 'image-browser-count' });
+        this.countEl = controls.createSpan({ cls: 'image-browser-count' });
         this.gridEl = this.viewEl.createDiv({ cls: 'image-browser-grid' });
         const deleteToolbar = this.viewEl.createDiv({ cls: 'local-image-delete-toolbar' });
         this.deleteSummaryEl = deleteToolbar.createSpan({ cls: 'local-image-delete-summary' });

@@ -74,7 +74,7 @@ export class OrphanImagesModal extends Modal {
         });
 
         const totalSize = this.orphans.reduce((sum, f) => sum + f.stat.size, 0);
-        this.sizeEl = controls.createEl('span', {
+        this.sizeEl = controls.createSpan({
             text: t('modal.orphan.totalSize', { size: formatFileSize(totalSize) }),
             cls: 'orphan-images-size',
         });
