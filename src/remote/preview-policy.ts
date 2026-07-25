@@ -10,7 +10,13 @@ export type RemotePreviewUnavailableReason =
     | 'disabled'
     | 'not-image';
 
-const ARCHIVE_STORAGE_CLASSES = new Set(['GLACIER', 'DEEP_ARCHIVE']);
+const ARCHIVE_STORAGE_CLASSES = new Set([
+    'GLACIER',
+    'DEEP_ARCHIVE',
+    'ARCHIVE',
+    'COLDARCHIVE',
+    'DEEPCOLDARCHIVE',
+]);
 
 /** Decide whether an object can be manually previewed without making a request. */
 export function getRemotePreviewUnavailableReason(

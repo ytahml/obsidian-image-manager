@@ -76,7 +76,7 @@ main.ts（入口）
 `RemoteObjectProvider` 独立于 `UploaderBase`，避免 list/preview/delete 的管理权限扩张既有上传 API。
 
 - `createRemoteObjectProvider()` 通过可注册 builder 创建适配器；未实现的图床返回显式 `unsupported` 结果，不用异常表示 UI 能力状态。
-- 图床配置 Modal 和远程浏览器通过同一 Provider capability 判断开放远程管理；生产 registry 中具备 `list` 的 S3-compatible 和七牛 Kodo 配置可见。阿里云 OSS 和 Custom 保持仅上传。
+- 图床配置 Modal 和远程浏览器通过同一 Provider capability 判断开放远程管理；生产 registry 中具备 `list` 的阿里云 OSS、S3-compatible 和七牛 Kodo 配置可见。Custom 保持仅上传。
 - `RemoteRequestClient` 封装 Obsidian `requestUrl`，允许 Provider 测试注入脱敏 mock。
 - `RemoteProviderError` 只保留分类、HTTP 状态和去掉账号、query、fragment 的 endpoint，不保留上游错误文本或请求头；浏览会话只发布结构化错误码和状态。
 - `RemoteListRequest.cursor` 属于 Provider 的不透明字符串，公共层只原样透传。
@@ -86,8 +86,9 @@ main.ts（入口）
 - S3-compatible 已注册完整远程管理 Provider：共享 SigV4 层保证上传、列举、预览和删除的请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和引用筛选在完整已扫描集合上执行，不再显示结果页码。
 - S3 Provider 额外提供 `folders` 能力：目录选择器使用独立的 `ListObjectsV2(prefix, delimiter='/')` 请求解析 `CommonPrefixes`，按 opaque cursor 加载更多虚拟文件夹；选择结果只更新管理前缀，递归对象扫描仍走原有无 delimiter 流程。
 - 七牛 Kodo 已注册完整远程管理 Provider：管理签名使用 `X-Qiniu-Date` 和末尾双换行的管理请求数据，`/list` 的 `marker` 全程视为不透明 cursor；公开模式由 `urlPrefix` 生成 URL，私有模式使用 300 秒下载 token，删除以 `EncodedEntryURI` 调用单对象 `/delete`。它复用公共会话、引用、缩略图和删除门禁。
-- 远程浏览器初始不请求列表或图片；用户明确扫描后以响应式卡片展示结果。进入可视区域前约 200px 的支持图片自动加载，URL 解析最多 4 并发；首批渲染 60 张卡片，滚动时渐进追加，搜索/排序/引用状态筛选作用于完整扫描集合。私有模式使用服务商临时 URL（S3 SigV4 presigned GET、七牛下载 token），公开模式只使用明确配置的 `urlPrefix`；点击缩略图仍打开独立大图 Modal。关闭或范围变化会清空会话 URL 并隔离迟到结果。当前不支持 OSS、Custom 的列表能力。
-- S3 与七牛删除随远程对象管理启用，不增加独立开关；仍只有 fresh Markdown 索引中的 `not-referenced-in-current-vault`、当前 hosting、当前前缀和当前扫描对象可选择，UI 将该状态显示为“孤立图片 / Orphan image”。最终确认要求输入数量并勾选不可撤销确认，每批最多 20 项、最多 2 并发且无自动重试。用户结果统一显示“请求成功”，底层仍保留 `delete-marker | unknown` 供脱敏审计；接受请求后列表/预览/选择失效。
+- 阿里云 OSS 已注册完整远程管理 Provider：`src/oss/sigv4.ts` 从上传器抽取 V4 canonical URI/query、header signing 与 300 秒 presigned GET；ListObjectsV2 的 cursor 不透明，公开 URL 映射包含源站、`urlPrefix` 与 aliases，单对象 DELETE 的 204 仅映射为 `delete-marker | unknown`。Archive、ColdArchive、DeepColdArchive 不会自动预览。
+- 远程浏览器初始不请求列表或图片；用户明确扫描后以响应式卡片展示结果。进入可视区域前约 200px 的支持图片自动加载，URL 解析最多 4 并发；首批渲染 60 张卡片，滚动时渐进追加，搜索/排序/引用状态筛选作用于完整扫描集合。私有模式使用服务商临时 URL（S3/OSS SigV4 presigned GET、七牛下载 token），公开模式只使用明确配置的 `urlPrefix`；点击缩略图仍打开独立大图 Modal。关闭或范围变化会清空会话 URL 并隔离迟到结果。Custom 没有列表能力。
+- 阿里云 OSS、S3 与七牛删除随远程对象管理启用，不增加独立开关；仍只有 fresh Markdown 索引中的 `not-referenced-in-current-vault`、当前 hosting、当前前缀和当前扫描对象可选择，UI 将该状态显示为“孤立图片 / Orphan image”。最终确认要求输入数量并勾选不可撤销确认，每批最多 20 项、最多 2 并发且无自动重试。用户结果统一显示“请求成功”，底层仍保留 `delete-marker | unknown` 供脱敏审计；接受请求后列表/预览/选择失效。
 - 每个删除结果完成后通过串行 writer 写入 `ImageManagerSettings.remoteDeleteHistory`，按完成时间倒序最多保留 200 条；只含时间、hostingId、key、状态和稳定结果码，不含 endpoint、URL、凭据或响应正文。该字段严格定位为“本地诊断记录”，当前没有历史 UI，绝不参与远程存在、引用状态或删除资格判断。
 
 ## 关键数据流

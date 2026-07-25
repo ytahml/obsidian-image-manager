@@ -50,7 +50,7 @@ describe('remote provider factory', () => {
         }
     );
 
-    it('registers the S3 list provider in the production registry', () => {
+    it('registers production remote providers with their published capabilities', () => {
         const config = createHostingConfig('s3');
         config.config = {
             endpoint: 'https://account.r2.cloudflarestorage.com',
@@ -68,6 +68,19 @@ describe('remote provider factory', () => {
             expect([...result.provider.capabilities]).toEqual(['list', 'folders', 'preview', 'delete']);
             expect(result.provider.listFolders).toBeTypeOf('function');
         }
+
+        const oss = createHostingConfig('aliyun-oss');
+        oss.config = {
+            region: 'cn-hangzhou',
+            accessKeyId: 'access-key',
+            accessKeySecret: 'secret-key',
+            bucket: 'images',
+        };
+        const ossResult = createRemoteObjectProvider(oss);
+        expect(ossResult.status).toBe('ready');
+        if (ossResult.status === 'ready') {
+            expect([...ossResult.provider.capabilities]).toEqual(['list', 'folders', 'preview', 'delete']);
+        }
     });
 
     it('exposes remote management only for production providers with list capability', () => {
@@ -82,7 +95,14 @@ describe('remote provider factory', () => {
         };
 
         expect(supportsRemoteObjectManagement(s3)).toBe(true);
-        expect(supportsRemoteObjectManagement(createHostingConfig('aliyun-oss'))).toBe(false);
+        const oss = createHostingConfig('aliyun-oss');
+        oss.config = {
+            region: 'cn-hangzhou',
+            accessKeyId: 'access-key',
+            accessKeySecret: 'secret-key',
+            bucket: 'images',
+        };
+        expect(supportsRemoteObjectManagement(oss)).toBe(true);
         expect(supportsRemoteObjectManagement(createHostingConfig('qiniu'))).toBe(true);
         expect(supportsRemoteObjectManagement(createHostingConfig('custom'))).toBe(false);
         expect(supportsRemoteObjectManagement(s3, {

@@ -1,6 +1,7 @@
 import type { HostingType, ImageHostingConfig } from '../types';
 import type { RemoteCapability } from './types';
 import type { RemoteObjectProvider } from './provider';
+import { AliyunOSSRemoteObjectProvider } from './providers/aliyun-oss-remote';
 import { S3RemoteObjectProvider } from './providers/s3-compatible-remote';
 import { QiniuRemoteObjectProvider } from './providers/qiniu-remote';
 
@@ -28,6 +29,7 @@ export type RemoteProviderBuilder = (
 export type RemoteProviderRegistry = Partial<Record<HostingType, RemoteProviderBuilder>>;
 
 export const DEFAULT_REMOTE_PROVIDER_REGISTRY: RemoteProviderRegistry = {
+    'aliyun-oss': (config) => new AliyunOSSRemoteObjectProvider(config),
     s3: (config) => new S3RemoteObjectProvider(config),
     qiniu: (config) => new QiniuRemoteObjectProvider(config),
 };

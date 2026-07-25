@@ -51,6 +51,8 @@ abstract class UploaderBase {
 - **路径编码**：逻辑对象 key 保持 Unicode；请求 URL 与 V4 Canonical URI 使用相同的逐段编码结果
 - **V4 头部**：`x-oss-date`、`x-oss-content-sha256: UNSIGNED-PAYLOAD`；Canonical URI 为 `/{bucket}/{encodedKey}`；没有附加签名头时必须从 Authorization 中省略 `AdditionalHeaders` 字段，不能发送空的 `AdditionalHeaders=`；Canonical Headers 后仍需保留 OSS 规定的空字段换行，服务端 Canonical Request 在 `x-oss-date` 与 payload 之间包含 3 个 LF
 - **端点**：`https://{bucket}.{region}.aliyuncs.com`
+- **共享签名层**：`src/oss/sigv4.ts` 同时服务 PUT 上传、ListObjectsV2、300 秒私有预览与 DeleteObject；请求 URL、canonical URI、canonical query 与发送 headers 从同一结果生成。连接测试使用 `ListObjectsV2(max-keys=1)`，不会遍历 Bucket。
+- **远程管理**：`aliyun-oss-remote.ts` 支持 opaque continuation token、`CommonPrefixes` 虚拟目录、源站/`urlPrefix`/alias 引用映射、公开或私有预览与单对象删除。204 仅报告 `delete-marker` 或 `unknown`，不发送 versionId 或批量删除；Archive、ColdArchive、DeepColdArchive 默认不预览。
 
 ### 七牛云 (`qiniu.ts`)
 

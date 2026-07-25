@@ -303,7 +303,7 @@ export const zh: Record<string, string> = {
     'modal.hosting.extraBodyValue': '字段值',
     'modal.hosting.extraBodyAdd': '添加字段',
     'modal.hosting.remoteManagement': '远程对象管理',
-    'modal.hosting.remoteS3Only': '远程对象管理支持 S3 兼容存储和七牛 Kodo',
+    'modal.hosting.remoteS3Only': '远程对象管理支持阿里云 OSS、S3 兼容存储和七牛 Kodo',
     'modal.hosting.remoteManagementEnabled': '启用远程对象浏览器',
     'modal.hosting.remoteManagementEnabledDesc': '允许该配置出现在图床图片浏览器中。扫描仍需手动发起；扫描后可视区域图片会自动加载，可能产生对象读取、原图下载流量和服务商费用。',
     'modal.hosting.remotePrefix': '管理目录前缀',
