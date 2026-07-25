@@ -294,6 +294,10 @@ Detailed documentation for each module:
 | Local browser and reference templates | [local-image-browser-reference-template.md](../../../docs/design/local-image-browser-reference-template.md) | Modifying local reference badges, local orphan deletion, or upload reference template variables |
 | Issue #17 remote management plan | [issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md) | Planning or implementing remote image hosting browsing, reference status, preview, or deletion |
 
+## Accepted Image Browser and Reference Template Baseline
+
+As of 2026-07-25, the local image browser and upload reference-template enhancement is implemented and accepted in a real Obsidian environment. Preserve the local all/referenced/orphan status filter, fresh double-checks before `fileManager.trashFile`, the labeled remote object path, the default-expanded complete local reference list, and the strict `{fileUrl}`, file metadata, and optional intrinsic-dimension template contract documented in [local-image-browser-reference-template.md](../../../docs/design/local-image-browser-reference-template.md).
+
 ## Pending Features
 
 - **Image hosting migration**: Command registered (`migrate-images`), types defined, shows "not implemented"

@@ -26,7 +26,7 @@
 | 文档 | 状态 | 关联 Issue | 说明 |
 |------|------|------------|------|
 | [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中（S3 首期已实现） | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3 的 R2/MinIO 完整远程管理和 S3-only 上线门控已完成验收；统一上传 Service、OSS/七牛原生 Provider 和最终跨图床收尾仍按阶段推进 |
-| [本地图片浏览器与上传引用模板增强](local-image-browser-reference-template.md) | 实施中 | — | 为本地卡片补齐引用状态与二次校验的回收站删除，并冻结上传后自定义引用模板变量和无效范围 |
+| [本地图片浏览器与上传引用模板增强](local-image-browser-reference-template.md) | 已实现 | — | 本地引用状态筛选、安全回收站删除、默认展开完整引用列表、远程路径信息与严格引用模板契约均已通过真实 Obsidian 验收 |
 
 ## 新建设计文档模板
 
