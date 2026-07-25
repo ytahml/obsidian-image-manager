@@ -421,6 +421,10 @@
 
 .remote-image-preview-key {
     color: var(--text-muted);
+}
+
+.remote-image-preview-key span:last-child {
+    color: var(--text-normal);
     overflow-wrap: anywhere;
 }
 
@@ -508,14 +512,9 @@
     white-space: nowrap;
 }
 
-.image-browser-orphan-btn {
+.image-browser-reference-filter {
     flex-shrink: 0;
     font-size: 0.8em;
-}
-
-.image-browser-orphan-btn.is-active {
-    background-color: var(--interactive-accent);
-    color: var(--text-on-accent);
 }
 
 .image-browser-grid {

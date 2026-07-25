@@ -2,6 +2,7 @@ import type { App, TFile } from 'obsidian';
 import { OrphanFinder, type OrphanResult } from './orphan-finder';
 
 export type LocalReferenceState = 'scanning' | 'referenced' | 'orphan' | 'unknown';
+export type LocalReferenceFilter = 'all' | 'referenced' | 'orphan';
 
 export interface ValidatedLocalOrphanSelection {
     eligible: TFile[];
@@ -24,6 +25,18 @@ export function getLocalReferenceState(
     if (scanState === 'scanning') return 'scanning';
     if (scanState === 'failed' || !orphanPaths) return 'unknown';
     return orphanPaths.has(path) ? 'orphan' : 'referenced';
+}
+
+export function filterLocalImagesByReferenceState<T extends { path: string }>(
+    images: readonly T[],
+    orphanPaths: ReadonlySet<string>,
+    filter: LocalReferenceFilter
+): T[] {
+    if (filter === 'all') return [...images];
+    return images.filter((image) => {
+        const orphan = orphanPaths.has(image.path);
+        return filter === 'orphan' ? orphan : !orphan;
+    });
 }
 
 export function validateLocalOrphanSelection(

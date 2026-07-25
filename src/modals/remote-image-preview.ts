@@ -62,7 +62,15 @@ export class RemoteImagePreviewModal extends Modal {
         new Setting(this.contentEl)
             .setName(t('modal.remotePreview.title'))
             .setHeading();
-        this.contentEl.createDiv({ cls: 'remote-image-preview-key', text: this.object.key });
+        const info = this.contentEl.createDiv({
+            cls: 'image-preview-info remote-image-preview-file-info',
+        });
+        const pathRow = info.createDiv({ cls: 'image-preview-path remote-image-preview-key' });
+        pathRow.createSpan({
+            cls: 'image-preview-label',
+            text: t('modal.remotePreview.path'),
+        });
+        pathRow.createSpan({ text: this.object.key });
     }
 
     private renderImage(preview: RemotePreviewUrl, generation: number): void {

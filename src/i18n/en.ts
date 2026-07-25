@@ -110,8 +110,9 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.showing': 'Showing {count} of {total} images',
     'modal.imageBrowser.noImages': 'No images found in vault',
     'modal.imageBrowser.insertTooltip': 'Click to preview',
-    'modal.imageBrowser.orphanFilter': 'Orphan',
     'modal.imageBrowser.orphanScanning': 'Scanning for orphan images...',
+    'modal.imageBrowser.localReferenceFilter': 'Reference status filter',
+    'modal.imageBrowser.localReferenceAll': 'All reference states',
     'modal.imageBrowser.localReferenced': 'Referenced',
     'modal.imageBrowser.localOrphan': 'Orphan image',
     'modal.imageBrowser.localUnknown': 'Unable to determine',
@@ -126,7 +127,7 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.localDeleteResult':
         'Moved {deleted} image(s) to trash; skipped {skipped}; failed {failed}.',
     'modal.imageBrowser.localScanFailed':
-        'Could not determine local reference status. Orphan filtering and deletion are disabled.',
+        'Could not determine local reference status. Reference status filtering and deletion are disabled.',
     'modal.imageBrowser.localTab': 'Local images',
     'modal.imageBrowser.remoteTab': 'Hosting images',
     'modal.imageBrowser.remoteNoConfig': 'Enable remote object management for a supported hosting configuration to browse remote metadata.',
@@ -195,6 +196,7 @@ export const en: Record<string, string> = {
     'modal.remotePreview.configurationError': 'Preview configuration is incomplete.',
     'modal.remotePreview.unsupported': 'This provider does not support preview.',
     'modal.remotePreview.retry': 'Retry',
+    'modal.remotePreview.path': 'Remote path: ',
     'modal.remotePreview.size': 'Size: {size}',
     'modal.remotePreview.modified': 'Modified: {time}',
     'modal.remotePreview.privateAccess': 'Access: temporary signed URL',

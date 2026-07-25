@@ -3,10 +3,12 @@ import type ImageManagerPlugin from '../main';
 import { ImageScanner } from '../utils/image-scanner';
 import { formatFileSize } from '../utils/path-utils';
 import {
+    filterLocalImagesByReferenceState,
     getLocalReferenceState,
     scanLocalOrphans,
     trashValidatedLocalOrphans,
     validateLocalOrphanSelection,
+    type LocalReferenceFilter,
 } from '../utils/local-orphan-management';
 import type { OrphanResult } from '../utils/orphan-finder';
 import { t } from '../i18n';
@@ -25,12 +27,12 @@ export class ImageBrowserModal extends Modal {
     private countEl: HTMLSpanElement | null = null;
     private searchInput: HTMLInputElement | null = null;
     private sortSelect: HTMLSelectElement | null = null;
-    private orphanBtn: HTMLButtonElement | null = null;
+    private referenceFilterSelect: HTMLSelectElement | null = null;
     private deleteSummaryEl: HTMLSpanElement | null = null;
     private deleteButton: HTMLButtonElement | null = null;
     private viewEl: HTMLDivElement | null = null;
     private remoteView: RemoteImageBrowserView | null = null;
-    private showOrphansOnly = false;
+    private referenceFilter: LocalReferenceFilter = 'all';
     private localScanState: LocalScanState = 'scanning';
     private selectedPaths = new Set<string>();
     private localViewVersion = 0;
@@ -77,7 +79,7 @@ export class ImageBrowserModal extends Modal {
         this.remoteView = null;
         this.viewEl?.empty();
         if (!this.viewEl) return;
-        this.showOrphansOnly = false;
+        this.referenceFilter = 'all';
         this.orphanPaths = null;
         this.localScanState = 'scanning';
         this.deleting = false;
@@ -93,9 +95,23 @@ export class ImageBrowserModal extends Modal {
             { value: 'created', labelKey: 'modal.imageBrowser.sortCreated' },
         ]) this.sortSelect.createEl('option', { value: option.value, text: t(option.labelKey) });
         this.sortSelect.addEventListener('change', () => this.applyFilterAndSort());
-        this.orphanBtn = controls.createEl('button', { cls: 'image-browser-orphan-btn', text: t('modal.imageBrowser.orphanFilter') });
-        this.orphanBtn.disabled = true;
-        this.orphanBtn.addEventListener('click', () => this.toggleOrphanFilter());
+        this.referenceFilterSelect = controls.createEl('select', {
+            cls: 'image-browser-reference-filter',
+            attr: { 'aria-label': t('modal.imageBrowser.localReferenceFilter') },
+        });
+        for (const [value, label] of [
+            ['all', t('modal.imageBrowser.localReferenceAll')],
+            ['referenced', t('modal.imageBrowser.localReferenced')],
+            ['orphan', t('modal.imageBrowser.localOrphan')],
+        ] as const) {
+            this.referenceFilterSelect.createEl('option', { value, text: label });
+        }
+        this.referenceFilterSelect.value = this.referenceFilter;
+        this.referenceFilterSelect.disabled = true;
+        this.referenceFilterSelect.addEventListener('change', () => {
+            this.referenceFilter = this.referenceFilterSelect?.value as LocalReferenceFilter;
+            this.applyFilterAndSort();
+        });
         this.countEl = controls.createEl('span', { cls: 'image-browser-count' });
         this.gridEl = this.viewEl.createDiv({ cls: 'image-browser-grid' });
         const deleteToolbar = this.viewEl.createDiv({ cls: 'local-image-delete-toolbar' });
@@ -128,18 +144,15 @@ export class ImageBrowserModal extends Modal {
         this.debounceTimer = window.setTimeout(() => this.applyFilterAndSort(), 300);
     }
 
-    private toggleOrphanFilter() {
-        if (this.localScanState !== 'ready') return;
-        this.showOrphansOnly = !this.showOrphansOnly;
-        this.orphanBtn?.toggleClass('is-active', this.showOrphansOnly);
-        this.applyFilterAndSort();
-    }
-
     private applyFilterAndSort() {
         const keyword = this.searchInput?.value ?? '';
         let images = this.scanner.filterImages(this.allImages, { keyword });
-        if (this.showOrphansOnly && this.orphanPaths) {
-            images = images.filter((file) => this.orphanPaths!.has(file.path));
+        if (this.localScanState === 'ready' && this.orphanPaths) {
+            images = filterLocalImagesByReferenceState(
+                images,
+                this.orphanPaths,
+                this.referenceFilter
+            );
         }
         const sortBy = (this.sortSelect?.value ?? 'name') as 'name' | 'size' | 'modified' | 'created';
         this.filteredImages = this.scanner.sortImages(images, sortBy, 'asc');
@@ -196,7 +209,7 @@ export class ImageBrowserModal extends Modal {
 
     private async scanLocalReferenceStates(version: number): Promise<void> {
         this.localScanState = 'scanning';
-        this.orphanBtn?.setAttribute('disabled', 'true');
+        if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
         this.applyFilterAndSort();
         try {
             const result = await scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions);
@@ -207,6 +220,7 @@ export class ImageBrowserModal extends Modal {
             this.localScanState = 'failed';
             this.orphanPaths = null;
             this.selectedPaths.clear();
+            if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
             this.applyFilterAndSort();
             new Notice(t('modal.imageBrowser.localScanFailed'));
             console.error('[ImageManager] Failed to scan local image references:', error);
@@ -219,7 +233,7 @@ export class ImageBrowserModal extends Modal {
         for (const path of this.selectedPaths) {
             if (!this.orphanPaths.has(path)) this.selectedPaths.delete(path);
         }
-        if (this.orphanBtn) this.orphanBtn.disabled = false;
+        if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = false;
         this.applyFilterAndSort();
     }
 
@@ -287,6 +301,7 @@ export class ImageBrowserModal extends Modal {
                 this.localScanState = 'failed';
                 this.orphanPaths = null;
                 this.selectedPaths.clear();
+                if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
                 this.applyFilterAndSort();
                 new Notice(t('modal.imageBrowser.localScanFailed'));
             }
@@ -323,6 +338,7 @@ export class ImageBrowserModal extends Modal {
                 this.localScanState = 'failed';
                 this.orphanPaths = null;
                 this.selectedPaths.clear();
+                if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
                 this.applyFilterAndSort();
                 new Notice(t('modal.imageBrowser.localScanFailed'));
             }

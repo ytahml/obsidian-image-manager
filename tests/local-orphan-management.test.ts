@@ -7,6 +7,7 @@ vi.mock('obsidian', () => ({
 import { TFile, type App } from 'obsidian';
 import type { OrphanResult } from '../src/utils/orphan-finder';
 import {
+    filterLocalImagesByReferenceState,
     getLocalReferenceState,
     trashValidatedLocalOrphans,
     validateLocalOrphanSelection,
@@ -30,6 +31,24 @@ describe('local orphan management', () => {
         expect(getLocalReferenceState('orphan.png', null, 'failed')).toBe('unknown');
         expect(getLocalReferenceState('orphan.png', paths, 'ready')).toBe('orphan');
         expect(getLocalReferenceState('referenced.png', paths, 'ready')).toBe('referenced');
+    });
+
+    it('filters the complete local result by referenced or orphan state', () => {
+        const images = [
+            { path: 'referenced.png' },
+            { path: 'orphan.png' },
+            { path: 'nested/orphan.webp' },
+        ];
+        const orphanPaths = new Set(['orphan.png', 'nested/orphan.webp']);
+
+        expect(filterLocalImagesByReferenceState(images, orphanPaths, 'all')).toEqual(images);
+        expect(filterLocalImagesByReferenceState(images, orphanPaths, 'referenced')).toEqual([
+            { path: 'referenced.png' },
+        ]);
+        expect(filterLocalImagesByReferenceState(images, orphanPaths, 'orphan')).toEqual([
+            { path: 'orphan.png' },
+            { path: 'nested/orphan.webp' },
+        ]);
     });
 
     it('only validates files that remain orphaned in the fresh result', () => {
