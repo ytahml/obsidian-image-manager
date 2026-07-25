@@ -101,6 +101,8 @@ export interface CustomConfig {
 export interface UploadResult {
     success: boolean;
     url?: string;
+    /** Logical remote object key for native providers; Custom intentionally omits it. */
+    objectKey?: string;
     error?: string;
     originalPath: string;
 }

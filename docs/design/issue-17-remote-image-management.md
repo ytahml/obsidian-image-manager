@@ -2,7 +2,7 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：S3-compatible 首期轨道（G0～G5、S3-1～S3-5）已完成并通过 Cloudflare R2、MinIO 人工验收；Issue #17 继续跟踪统一上传 Service、其他原生 Provider 与跨图床收尾。
+> 文档状态：S3-compatible 首期轨道（G0～G5、S3-1～S3-5）已完成并通过 Cloudflare R2、MinIO 人工验收；当前长期分支先完成 G6 统一上传 Service，再以七牛 Kodo 为下一优先 Provider，按 QN-1～QN-5 完成接入、预览、删除与收尾。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
@@ -19,7 +19,7 @@ Issue #17 希望图片浏览器可以在“本地图片”和“图床图片”�
 3. 将远程对象与当前 Vault 中检测到的引用进行比对。
 4. 完成当前仓库的 Markdown 扫描后，未检测到引用的对象在 UI 显示为“孤立图片”；删除确认仍说明其他位置可能存在引用。
 5. 远程预览按需加载；启用远程管理后提供受门禁保护的删除，并在执行前二次确认。
-6. 首个开发与发布目标为 S3-compatible，优先验证 Cloudflare R2 与 MinIO；其他图床在 S3 首版稳定后独立推进。
+6. 首个开发与发布目标为 S3-compatible，优先验证 Cloudflare R2 与 MinIO；S3 首版稳定后的下一优先 Provider 为七牛 Kodo，阿里云 OSS 后续独立推进。
 
 ### 1.1 每个 Vault 独立图床的落实方式
 
@@ -482,6 +482,8 @@ MinIO 专项：
 
 ### G6：统一上传 Service 与结构化结果
 
+**状态：已完成。**
+
 **阶段目标**
 
 统一四条上传路径的执行、重试和结果处理；上传成功只描述当前请求结果，不作为对象当前存在的持久化证据。
@@ -628,7 +630,7 @@ MinIO 专项：
 
 ## 6. 七牛 Kodo 专项阶段
 
-七牛轨道依赖 G1；现有上传 token 与管理凭证、私有下载凭证必须分开实现和测试。
+七牛轨道依赖 G1；现有上传 token 与管理凭证、私有下载凭证必须分开实现和测试。2026-07-25 起，G6 已在长期分支完成，七牛是下一优先 Provider，并从边界清晰的 QN-1 开始。
 
 ### QN-1：七牛管理凭证与资源列举
 
@@ -638,8 +640,8 @@ MinIO 专项：
 
 **实施内容**
 
-1. 按七牛管理凭证规范抽取请求签名，不复用上传 policy token 作为管理 token。
-2. 实现 bucket、marker、limit、prefix、delimiter 参数，limit 限制在 1–1000。
+1. 按七牛当前管理凭证规范抽取 `Qiniu` 请求签名，不复用上传 policy token 作为管理 token；`X-Qiniu-Date` 必须进入签名并覆盖时钟偏差错误。
+2. 以当前 `GET https://rsf.qiniuapi.com/list` 为协议目标，实现 bucket、marker、limit、prefix、delimiter 参数，limit 限制在 1–1000；不采用旧 `/v2/list` 的 `QBox` 契约。
 3. 映射 `key`、`hash`、`fsize`、`mimeType`、`putTime/lastModify`、`type`、`status`。
 4. marker 作为不透明字符串传递，空 marker 表示无下一页。
 5. 映射 401、限流、服务端 5xx 和 JSON 结构异常。
@@ -931,6 +933,7 @@ P0 计划文件
 
 - G2 与各 Provider 的列表适配可以并行，但最终 UI 引用状态依赖二者。
 - G1 完成后优先启动 S3-1，并以 Cloudflare R2、MinIO 作为首批兼容目标。
+- S3 首版完成后先完成 G6，再优先推进七牛：当前下一阶段固定为 QN-1。
 - 任一 Provider 完成 list-only 后即可单独发布实验能力，不必等待其他 Provider。
 - preview 和 delete 分别依赖公共 G4、G5，不能在单个 Provider 内绕过公共安全框架。
 - G6 不持久化上传历史；上传成功后必须让旧远程会话失效，当前远端状态仍由下一次 Provider 扫描确认。
@@ -948,14 +951,14 @@ P0 计划文件
 | G3 | 远程图片浏览器外壳与元数据分页 | 已完成 | G1 | 2026-07-18：远程管理配置、metadata-only 本地/图床切换、会话分页/缓存/迟到响应隔离及 unsupported UI 已实现；`npm test` 109/109、`npm run build`、`git diff --check` 通过，用户已完成 Obsidian 基本验收；真实 Provider 列举由 Issue #23 覆盖 |
 | G4 | 按需预览与流量控制 | 已完成 | G3 | Issue #26 / PR #27：显式公开/签名访问、300 秒会话 URL、4 并发 viewport 缩略图、60 项渐进卡片和独立大图 Modal 已实现；R2/MinIO 公开/私有验收通过 |
 | G5 | 删除安全框架 | 已完成 | G2、G3 | Issue #26 / PR #27：fresh Markdown 门禁、20 项/2 并发、数量与勾选确认、失败重试、缓存失效及 200 条脱敏审计已实现；R2/MinIO 真实删除验收通过 |
-| G6 | 统一上传 Service 与结构化结果 | 未开始 | G1 | 2026-07-19：已冻结不持久化上传清单、不显示上传来源徽标、上传后只失效远程会话的边界 |
+| G6 | 统一上传 Service 与结构化结果 | 已完成 | G1 | 2026-07-25：`UploadService` 已统一单图、笔记、批量与粘贴自动上传；原生结果返回 objectKey、Custom 保持 URL-only，成功仅按 hostingId 失效打开的远程会话；24 个测试文件、186 项测试与 build 通过 |
 | G7 | 跨图床整合、文档与发布门禁 | 未开始 | 已交付 Provider 阶段 | |
 | OSS-1 | OSS V4 与 ListObjectsV2 | 未开始 | G1 | |
 | OSS-2 | OSS URL 映射与列表接入 | 未开始 | G2、G3、OSS-1 | |
 | OSS-3 | OSS 按需预览 | 未开始 | G4、OSS-2 | |
 | OSS-4 | OSS DeleteObject | 未开始 | G5、OSS-2 | |
 | OSS-5 | OSS 加固与文档 | 未开始 | OSS-3、OSS-4 | |
-| QN-1 | 七牛管理凭证与资源列举 | 未开始 | G1 | |
+| QN-1 | 七牛管理凭证与资源列举 | 未开始 | G1 | 2026-07-25：指定为下一阶段；目标为当前 `/list` + `Qiniu` 管理签名的 Provider/fixture 纵向切片，完成前不注册 production capability |
 | QN-2 | 七牛 URL 映射与列表接入 | 未开始 | G2、G3、QN-1 | |
 | QN-3 | 七牛按需预览 | 未开始 | G4、QN-2 | |
 | QN-4 | 七牛资源删除 | 未开始 | G5、QN-2 | |
@@ -1047,11 +1050,14 @@ P0 计划文件
 | 2026-07-19 | S3 首期以卡片网格、虚拟文件夹、Markdown 广义 URL 引用、viewport 缩略图、独立预览和安全删除作为统一产品契约；Issue #26 / PR #27 完成后以 `master` 为实现基线 | 防止后续会话回退到技术表格、手动远端分页或“仅标准 Markdown 图片引用”等已取代方案 | G2～G5、S3-2～S3-5 |
 | 2026-07-19 | G6 取消持久上传清单，改为统一上传 Service 与当前操作结果；Custom 固定仅上传，不规划通用 list/preview/delete | 本地记录无法证明远端当前状态，Custom 也没有稳定对象协议；远端事实继续只来自 Provider 当前扫描 | G6、CU-0、G7 |
 | 2026-07-19 | S3 优先上线采用 capability 门控：当前只有 production registry 中具备 `list` 的 S3 显示远程管理页签和浏览器选项，其他图床只提示“目前仅支持 S3 兼容存储” | 避免用户保存无效远程配置，同时保留未来原生 Provider 注册后的自然扩展路径 | G3、G7、CU-0、Settings |
+| 2026-07-25 | 长期分支先完成 G6，再推进七牛 Kodo；QN-1 为 G6 后的下一阶段 | 先收敛四条上传路径、结构化结果和远程会话失效，使七牛接入不再扩大上传编排差异 | G6、QN-1～QN-5 |
 
 ## 15. 变更记录
 
 | 日期 | 变更 |
 |------|------|
+| 2026-07-25 | 在 `feat/issue-17-qiniu-remote-management` 完成 G6：新增统一 UploadService，单图、笔记、批量和粘贴上传均经该层；原生上传返回 objectKey，成功只使同图床打开的远程会话失效，不持久化上传清单。自动化基线为 24 个测试文件、186 项测试。 |
+| 2026-07-25 | 指定七牛 Kodo 为 G6 后的下一优先 Provider，下一阶段为 QN-1；依据当前官方协议补充 `/list`、`Qiniu` 管理签名与 `X-Qiniu-Date` 边界。 |
 | 2026-07-19 | 按用户确认收紧后续范围：G6 不再创建或持久化上传清单，统一上传后仅失效远程会话；Custom 保留上传并退出 Issue #17 远程对象管理路线。 |
 | 2026-07-19 | 创建 `feat/issue-17-s3-remote-release` 上线收口分支：远程设置和浏览器改为 production `list` capability 门控；S3 页签使用精简支持提示；其他引用 URL 基础路径明确一行一个、增加双行示例与逐行校验。 |
 | 2026-07-19 | 完成 S3 优先上线 UI 收口验收：非 S3 远程入口隐藏、S3-only 提示、远程浏览配置筛选、URL alias 多行示例与无效行警告均经用户在 Obsidian 中确认通过；自动化基线更新为 22 个测试文件、177 项测试。 |

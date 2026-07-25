@@ -57,6 +57,7 @@ export class QiniuUploader extends UploaderBase {
                 return {
                     success: true,
                     url: publicUrl,
+                    objectKey: targetPath,
                     originalPath: filename,
                 };
             }

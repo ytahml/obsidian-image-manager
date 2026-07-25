@@ -47,7 +47,7 @@ export class AliyunOSSUploader extends UploaderBase {
                 return { success: false, error: `HTTP ${resp.status}: ${resp.text}`, originalPath: filename };
             }
             const publicUrl = this.config.urlPrefix ? joinPublicUrl(this.config.urlPrefix, encodedPath) : url;
-            return { success: true, url: publicUrl, originalPath: filename };
+            return { success: true, url: publicUrl, objectKey: targetPath, originalPath: filename };
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Upload failed';
             return { success: false, error: msg, originalPath: filename };
