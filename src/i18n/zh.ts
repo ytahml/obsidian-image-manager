@@ -39,6 +39,11 @@ export const zh: Record<string, string> = {
         '阿里云 OSS、七牛云和 S3 的上传路径模板。变量：{year}, {month}, {day}, {filename}, {hash}, {ext}, {timestamp}, {sourceDir}。',
     'settings.autoReplaceAfterUpload': '上传后自动替换',
     'settings.autoReplaceAfterUploadDesc': '上传后自动将本地引用替换为图床 URL',
+    'settings.customReferenceTemplate': '自定义引用模板',
+    'settings.customReferenceTemplateDesc':
+        '覆盖上传后生成的引用。使用 {fileUrl}（必填）和 {fileAlt}；空白或无效模板会使用默认 Markdown 格式。',
+    'settings.customReferenceTemplatePlaceholder':
+        '<img src="{fileUrl}" alt="{fileAlt}" style="max-width:100%; height:auto;" />',
 
     // 命令
     'command.browseImages': '浏览图片',

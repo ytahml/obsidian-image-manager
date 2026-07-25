@@ -40,6 +40,11 @@ export const en: Record<string, string> = {
     'settings.autoReplaceAfterUpload': 'Auto replace after upload',
     'settings.autoReplaceAfterUploadDesc':
         'Automatically replace local references with hosting URLs after uploading',
+    'settings.customReferenceTemplate': 'Custom reference template',
+    'settings.customReferenceTemplateDesc':
+        'Override the reference generated after upload. Use {fileUrl} (required) and {fileAlt}; invalid or empty templates use default Markdown.',
+    'settings.customReferenceTemplatePlaceholder':
+        '<img src="{fileUrl}" alt="{fileAlt}" style="max-width:100%; height:auto;" />',
 
     // Commands
     'command.browseImages': 'Browse images',

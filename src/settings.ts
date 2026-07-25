@@ -152,6 +152,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     t('settings.addHosting'),
                     t('settings.defaultHosting'),
                     t('settings.uploadPathTemplate'),
+                    t('settings.customReferenceTemplate'),
                     t('settings.autoReplaceAfterUpload'),
                     t('settings.autoUploadOnPaste'),
                     t('settings.keepLocalCopy'),
@@ -417,6 +418,20 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.uploadPathTemplate)
                     .onChange(async (value) => {
                         this.plugin.settings.uploadPathTemplate = value || DEFAULT_SETTINGS.uploadPathTemplate;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        // Custom reference template applied to references generated after upload
+        new Setting(containerEl)
+            .setName(t('settings.customReferenceTemplate'))
+            .setDesc(t('settings.customReferenceTemplateDesc'))
+            .addText((text) =>
+                text
+                    .setPlaceholder(t('settings.customReferenceTemplatePlaceholder'))
+                    .setValue(this.plugin.settings.customReferenceTemplate)
+                    .onChange(async (value) => {
+                        this.plugin.settings.customReferenceTemplate = value;
                         await this.plugin.saveSettings();
                     })
             );

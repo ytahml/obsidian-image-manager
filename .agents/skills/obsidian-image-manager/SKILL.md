@@ -133,6 +133,7 @@ Other key settings:
 - `autoUploadOnPaste`: auto upload after paste (requires `reorganizeConvertFormat=true`)
 - `autoReplaceAfterUpload`: replace reference after upload
 - `keepLocalCopy`: keep local file after upload; when false, auto-upload removes the exact direct attachment folder only if it is still empty
+- `customReferenceTemplate`: optional upload-only custom reference template; `{fileUrl}` is required, `{fileAlt}` is supported, and empty or invalid templates safely fall back to Markdown
 - `skipWikiRefsOnReorganize`: skip Wiki refs during reorganize
 - `uploadPathTemplate`: global upload path fallback; supports `{sourceDir}` for the Vault-relative parent directory
 - `urlPrefix`: public access URL base for Aliyun OSS, Qiniu, and S3; may include a bucket or directory path

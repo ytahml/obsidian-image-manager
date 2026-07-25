@@ -161,6 +161,7 @@ interface ImageManagerSettings {
     defaultHostingId: string;
     uploadPathTemplate: string;       // 默认 'images/{year}/{month}/{hash}.{ext}'
     autoReplaceAfterUpload: boolean;  // 默认 false
+    customReferenceTemplate: string;  // 上传后自定义引用模板；{fileUrl} 必填，支持 {fileAlt}
     reorganizeConvertFormat: boolean; // 默认 true（关键门控设置）
     skipWikiRefsOnReorganize: boolean;// 默认 true
     enableImageBrowser: boolean;      // 默认 true

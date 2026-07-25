@@ -54,6 +54,7 @@ getSettingDefinitions() / display() fallback
     ├── 添加图床 (button → HostingConfigModal)
     ├── 默认图床 (dropdown, 仅多个启用时显示)
     ├── 上传路径模板 (text)
+    ├── 自定义引用模板 (text，上传后生效；{fileUrl} 必填，支持 {fileAlt})
     ├── 上传后自动替换 (toggle)
     ├── 粘贴时自动上传 (toggle)
     └── 保留本地副本 (toggle，关闭时清理空的直接附件目录)
@@ -182,6 +183,8 @@ new ConfirmDialog(this.app, {
         })
 )
 ```
+
+上传后自定义引用模板可用于 HTML 等文本格式。`{fileUrl}` 是必填变量，`{fileAlt}` 使用上传文件名或现有引用的 alt 文本；空白或未包含 `{fileUrl}` 的模板不会生效，运行时安全回退到默认 Markdown 引用。当前仅覆盖上传后的远程引用，不改变本地粘贴、Markdown/Wiki 转换、重命名或整理流程。
 
 ## 新增设置项步骤
 

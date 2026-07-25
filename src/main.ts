@@ -16,6 +16,7 @@ import { setLocale, t } from './i18n';
 import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
 import { makePublicUrlReadable } from './utils/public-url';
 import { generateImageFileName, sanitizeImageFileName } from './utils/image-naming';
+import { renderCustomReference } from './utils/reference-template';
 import { removeEmptyDirectParent } from './utils/empty-folder-cleanup';
 import { shouldReplaceLocalImageReference } from './utils/upload-reference';
 import { RemoteReferenceIndex } from './remote/reference-index';
@@ -570,7 +571,14 @@ export default class ImageManagerPlugin extends Plugin {
 
     private buildUploadedReference(filename: string, url: string, altText?: string): string {
         const baseName = altText || filename.replace(/\.[^.]+$/, '');
-        return `![${baseName}](${makePublicUrlReadable(url)})`;
+        const readableUrl = makePublicUrlReadable(url);
+        const customReference = renderCustomReference(this.settings.customReferenceTemplate, {
+            fileUrl: readableUrl,
+            fileAlt: baseName,
+        });
+        if (customReference !== null) return customReference;
+
+        return `![${baseName}](${readableUrl})`;
     }
 
     private async replaceReferenceInNote(imageFile: TFile, newUrl: string, skipFile?: TFile) {
