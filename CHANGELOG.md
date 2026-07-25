@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.1.1
+
+### 🇺🇸 English
+
+#### New features
+
+- Added native Qiniu Kodo remote object management with folder browsing, public/private previews, reference detection, and guarded deletion ([PR #32](https://github.com/ytahml/obsidian-image-manager/pull/32))
+- Added native Aliyun OSS remote object management with ListObjectsV2, folder browsing, public/private previews, storage-class handling, and guarded deletion ([PR #33](https://github.com/ytahml/obsidian-image-manager/pull/33))
+- Added local reference-status filtering, guarded orphan cleanup through Obsidian's trash, expanded reference locations, and clearer remote object paths in the image browser ([PR #35](https://github.com/ytahml/obsidian-image-manager/pull/35))
+- Added custom upload reference templates with filename, alt text, extension, and intrinsic-dimension variables plus safe Markdown fallback
+
+#### Improvements
+
+- Unified direct, note, vault batch, and paste uploads through one upload service with structured results, retry tracking, and stable object keys for native providers
+- Improved note-image uploads to read unsaved active-editor content, resolve encoded and non-ASCII local paths through Obsidian link semantics, and report safe failure summaries
+- Updated the English and Chinese README files with current local/remote browser behavior, provider capabilities, remote-management safety guidance, and new screenshots
+- Consolidated the project knowledge base into one canonical skill and five current-fact references, and reorganized adjacent tests while preserving high-risk provider and deletion coverage
+
+#### Fixes
+
+- Fixed Qiniu management request signatures by preserving the required trailing newlines
+- Fixed Obsidian official-review warnings and retained compatibility with the project's ES2017 TypeScript target
+- Removed an unused internal remote-result pagination helper after the browser moved to complete-result filtering and progressive card rendering
+
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 新增七牛 Kodo 原生远程对象管理，支持目录浏览、公开/私有预览、引用检测和受安全门禁保护的删除（[PR #32](https://github.com/ytahml/obsidian-image-manager/pull/32)）
+- 新增阿里云 OSS 原生远程对象管理，支持 ListObjectsV2、目录浏览、公开/私有预览、存储类型处理和受安全门禁保护的删除（[PR #33](https://github.com/ytahml/obsidian-image-manager/pull/33)）
+- 图片浏览器新增本地引用状态筛选、通过 Obsidian 回收站执行的孤立图片安全清理、展开的引用位置，以及更清晰的远程对象路径（[PR #35](https://github.com/ytahml/obsidian-image-manager/pull/35)）
+- 新增上传后自定义引用模板，支持文件名、替代文本、扩展名和图片固有尺寸变量，并在模板无效时安全回退到标准 Markdown
+
+#### 改进
+
+- 使用统一上传服务编排单图、笔记、全库批量和粘贴上传，提供结构化结果、重试次数和原生 Provider 稳定对象 key
+- 笔记图片上传改为读取活动编辑器中尚未保存的内容，通过 Obsidian 链接语义解析编码及非 ASCII 本地路径，并提供安全的失败摘要
+- 更新中英文 README，补充当前本地/远程图片浏览器行为、Provider 能力、远程管理安全说明和新截图
+- 将项目知识库整理为一个 canonical skill 与五份当前事实 reference，并在保留高风险 Provider 和删除覆盖的前提下重组相邻测试
+
+#### 修复
+
+- 修复七牛管理请求签名未保留协议所需尾部换行的问题
+- 修复 Obsidian 官方审查警告，并保持与项目 ES2017 TypeScript 目标的兼容
+- 图片浏览器改用完整结果筛选与渐进卡片渲染后，移除未使用的内部远程结果分页 helper
+
+---
+
 ## 1.1.0
 
 ### 🇺🇸 English

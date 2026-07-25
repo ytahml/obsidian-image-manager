@@ -4,6 +4,7 @@ import { RemoteBrowseSession } from '../src/remote/browse-session';
 import type { RemoteObjectProvider } from '../src/remote/provider';
 import type { RemoteListPage, RemoteListRequest } from '../src/remote/types';
 import { RemoteProviderError } from '../src/remote/errors';
+import { getRemoteResults } from '../src/remote/result-page';
 
 function config(prefix = 'vault-a'): ImageHostingConfig {
     return {
@@ -26,6 +27,16 @@ function config(prefix = 'vault-a'): ImageHostingConfig {
 }
 
 describe('remote browse session', () => {
+    it('filters and sorts the complete scanned set without pagination', () => {
+        const results = getRemoteResults([
+            { hostingId: 's3-test', key: 'images/b.png', size: 20 },
+            { hostingId: 's3-test', key: 'archive/a.png', size: 10 },
+            { hostingId: 's3-test', key: 'images/a.png', size: 30 },
+        ], 'images/', 'size');
+
+        expect(results.map((item) => item.key)).toEqual(['images/b.png', 'images/a.png']);
+    });
+
     it('accepts a complete first page without a continuation cursor', async () => {
         const provider: RemoteObjectProvider = {
             capabilities: new Set(['list']),

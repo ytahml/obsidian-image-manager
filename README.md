@@ -5,7 +5,7 @@
 
 English | [中文](README_ZH.md)
 
-Obsidian image management plugin — supports image compression, image hosting upload, reference format conversion, image browser, and more.
+Obsidian image management plugin — supports image compression, image hosting upload, reference format conversion, local and remote image browsing, and more.
 
 > **Note**: This plugin is primarily designed for vaults that use standard Markdown format (`![alt](image.png)`) for image references.
 >
@@ -31,13 +31,14 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 
 | Feature | Status |
 | --- | --- |
-| Image Browser (Gallery) | ✅ Implemented |
+| Image Browser (Local and Hosting Images) | ✅ Implemented |
+| Local Reference Status Filter and Guarded Orphan Cleanup | ✅ Implemented |
 | Image Compression (Canvas API) | ✅ Implemented |
 | Wiki → Markdown Reference Conversion | ✅ Implemented |
 | Markdown → Wiki Reference Conversion | ❌ Not Supported |
 | Image Hosting Upload (Aliyun OSS / Qiniu / S3 / Custom) | ✅ Implemented |
-| Aliyun OSS / S3 / Qiniu Card Browser, Viewport Thumbnails, and Preview | ✅ Implemented; OSS awaits manual acceptance |
-| Guarded Aliyun OSS / S3 / Qiniu Remote Deletion | ✅ Implemented; OSS awaits manual acceptance |
+| Aliyun OSS / S3 / Qiniu Card Browser, Viewport Thumbnails, and Preview | ✅ Implemented |
+| Custom Upload Reference Template | ✅ Implemented |
 | Auto Upload on Paste | ✅ Implemented |
 | Batch Upload Note Images | ✅ Implemented |
 | Batch Upload Entire Vault | ✅ Implemented |
@@ -49,16 +50,6 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Chinese/English Internationalization | ✅ Implemented |
 | Image Hosting Migration | ❌ Not Implemented |
 | Replace Hosting References with Local | ❌ Not Implemented |
-
----
-
-## Remote Management Safety
-
-Aliyun OSS, S3-compatible, and Qiniu remote browsing list objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
-
-Remote object management supports Aliyun OSS, S3-compatible storage, and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. OSS ListObjectsV2 incurs API request charges; private preview uses a 300-second V4 presigned URL, while public preview uses the configured public access URL base. Grant only `oss:ListObjects`, `oss:GetObject` for private previews, and `oss:DeleteObject` when deletion is required. Archive, Cold Archive, and Deep Cold Archive objects are not previewed automatically. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
-
-Deletion requires selecting at most 20 eligible objects, typing the selected count, and acknowledging that cloud deletion cannot be undone. Requests run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the configured scope again. The plugin keeps up to 200 redacted local diagnostic records of completed delete requests; they never participate in remote-existence, reference, or deletion decisions, and do not contain presigned preview URLs or credentials.
 
 ---
 
@@ -75,7 +66,7 @@ Deletion requires selecting at most 20 eligible objects, typing the selected cou
 | Lint | ESLint + typescript-eslint + obsidianmd plugin |
 | CI | GitHub Actions (Node 22.x) |
 
-**Zero external runtime dependencies** — only depends on the `obsidian` package itself.
+**Zero bundled runtime dependencies** — npm packages are used only for development, type checking, testing, and building.
 
 ---
 
@@ -105,8 +96,10 @@ npm run lint
 # Automated tests
 npm test
 
-# Version update
-npm run version
+# Version update (choose the appropriate SemVer level)
+npm version patch
+# npm version minor
+# npm version major
 ```
 
 Build artifacts: `main.js`, `manifest.json`, `styles.css`
@@ -126,7 +119,7 @@ src/
 │   ├── en.ts               # English translations (300+ entries)
 │   └── zh.ts               # Chinese translations (300+ entries)
 ├── modals/
-│   ├── image-browser.ts    # Image gallery browser (grid, search, sort, orphan filter)
+│   ├── image-browser.ts    # Local/remote image browser shell
 │   ├── remote-image-browser.ts # Remote scan orchestration and safety gates
 │   ├── remote-image-grid.ts # Progressive card grid and viewport thumbnails
 │   ├── remote-image-preview.ts # Remote preview and reference locations
@@ -142,6 +135,7 @@ src/
 ├── uploaders/
 │   ├── uploader-base.ts    # Uploader abstract base class
 │   ├── uploader-factory.ts # Uploader factory (instantiate by type)
+│   ├── upload-service.ts   # Unified direct, note, batch, and paste upload orchestration
 │   ├── aliyun-oss.ts       # Aliyun OSS (OSS V4 signing)
 │   ├── qiniu.ts            # Qiniu Cloud (Token auth, region endpoints)
 │   ├── s3-compatible.ts    # S3 compatible storage (AWS SigV4)
@@ -151,11 +145,15 @@ src/
 ├── remote/                 # Provider-independent remote sessions, safety policies, and native providers
 ├── oss/
 │   └── sigv4.ts            # Shared OSS upload/list/preview/delete signing
+├── qiniu/
+│   └── auth.ts             # Upload, management, and private-preview authentication
 ├── s3/
 │   └── sigv4.ts            # Shared S3 upload/list/preview/delete signing
 └── utils/
     ├── ref-converter.ts    # Reference format parsing and conversion
+    ├── reference-template.ts # Uploaded reference template validation and rendering
     ├── image-scanner.ts    # Image scanning, filtering, sorting
+    ├── local-orphan-management.ts # Fresh local orphan validation and trash
     ├── path-utils.ts       # Path utilities, file size formatting, template variables
     ├── public-url.ts       # Markdown-safe Unicode URL display
     ├── orphan-finder.ts    # Orphan image detection, reverse reference query
@@ -213,6 +211,7 @@ src/
 
 - **Thumbnail Size** — 80-400 pixels
 - **Enable Image Browser** — Show in sidebar and command palette (requires plugin reload after change)
+- **Reference Status Filter** — Filter local cards by all, referenced, or orphan status after the reference scan completes
 
 ### Image Hosting
 
@@ -221,9 +220,24 @@ src/
 - **Add Image Hosting** — Supports Aliyun OSS, Qiniu Cloud, S3 compatible storage, custom HTTP endpoint
 - **Upload Path Template** — Supports `{year}`, `{month}`, `{day}`, `{filename}`, `{ext}`, `{hash}`, `{timestamp}`, `{sourceDir}`
 - **Public Access URL Base** — Base URL used to access uploaded objects; it can include a bucket or directory path. Required for Qiniu
+- **Custom Reference Template** — Optional upload-only template; `{fileUrl}` is required and file metadata or intrinsic dimensions can be included
 - **Auto Replace After Upload** — Automatically replace local references with hosting URL
+- **Remote Object Management** — Available for Aliyun OSS, Qiniu Kodo, and S3-compatible configurations; scanning remains explicit
+- **Management Prefix** — Limits remote scanning to a bucket prefix; an empty value means the current bucket root and requires confirmation
+- **Other Reference URL Bases** — One HTTP(S) base per line for recognizing CDN, legacy-domain, or alternate public URLs
 
-![设置-图床-en.png](images/设置-图床-en.png)
+![设置-图床-EN.png](images/设置-图床-EN.png)
+
+
+![图床配置-EN.png](images/图床配置-EN.png)
+
+#### Remote Management Safety
+
+Aliyun OSS, S3-compatible, and Qiniu remote browsing list objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
+
+Remote object management supports Aliyun OSS, S3-compatible storage, and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. OSS ListObjectsV2 incurs API request charges; private preview uses a 300-second V4 presigned URL, while public preview uses the configured public access URL base. Grant only `oss:ListObjects`, `oss:GetObject` for private previews, and `oss:DeleteObject` when deletion is required. Archive, Cold Archive, and Deep Cold Archive objects are not previewed automatically. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
+
+Deletion requires selecting at most 20 eligible objects, typing the selected count, and acknowledging that cloud deletion cannot be undone. Requests run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the configured scope again. The plugin keeps up to 200 redacted local diagnostic records of completed delete requests; they never participate in remote-existence, reference, or deletion decisions, and do not contain presigned preview URLs or credentials.
 
 ### Auto Upload
 
@@ -236,16 +250,19 @@ src/
 
 ### Image Browser
 
-> Note: The image browser only manages local images, not images on image hosting.
+The image browser manages both local images and remote objects from supported hosting configurations.
 
 - Click the image icon in the left sidebar to open
-- Supports search, sort (name/size/modified time/created time)
-- Supports orphan image filtering
-- Click thumbnail to preview, can copy reference, insert to editor, upload to hosting, jump to referencing note
+- Switch between **Local images** and **Hosting images**
+- Local images support search, sort (name/size/modified time/created time), reference-state filtering, safe orphan selection, and preview
+- Remote images support explicit scan/continue/refresh, virtual folders, search, sort, reference-state filtering, viewport thumbnails, preview, and guarded orphan deletion
+- Click a thumbnail to preview, copy or insert a local reference, upload a local image, or jump to a referencing note
 
-![使用-图片浏览器-en.png](images/使用-图片浏览器-en.png)
+![图片浏览器-图床管理-en.png](images/图片浏览器-图床管理-en.png)
 
 ![使用-图片浏览器-预览图片-en.png](images/使用-图片浏览器-预览图片-en.png)
+
+
 
 ### Paste/Drag & Drop Images
 
@@ -271,7 +288,8 @@ src/
 ### Orphan Image Detection
 
 - Command palette → "Find Orphan Images"
-- Supports select all/deselect all, batch deletion
+- The dedicated orphan modal supports select all/deselect all and batch cleanup
+- The local browser also supports all/referenced/orphan filtering and revalidates selected orphan images before moving them to Obsidian's configured trash
 
 ### Image Rename
 
@@ -296,10 +314,10 @@ src/
 
 | Provider | Status | Description |
 |----------|--------|-------------|
-| Aliyun OSS | ✅ Supported | OSS V4 upload, list, preview, and guarded delete; manual acceptance pending |
-| Qiniu Cloud | ✅ Supported | Token auth, multipart upload; public access URL base required |
-| S3 Compatible Storage | ✅ Supported | AWS SigV4, supports MinIO, Cloudflare R2, etc. |
-| Custom | ✅ Supported | Custom URL, Method, Headers, field mapping |
+| Aliyun OSS | ✅ Supported | OSS V4 upload, ListObjectsV2, folders, public/private preview, and guarded delete |
+| Qiniu Cloud | ✅ Supported | Token upload, remote list/folders, public/private preview, and guarded delete; public access URL base required |
+| S3 Compatible Storage | ✅ Supported | AWS SigV4 upload and remote management; supports MinIO, Cloudflare R2, etc. |
+| Custom | ✅ Supported | Custom URL, method, headers, and field mapping; upload only |
 
 ---
 
@@ -323,7 +341,8 @@ src/
 | `{noteName}` | Current note name (without extension) |
 | `{notePath}` | Current note's directory path |
 | `{year}` / `{month}` / `{day}` | Date |
-| `{filename}` | Image filename (without extension) |
+| `{filename}` | Image filename |
+| `{timestamp}` | Unix timestamp |
 
 ### Upload Path Template
 
@@ -338,12 +357,27 @@ src/
 
 Provider-specific upload paths override the global template. Aliyun OSS, Qiniu, and S3 use these templates; custom HTTP uploaders continue to use the URL returned by their configured JSON response path.
 
+### Custom Reference Template
+
+| Variable | Description |
+|----------|-------------|
+| `{fileUrl}` | Uploaded file URL (required) |
+| `{fileAlt}` | Alt text |
+| `{fileName}` | Full filename |
+| `{fileBaseName}` | Filename without extension |
+| `{fileExt}` | Extension |
+| `{fileWidth}` / `{fileHeight}` | Intrinsic image dimensions |
+
+Unknown variables, a missing `{fileUrl}`, or unavailable requested dimensions cause the uploaded reference to fall back to standard Markdown.
+
 ---
 
 ## Known Limitations
 
 - Does not support Markdown → Wiki format conversion (only Wiki → Markdown one-way conversion)
 - Image hosting requires "Use Markdown Standard Format" to be enabled
+- Remote reference indexing scans Markdown files in the current vault
+- Custom HTTP hosting is upload-only because it has no common list, preview, or delete protocol
 - Clipboard writes use the browser `navigator.clipboard` API; mobile behavior still depends on the host platform and permissions
 - Image hosting migration not yet implemented
 

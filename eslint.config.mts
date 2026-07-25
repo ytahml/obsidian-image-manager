@@ -22,13 +22,6 @@ export default tseslint.config(
 		},
 	},
 	{
-		files: ['tests/**/*.ts'],
-		rules: {
-			// Tests run in Node.js and may inspect repository files.
-			'import/no-nodejs-modules': 'off',
-		},
-	},
-	{
 		files: ["package.json"],
 		rules: {
 			"obsidianmd/no-plugin-as-component": "off",

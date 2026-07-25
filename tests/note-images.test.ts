@@ -8,6 +8,7 @@ vi.mock('obsidian', () => ({
 
 import { TFile, type App } from 'obsidian';
 import { collectLocalNoteImages, resolveLocalImageReference } from '../src/uploaders/note-images';
+import { readNoteContentForAction } from '../src/utils/note-content';
 import type { RefConverter } from '../src/utils/ref-converter';
 
 function createFile(path: string, parentPath = ''): TFile {
@@ -19,6 +20,40 @@ function createFile(path: string, parentPath = ''): TFile {
 }
 
 describe('note image upload references', () => {
+    it('uses live editor text when the selected note is active', async () => {
+        const read = vi.fn();
+        const app = {
+            workspace: {
+                getActiveViewOfType: vi.fn(() => ({
+                    file: { path: 'notes/current.md' },
+                    editor: { getValue: () => '![live](image.png)' },
+                })),
+            },
+            vault: { read },
+        } as unknown as App;
+        const file = createFile('notes/current.md');
+
+        await expect(readNoteContentForAction(app, file)).resolves.toBe('![live](image.png)');
+        expect(read).not.toHaveBeenCalled();
+    });
+
+    it('reads the saved file when the selected note is not active', async () => {
+        const read = vi.fn(async () => '![saved](image.png)');
+        const app = {
+            workspace: {
+                getActiveViewOfType: vi.fn(() => ({
+                    file: { path: 'notes/other.md' },
+                    editor: { getValue: () => '![other](image.png)' },
+                })),
+            },
+            vault: { read },
+        } as unknown as App;
+        const file = createFile('notes/current.md');
+
+        await expect(readNoteContentForAction(app, file)).resolves.toBe('![saved](image.png)');
+        expect(read).toHaveBeenCalledWith(file);
+    });
+
     it('reads live editor content and resolves a fully encoded Unicode path', async () => {
         const note = createFile('notes/current.md', 'notes');
         const image = createFile('notes/assets/中文 image.png', 'notes/assets');

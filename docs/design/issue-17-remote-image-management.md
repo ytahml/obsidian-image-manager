@@ -2,7 +2,7 @@
 
 > 对应 Issue：<https://github.com/ytahml/obsidian-image-manager/issues/17>
 >
-> 文档状态：S3-compatible 首期轨道（G0～G5、S3-1～S3-5）已完成并通过 Cloudflare R2、MinIO 人工验收；长期分支已完成 G6 与七牛 Kodo 的 QN-1～QN-5，并通过真实 Obsidian 手动验收。阿里云 OSS 的 OSS-1～OSS-5 代码、自动化和文档正在 `feat/issue-17-oss-remote-management` 收口，等待真实 Obsidian 人工验收。
+> 文档状态：S3-compatible 首期轨道（G0～G5、S3-1～S3-5）和七牛 Kodo QN-1～QN-5 已完成并通过真实环境验收。阿里云 OSS 的 OSS-1～OSS-5 代码、自动化和文档已通过 [PR #33](https://github.com/ytahml/obsidian-image-manager/pull/33) 合并到 `master`，等待真实 Obsidian 环境验收；G7 最终跨图床收尾仍在进行。
 >
 > 使用方式：后续新会话先完整阅读项目 `SKILL.md` 和本文，再从“进度总表”中选择一个未完成阶段推进。完成阶段后必须回写状态、验证证据和决策记录。
 
@@ -970,12 +970,12 @@ P0 计划文件
 | G4 | 按需预览与流量控制 | 已完成 | G3 | Issue #26 / PR #27：显式公开/签名访问、300 秒会话 URL、4 并发 viewport 缩略图、60 项渐进卡片和独立大图 Modal 已实现；R2/MinIO 公开/私有验收通过 |
 | G5 | 删除安全框架 | 已完成 | G2、G3 | Issue #26 / PR #27：fresh Markdown 门禁、20 项/2 并发、数量与勾选确认、失败重试、缓存失效及 200 条脱敏审计已实现；R2/MinIO 真实删除验收通过 |
 | G6 | 统一上传 Service 与结构化结果 | 已完成 | G1 | 2026-07-25：`UploadService` 已统一单图、笔记、批量与粘贴自动上传；原生结果返回 objectKey、Custom 保持 URL-only，成功仅按 hostingId 失效打开的远程会话；上传入口人工回归及 25 个测试文件、192 项测试与 build 通过 |
-| G7 | 跨图床整合、文档与发布门禁 | 进行中 | 已交付 Provider 阶段 | `feat/issue-17-oss-remote-management`：OSS 自动化、README、skill 与设计同步中；等待 OSS 真实 Obsidian 验收后创建 PR |
-| OSS-1 | OSS V4 与 ListObjectsV2 | 进行中 | G1 | 已抽取共享 signer、ListObjectsV2、opaque cursor 与 XML fixture；等待专用 Bucket 两页验收 |
-| OSS-2 | OSS URL 映射与列表接入 | 进行中 | G2、G3、OSS-1 | 已注册 production Provider，支持源站、`urlPrefix`、aliases 与公共浏览器链路；等待真实 UI 验收 |
-| OSS-3 | OSS 按需预览 | 进行中 | G4、OSS-2 | 已实现公开 URL 与 300 秒 V4 presigned GET、公共 viewport 链路；等待公开/私有验收 |
-| OSS-4 | OSS DeleteObject | 进行中 | G5、OSS-2 | 已实现精确 key DELETE、204/delete-marker 保守语义和公共删除门禁；等待专用前缀验收 |
-| OSS-5 | OSS 加固与文档 | 进行中 | OSS-3、OSS-4 | 已补充费用、最小权限、冷存储与版本控制说明；等待兼容性矩阵和测试日期 |
+| G7 | 跨图床整合、文档与发布门禁 | 进行中 | 已交付 Provider 阶段 | OSS 原生 Provider 已由 PR #33 合并到 `master`；等待 OSS 真实 Obsidian 验收及最终跨图床收尾 |
+| OSS-1 | OSS V4 与 ListObjectsV2 | 进行中 | G1 | 共享 signer、ListObjectsV2、opaque cursor 与 XML fixture 已随 PR #33 合并；等待专用 Bucket 两页验收 |
+| OSS-2 | OSS URL 映射与列表接入 | 进行中 | G2、G3、OSS-1 | production Provider、源站/`urlPrefix`/aliases 映射与公共浏览器链路已随 PR #33 合并；等待真实 UI 验收 |
+| OSS-3 | OSS 按需预览 | 进行中 | G4、OSS-2 | 公开 URL、300 秒 V4 presigned GET 与公共 viewport 链路已随 PR #33 合并；等待公开/私有验收 |
+| OSS-4 | OSS DeleteObject | 进行中 | G5、OSS-2 | 精确 key DELETE、204/delete-marker 保守语义和公共删除门禁已随 PR #33 合并；等待专用前缀验收 |
+| OSS-5 | OSS 加固与文档 | 进行中 | OSS-3、OSS-4 | 费用、最小权限、冷存储与版本控制说明已随 PR #33 合并；等待兼容性矩阵和测试日期 |
 | QN-1 | 七牛管理凭证与资源列举 | 已完成 | G1 | 2026-07-25：`/list`、`Qiniu` 管理签名、`X-Qiniu-Date`、opaque marker、目录和 JSON fixture 已实现；真实 Obsidian 扫描验收及 25 个测试文件、192 项测试与 build 通过 |
 | QN-2 | 七牛 URL 映射与列表接入 | 已完成 | G2、G3、QN-1 | production registry、`urlPrefix`/aliases 映射与无下载域名时的 metadata-only 行为已实现；用户完成 Obsidian 远程浏览与引用状态验收 |
 | QN-3 | 七牛按需预览 | 已完成 | G4、QN-2 | 公开 URL 与 300 秒私有下载 token、viewport 缩略图公共链路已实现；用户完成公开/私有预览验收 |
@@ -1076,6 +1076,8 @@ P0 计划文件
 
 | 日期 | 变更 |
 |------|------|
+| 2026-07-25 | 精简自动化与项目文档：移除文档/源码字符串断言和废弃本地分页测试，合并相邻小型测试；当前基线为 24 个测试文件、210 项测试。`.agents` 收敛为 canonical skill 与 5 个当前事实 reference，README 同步当前用户能力与截图。 |
+| 2026-07-25 | 阿里云 OSS 原生远程管理实现已由 PR #33 合并到 `master`；OSS-1～OSS-5 保持进行中，等待真实 Obsidian 环境验收。 |
 | 2026-07-25 | 用户确认图片浏览器调整在真实 Obsidian 中验收通过，其中远程大图预览的“远程路径”信息与本地预览层级一致；此记录不改变仍待真实环境验收的 OSS 阶段状态。 |
 | 2026-07-25 | 根据图片浏览器验收反馈，为远程大图预览补充“远程路径”标签与完整 object key 信息行，使路径信息层级与本地图片预览保持一致。 |
 | 2026-07-25 | 纠正笔记上传读取与本地路径解析：上传流程本身读取活动 Editor（非活动笔记读取 Vault 文件），不再误改全库引用转换流程；本地图片路径逐段完整 URL 解码并优先使用 Obsidian linkpath 语义，兼容中文编码和尖括号目标，无需先执行“整理图片资源”。 |

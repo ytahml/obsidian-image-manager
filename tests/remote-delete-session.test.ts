@@ -11,6 +11,7 @@ import {
     isKeyInRemotePrefix,
     type RemoteDeleteEligibilityContext,
 } from '../src/remote/delete-policy';
+import { canConfirmRemoteDelete } from '../src/remote/delete-confirmation';
 
 function config(): ImageHostingConfig {
     return {
@@ -56,6 +57,12 @@ function context(
 }
 
 describe('remote delete safety policy', () => {
+    it('requires the exact count and irreversible-delete acknowledgement', () => {
+        expect(canConfirmRemoteDelete('3', 3, false)).toBe(false);
+        expect(canConfirmRemoteDelete('2', 3, true)).toBe(false);
+        expect(canConfirmRemoteDelete(' 3 ', 3, true)).toBe(true);
+    });
+
     it('requires a fresh index, exact hosting, directory boundary, current scan, and unreferenced state', () => {
         const candidate = object(1);
         const base = context([candidate]);

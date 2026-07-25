@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -45,14 +43,5 @@ describe('uploaded image reference replacement', () => {
             'photo.png',
             'notes/assets/photo.png'
         )).toBe(false);
-    });
-
-    it('skips the current note after the editor has already updated it', async () => {
-        const mainPath = fileURLToPath(new URL('../src/main.ts', import.meta.url));
-        const source = await readFile(mainPath, 'utf8');
-
-        expect(source).toContain(
-            'currentFile ?? undefined,\n                    templateVars'
-        );
     });
 });

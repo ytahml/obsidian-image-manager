@@ -1,188 +1,139 @@
-# 架构概览
+# 项目架构与业务边界
 
-## 模块依赖关系
+## 产品范围
 
-```
-main.ts（入口）
-├── settings.ts（设置面板）
-├── modals/（本地浏览、远程卡片/预览/目录、删除确认/结果及设置 Modal）
-├── uploaders/（图床上传）
-│   ├── uploader-factory.ts → 4 个上传器
-│   ├── upload-path.ts（共享上传路径模板解析）
-│   ├── public-url.ts（公共访问 URL 基础路径拼接）
-│   ├── upload-service.ts（四条上传入口的统一编排与结构化结果）
-│   └── upload-queue.ts
-├── remote/（图床远程对象管理公共层）
-│   ├── types.ts（对象、分页、能力与删除结果）
-│   ├── provider.ts（与 Provider 无关的能力接口）
-│   ├── provider-factory.ts（适配器注册与 unsupported 状态）
-│   ├── request.ts（可注入的 `requestUrl` 边界）
-│   ├── errors.ts（错误分类与敏感信息脱敏）
-│   ├── reference-index.ts（按需 Markdown 远程引用索引）
-│   ├── object-reference-matcher.ts（受管 URL 到 object key 的保守匹配）
-│   ├── management-settings.ts（每个图床的远程管理默认值与规范化）
-│   ├── browse-session.ts（自动批次扫描、游标缓存与迟到响应隔离）
-│   ├── preview-session.ts（会话内预览 URL 缓存、到期重签与请求计数）
-│   ├── thumbnail-session.ts（可视区域缩略图 URL 的 4 并发队列）
-│   ├── delete-policy.ts（fresh Markdown、hosting、前缀和扫描快照门禁）
-│   ├── delete-session.ts（20 项选择、2 并发、停止调度和部分失败）
-│   ├── delete-audit.ts（最近 200 条脱敏结果与串行持久化）
-│   ├── result-page.ts（已扫描元数据的本地搜索与排序）
-│   ├── providers/s3-compatible-remote.ts（S3 列举/目录/预览/删除、XML 解析、错误映射与引用 URL bases）
-│   └── providers/qiniu-remote.ts（七牛列举/目录/预览/删除与错误映射）
-├── s3/
-│   └── sigv4.ts（上传与远程管理共享的请求目标、canonical query 与 SigV4）
-├── qiniu/
-│   └── auth.ts（上传 token、管理请求签名和私有下载 URL）
-├── utils/（工具模块）
-│   ├── ref-converter.ts ← constants.ts（正则）
-│   ├── public-url.ts（Markdown URL 的 Unicode 可读化）
-│   ├── image-scanner.ts
-│   ├── orphan-finder.ts ← ref-converter.ts
-│   ├── local-orphan-management.ts（本地引用状态、fresh 删除校验和回收站操作）
-│   ├── image-optimizer.ts
-│   ├── image-reorganizer.ts ← ref-converter.ts + path-utils.ts
-│   ├── batch-rename.ts ← ref-converter.ts
-│   └── path-utils.ts
-├── types.ts（类型定义）
-└── i18n/（国际化）
+插件围绕 Obsidian Markdown 图片完成五类业务：
+
+1. 保存、命名与压缩粘贴/拖放图片。
+2. 解析、转换、追踪并修复本地图片引用。
+3. 浏览、筛选、预览、重命名、整理和清理本地图片。
+4. 将图片上传到四类图床，并按设置复制或替换引用。
+5. 对三类原生图床显式扫描远程对象、预览、定位引用并受保护地删除孤立对象。
+
+Custom HTTP 只有上传协议。图床迁移和恢复本地引用不属于当前可用功能。
+
+## 目录职责
+
+```text
+src/main.ts                 Plugin 生命周期、命令、事件、跨模块编排
+src/settings.ts             设置定义、Obsidian 1.12 fallback、图床列表
+src/types.ts                持久化设置与公共本地域类型
+src/modals/                 本地/远程浏览、预览、配置、命名与确认 UI
+src/utils/                  路径、引用、扫描、压缩、整理、重命名与本地清理
+src/uploaders/              上传器、上传路径、结果摘要、UploadService/Queue
+src/remote/                 Provider、请求/错误、扫描/预览/删除会话、引用索引
+src/oss/ src/qiniu/ src/s3/ 服务商签名与共享请求目标
+src/i18n/                   中英文词条与插值
 ```
 
-## 核心设计模式
+边界原则：
 
-### 1. 工厂模式（上传器）
+- `main.ts` 只保留 Obsidian 入口与业务编排；可测试的匹配、转换、安全策略和协议逻辑必须下沉。
+- `UploaderBase` 只负责上传；list/preview/delete 权限由独立 `RemoteObjectProvider` 表达。
+- Provider factory 通过 capability 决定 UI 是否开放能力，不能在 UI 中复制图床名称判断。
+- 签名层必须从同一组规范化值生成实际 URL 与 canonical URI/query/headers，不能分别拼接。
 
-`createUploader(config)` 根据 `HostingType` 返回对应的 `UploaderBase` 子类实例。新增服务商只需：
-- 继承 `UploaderBase`
-- 实现 `upload()` + `testConnection()`
-- 在工厂中注册
+## 稳定命令入口
 
-### 2. 策略模式（引用格式）
+命令 ID 发布后视为兼容接口，不随文案调整而改名。
 
-`ReferenceFormat` 类型（`'markdown' | 'wiki'`）决定引用生成策略。`RefConverter` 负责解析和转换，`reorganizeConvertFormat` 设置控制全局行为。
+| ID | 行为与显示条件 |
+|---|---|
+| `browse-images` | 打开本地/图床图片浏览器；受 `enableImageBrowser` 门控 |
+| `compress-current-image` | 仅活动文件为受支持图片时可用 |
+| `convert-reference-format` | 当前笔记 Wiki 图片引用转 Markdown |
+| `convert-reference-format-vault` | 全库 Wiki 图片引用转 Markdown |
+| `upload-to-hosting` | 上传当前图片；运行时检查 Markdown 模式与图床配置 |
+| `upload-note-images` | 上传活动 Markdown 笔记中的本地图片；Markdown 模式下可用 |
+| `batch-upload` | 上传全库受支持图片 |
+| `find-orphan-images` | 打开专用孤立图片窗口 |
+| `rename-image` | 仅活动文件为图片时可用 |
+| `reorganize-images` | 整理活动 Markdown 笔记 |
+| `convert-to-md` | 当前 Markdown 笔记中的 Wiki 图片转 Markdown |
+| `migrate-images` | 保留的占位命令；当前仅显示未实现提示 |
 
-### 3. 观察者模式（事件处理）
+文件菜单还为 Markdown 文件提供笔记上传、整理和转 Markdown，为文件夹提供整理。
 
-插件通过 `this.registerEvent()` 注册事件监听器，确保 `onunload()` 时自动清理：
-- `editor-paste` / `editor-drop`：粘贴/拖放拦截
-- `vault rename`：修复 Obsidian 重命名后的引用
-- `file-menu`：右键菜单扩展
+## 生命周期与事件
 
-### 4. 并发队列（上传）
+`onload()` 顺序：
 
-`UploadQueue` 实现 3 并发 worker、3 次重试、进度回调。用于批量上传场景。
+1. 加载并合并 `DEFAULT_SETTINGS`，规范化删除历史。
+2. 设置 locale。
+3. 创建 RefConverter、ImageOptimizer、UploadService、BatchRename、RemoteReferenceIndex 和审计 writer。
+4. 按设置注册 ribbon、命令与设置页。
+5. 注册 paste/drop、Vault create/modify/delete/rename 和 file-menu 事件。
 
-### 5. 独立 Provider 边界（远程管理）
+Vault 中 Markdown 文件变化会使远程引用索引 stale。图片 rename 事件延迟修复 Markdown 路径；整理期间由 `isReorganizing` 阻止修复器与内部移动冲突。
 
-`RemoteObjectProvider` 独立于 `UploaderBase`，避免 list/preview/delete 的管理权限扩张既有上传 API。
+## 核心类型
 
-- `createRemoteObjectProvider()` 通过可注册 builder 创建适配器；未实现的图床返回显式 `unsupported` 结果，不用异常表示 UI 能力状态。
-- 图床配置 Modal 和远程浏览器通过同一 Provider capability 判断开放远程管理；生产 registry 中具备 `list` 的阿里云 OSS、S3-compatible 和七牛 Kodo 配置可见。Custom 保持仅上传。
-- `RemoteRequestClient` 封装 Obsidian `requestUrl`，允许 Provider 测试注入脱敏 mock。
-- `RemoteProviderError` 只保留分类、HTTP 状态和去掉账号、query、fragment 的 endpoint，不保留上游错误文本或请求头；浏览会话只发布结构化错误码和状态。
-- `RemoteListRequest.cursor` 属于 Provider 的不透明字符串，公共层只原样透传。
-- `RemoteReferenceIndex` 只在调用方显式扫描时读取 Markdown，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，非 Markdown 文件不属于远程引用管理范围。
-- `RemoteObjectReferenceLookup` 将标准 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和原始 URL 中可可靠映射的地址统一标记为 `referenced`，并保留笔记路径与行号供远程预览跳转；未完成、已失效或存在映射歧义的索引一律不返回“孤立图片”。
-- `RemoteBrowseSession` 只在用户明确扫描、继续或刷新时调用 `listObjects()`；扫描内部以 1000 项为请求批次自动追踪 opaque cursor，每最多 10 次请求暂停并等待用户继续。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
-- S3-compatible 已注册完整远程管理 Provider：共享 SigV4 层保证上传、列举、预览和删除的请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和引用筛选在完整已扫描集合上执行，不再显示结果页码。
-- S3 Provider 额外提供 `folders` 能力：目录选择器使用独立的 `ListObjectsV2(prefix, delimiter='/')` 请求解析 `CommonPrefixes`，按 opaque cursor 加载更多虚拟文件夹；选择结果只更新管理前缀，递归对象扫描仍走原有无 delimiter 流程。
-- 七牛 Kodo 已注册完整远程管理 Provider：管理签名使用 `X-Qiniu-Date` 和末尾双换行的管理请求数据，`/list` 的 `marker` 全程视为不透明 cursor；公开模式由 `urlPrefix` 生成 URL，私有模式使用 300 秒下载 token，删除以 `EncodedEntryURI` 调用单对象 `/delete`。它复用公共会话、引用、缩略图和删除门禁。
-- 阿里云 OSS 已注册完整远程管理 Provider：`src/oss/sigv4.ts` 从上传器抽取 V4 canonical URI/query、header signing 与 300 秒 presigned GET；ListObjectsV2 的 cursor 不透明，公开 URL 映射包含源站、`urlPrefix` 与 aliases，单对象 DELETE 的 204 仅映射为 `delete-marker | unknown`。Archive、ColdArchive、DeepColdArchive 不会自动预览。
-- 远程浏览器初始不请求列表或图片；用户明确扫描后以响应式卡片展示结果。进入可视区域前约 200px 的支持图片自动加载，URL 解析最多 4 并发；首批渲染 60 张卡片，滚动时渐进追加，搜索/排序/引用状态筛选作用于完整扫描集合。私有模式使用服务商临时 URL（S3/OSS SigV4 presigned GET、七牛下载 token），公开模式只使用明确配置的 `urlPrefix`；点击缩略图仍打开独立大图 Modal。关闭或范围变化会清空会话 URL 并隔离迟到结果。Custom 没有列表能力。
-- 阿里云 OSS、S3 与七牛删除随远程对象管理启用，不增加独立开关；仍只有 fresh Markdown 索引中的 `not-referenced-in-current-vault`、当前 hosting、当前前缀和当前扫描对象可选择，UI 将该状态显示为“孤立图片 / Orphan image”。最终确认要求输入数量并勾选不可撤销确认，每批最多 20 项、最多 2 并发且无自动重试。用户结果统一显示“请求成功”，底层仍保留 `delete-marker | unknown` 供脱敏审计；接受请求后列表/预览/选择失效。
-- 每个删除结果完成后通过串行 writer 写入 `ImageManagerSettings.remoteDeleteHistory`，按完成时间倒序最多保留 200 条；只含时间、hostingId、key、状态和稳定结果码，不含 endpoint、URL、凭据或响应正文。该字段严格定位为“本地诊断记录”，当前没有历史 UI，绝不参与远程存在、引用状态或删除资格判断。
+### 图床
 
-## 关键数据流
-
-### 粘贴/拖放 → 保存 → 引用插入
-
-```
-ClipboardEvent/DragEvent
-  → handleImagePaste/handleImageDrop（返回 boolean）
-  → processImageFiles（逐文件处理）
-    → generateFileName（命名模板含 {noteName}）
-    → ImageNamePromptModal（可选）
-    → savePastedImage
-      → resolveImagePath（模板变量：{noteName}, {notePath}, {filename}, {year}, {month}, {day}, {timestamp}）
-      → ensureDirectory（递归创建）
-      → ensureUniquePath（冲突处理：-1, -2, ...）
-      → Canvas 压缩（可选，PNG→WebP）
-      → vault.createBinary
-      → editor.replaceSelection（MD 或 Wiki 格式）
-      → autoUploadAfterPaste（可选）
+```text
+HostingType = aliyun-oss | qiniu | s3 | custom
+ImageHostingConfig
+  id/name/type/enabled
+  provider-specific config
+  uploadPath
+  urlPrefix
+  remoteManagement?
 ```
 
-### 直接上传 → 复制/替换引用
+`urlPrefix` 是公开访问 URL 基础路径，可包含 bucket 或目录，不是上传 endpoint。`remoteManagement` 缺失时旧配置默认关闭。
 
-```
-doUpload(file, config)
-  → readBinary + 可选压缩
-  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
-  → 成功：clipboard.writeText(ref)
-    → 自定义模板严格验证；只在使用宽高变量时读取固有尺寸
-    → 仅在 Markdown 边界还原 URL 路径中的 Unicode，保留敏感 ASCII 编码
-  → 可选 replaceReferenceInNote（遍历所有 MD 文件）
-```
+### 上传结果
 
-### 粘贴自动上传 → 替换引用 → 可选本地清理
+`UploadResult` 包含 success、url、objectKey、error、originalPath。Aliyun OSS、Qiniu、S3 成功必须有稳定 `objectKey`；Custom 只要求 URL，不能从 URL 猜 key。
 
-```
-autoUploadAfterPaste(savedFile, data, editor, currentFile)
-  → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
-  → 替换当前 Editor 中刚插入的本地引用
-  → replaceReferenceInNote（跳过已在内存中更新的当前笔记，只替换其他本地引用）
-  → 可选 trashFile（!keepLocalCopy）
-  → 直接父附件目录仍为空时永久、非递归删除该目录
-```
+统一操作层还补充 hostingId、attempts、原始/上传大小，供当前操作汇总和远程会话失效使用；不持久化上传清单。
 
-### 资源整理 → 移动 + 更新引用
+### 远程对象
 
-```
-reorganizeNote(file)
-  → ImageReorganizer.reorganizeNote
-    → parseReferences（解析所有引用）
-    → 逐引用处理（反向遍历）：
-      → 跳过：外部 URL、Wiki 引用（可配）
-      → resolveImageFromRef（解析图片文件）
-      → resolveImagePath（计算目标路径）
-      → vault.rename（移动文件）
-      → 更新引用格式
-    → vault.process（更新笔记内容）
-    → updateOtherNotes（更新其他笔记中的引用）
+- capability：`list | folders | preview | delete`
+- 引用状态：`referenced | possibly-referenced | not-referenced-in-current-vault | unmappable`
+- 对象元数据：hostingId、完整 key、size，可选 modified/etag/mime/storageClass/availability
+- cursor 属于 Provider，不透明透传
+- delete result 只能保守表达 `permanent | delete-marker | unknown`
+- reference index 只有 `empty | fresh | stale`
+
+`possibly-referenced` 是兼容状态，当前可靠 URL 扫描统一归入 `referenced`。
+
+## 关键业务数据流
+
+```text
+paste/drop
+  → 命名/路径/冲突处理
+  → 可选 Canvas 压缩
+  → Vault 保存与引用插入
+  → 可选 UploadService
+  → 替换当前与其他笔记的本地引用
+  → 可选回收本地文件并清理空的直接附件目录
 ```
 
-## 设置门控逻辑
-
-```
-reorganizeConvertFormat
-  ├── true（默认）→ 图床功能可用
-  │   ├── 图床设置面板正常渲染
-  │   ├── 上传命令可执行
-  │   └── 粘贴引用使用 MD 格式
-  └── false → 图床功能禁用
-      ├── 图床设置面板显示提示
-      ├── 上传命令 Notice 提示
-      └── 粘贴引用使用 Wiki 格式
+```text
+单图 / 笔记 / 全库 / 粘贴上传
+  → UploadService
+  → createUploader
+  → 结构化操作结果
+  → 默认或自定义引用
+  → 仅失效匹配 hostingId 的已打开远程会话
 ```
 
-## 模块职责边界
+```text
+显式远程扫描
+  → Provider.listObjects
+  → RemoteBrowseSession 聚合
+  → RemoteReferenceIndex 分类
+  → 本地搜索/排序/筛选与渐进卡片
+  → viewport 缩略图/大图预览
+  → fresh 门禁下的 RemoteDeleteSession
+  → 脱敏诊断记录
+```
 
-| 模块 | 职责 | 不负责 |
-|------|------|--------|
-| `main.ts` | 命令注册、事件编排、粘贴/拖放 | 具体业务逻辑（委托给 utils） |
-| `settings.ts` | 设置面板 UI 渲染 | 设置值的持久化（main.ts 处理） |
-| `ref-converter.ts` | 引用解析、格式转换 | 文件移动、引用替换（reorganizer 处理） |
-| `image-reorganizer.ts` | 文件移动 + 引用更新 | 压缩、上传 |
-| `batch-rename.ts` | 重命名 + 引用同步 | 文件移动、格式转换 |
-| `uploaders/` | 图床上传 | 引用替换（main.ts 处理） |
-| `remote/` | 远程对象公共类型、能力、会话、安全策略，以及已接入 Provider 的列表、预览和删除协议 | 上传行为与上传凭据编排（由 `uploaders/` 负责） |
-| `image-optimizer.ts` | 压缩、格式转换 | 文件保存（调用者处理） |
-| `local-orphan-management.ts` | 本地孤立状态映射、fresh 选择校验、顺序移入回收站 | 永久删除、目录清理、远程引用判断 |
+## 持久化与隐私
 
-## Issue #17 当前交付状态
-
-- S3-compatible 的 G0～G5、S3-1～S3-5 已通过 Cloudflare R2 与 MinIO 人工验收，并由 PR #27 合并到 `master`；Issue #26 已关闭。
-- 当前 S3 产品契约包含显式扫描、自动批次列举、虚拟文件夹选择、viewport 缩略图、独立大图预览、Markdown 广义 URL 引用定位和安全删除。
-- 2026-07-19 的 S3 优先上线收口已通过用户 Obsidian 验收：远程入口按 production `list` capability 门控，URL alias 使用一行一个的受校验基础路径。
-- 2026-07-25 的七牛 Kodo 远程扫描、公开/私有预览、删除与 G6 上传入口回归已在真实 Obsidian 环境验收通过。G6 不持久化上传清单；上传成功只失效对应远程会话，不能证明对象当前仍存在。
-- Issue #17 尚未完成的架构工作是 OSS 原生 Provider 与最终跨图床发布门禁；这些能力不得被文档描述成已经可用。
+- 所有插件设置保存在 Obsidian 插件 data 中，不访问 Vault 外文件。
+- 图床凭据随配置持久化；任何新增网络能力都必须有明确用户用途和帮助文案。
+- 不收集 telemetry，不上传 Vault 内容供分析，不获取或执行远程代码。
+- `remoteDeleteHistory` 最多 200 条，只保存完成时间、hostingId、key、成功状态和稳定结果码；没有历史 UI，也不是远程事实来源。

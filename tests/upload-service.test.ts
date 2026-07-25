@@ -7,6 +7,7 @@ const { createUploader } = vi.hoisted(() => ({ createUploader: vi.fn() }));
 vi.mock('../src/uploaders/uploader-factory', () => ({ createUploader }));
 
 import { UploadService } from '../src/uploaders/upload-service';
+import { summarizeUploadError } from '../src/uploaders/upload-error';
 
 const settings = {
     autoCompress: false,
@@ -94,5 +95,18 @@ describe('UploadService', () => {
         await expect(service.uploadData(new ArrayBuffer(0), 'a.png', hostingConfig('aliyun-oss')))
             .resolves.toMatchObject({ success: false });
         expect(listener).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('upload error summaries', () => {
+    it('keeps the HTTP status and provider code without exposing the response body', () => {
+        expect(summarizeUploadError(
+            'HTTP 403: <Error><Code>SignatureDoesNotMatch</Code><Message>secret detail</Message></Error>'
+        )).toBe('HTTP 403 (SignatureDoesNotMatch)');
+    });
+
+    it('returns a concise fallback for empty and non-HTTP failures', () => {
+        expect(summarizeUploadError(undefined)).toBe('Unknown error');
+        expect(summarizeUploadError(' Network\n request failed ')).toBe('Network request failed');
     });
 });
