@@ -1,6 +1,10 @@
 import { App, Modal, Notice, TFile } from 'obsidian';
 import type ImageManagerPlugin from '../main';
-import { OrphanFinder } from '../utils/orphan-finder';
+import {
+    scanLocalOrphans,
+    trashValidatedLocalOrphans,
+    validateLocalOrphanSelection,
+} from '../utils/local-orphan-management';
 import { formatFileSize } from '../utils/path-utils';
 import { ConfirmDialog } from './confirm-dialog';
 import { t } from '../i18n';
@@ -10,6 +14,7 @@ export class OrphanImagesModal extends Modal {
     private orphans: TFile[] = [];
     private selected: Set<string> = new Set();
     private listEl: HTMLDivElement | null = null;
+    private sizeEl: HTMLSpanElement | null = null;
 
     constructor(app: App, plugin: ImageManagerPlugin) {
         super(app);
@@ -27,8 +32,7 @@ export class OrphanImagesModal extends Modal {
         });
 
         // Scan for orphans
-        const finder = new OrphanFinder(this.app, this.plugin.settings.supportedExtensions);
-        const result = await finder.findOrphans();
+        const result = await scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions);
         this.orphans = result.orphans;
 
         // Update status
@@ -70,7 +74,7 @@ export class OrphanImagesModal extends Modal {
         });
 
         const totalSize = this.orphans.reduce((sum, f) => sum + f.stat.size, 0);
-        controls.createEl('span', {
+        this.sizeEl = controls.createEl('span', {
             text: t('modal.orphan.totalSize', { size: formatFileSize(totalSize) }),
             cls: 'orphan-images-size',
         });
@@ -85,7 +89,7 @@ export class OrphanImagesModal extends Modal {
             text: t('modal.orphan.deleteSelected'),
             cls: 'mod-warning',
         });
-        deleteBtn.addEventListener('click', () => this.confirmDelete());
+        deleteBtn.addEventListener('click', () => void this.confirmDelete());
     }
 
     onClose() {
@@ -116,42 +120,69 @@ export class OrphanImagesModal extends Modal {
                 text: formatFileSize(file.stat.size),
             });
         }
+        if (this.sizeEl) {
+            const totalSize = this.orphans.reduce((sum, file) => sum + file.stat.size, 0);
+            this.sizeEl.textContent = t('modal.orphan.totalSize', {
+                size: formatFileSize(totalSize),
+            });
+        }
     }
 
-    private confirmDelete() {
+    private async confirmDelete() {
         if (this.selected.size === 0) {
             new Notice(t('modal.orphan.noSelection'));
             return;
         }
 
-        new ConfirmDialog(this.app, {
-            title: t('modal.orphan.deleteConfirmTitle'),
-            message: t('modal.orphan.deleteConfirmMsg', { count: String(this.selected.size) }),
-            confirmText: t('modal.confirm.ok'),
-            cancelText: t('modal.confirm.cancel'),
-            onConfirm: async () => {
-                await this.deleteSelected();
-            },
-        }).open();
+        try {
+            const freshResult = await scanLocalOrphans(
+                this.app,
+                this.plugin.settings.supportedExtensions
+            );
+            const validation = validateLocalOrphanSelection(this.selected, freshResult);
+            this.orphans = freshResult.orphans;
+            this.selected = new Set(validation.eligible.map((file) => file.path));
+            this.renderList();
+            if (validation.eligible.length === 0) {
+                new Notice(t('modal.orphan.noSelection'));
+                return;
+            }
+
+            const totalSize = validation.eligible.reduce((sum, file) => sum + file.stat.size, 0);
+            const confirmedPaths = new Set(this.selected);
+            new ConfirmDialog(this.app, {
+                title: t('modal.orphan.deleteConfirmTitle'),
+                message: t('modal.orphan.deleteConfirmMsg', {
+                    count: String(validation.eligible.length),
+                    size: formatFileSize(totalSize),
+                }),
+                confirmText: t('modal.orphan.deleteSelected'),
+                pendingText: t('modal.imageBrowser.localDeletePending'),
+                cancelText: t('modal.confirm.cancel'),
+                onConfirm: async () => {
+                    await this.deleteSelected(confirmedPaths);
+                },
+            }).open();
+        } catch (error) {
+            new Notice(t('modal.imageBrowser.localScanFailed'));
+            console.error('[ImageManager] Failed to revalidate orphan image selection:', error);
+        }
     }
 
-    private async deleteSelected() {
-        let deleted = 0;
-        for (const file of this.orphans) {
-            if (this.selected.has(file.path)) {
-                try {
-                    await this.app.fileManager.trashFile(file);
-                    deleted++;
-                } catch (e) {
-                    console.error(`Failed to delete ${file.path}:`, e);
-                }
-            }
-        }
+    private async deleteSelected(paths: ReadonlySet<string>) {
+        const result = await trashValidatedLocalOrphans(
+            this.app,
+            paths,
+            () => scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions)
+        );
+        new Notice(t('modal.orphan.deleted', {
+            deleted: String(result.deletedPaths.length),
+            skipped: String(result.skippedPaths.length),
+            failed: String(result.failedPaths.length),
+        }));
 
-        new Notice(t('modal.orphan.deleted', { count: String(deleted) }));
-
-        // Refresh
-        this.orphans = this.orphans.filter((f) => !this.selected.has(f.path));
+        const refreshed = await scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions);
+        this.orphans = refreshed.orphans;
         this.selected.clear();
 
         if (this.orphans.length === 0) {

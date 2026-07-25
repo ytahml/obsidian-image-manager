@@ -18,7 +18,11 @@ import { setLocale, t } from './i18n';
 import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
 import { makePublicUrlReadable } from './utils/public-url';
 import { generateImageFileName, sanitizeImageFileName } from './utils/image-naming';
-import { renderCustomReference } from './utils/reference-template';
+import {
+    renderCustomReference,
+    resolveReferenceTemplateFileVars,
+    type ReferenceTemplateFileVars,
+} from './utils/reference-template';
 import { removeEmptyDirectParent } from './utils/empty-folder-cleanup';
 import { shouldReplaceLocalImageReference } from './utils/upload-reference';
 import { RemoteReferenceIndex } from './remote/reference-index';
@@ -419,12 +423,13 @@ export default class ImageManagerPlugin extends Plugin {
             const result = await this.uploadService.uploadFile(file, hostingConfig);
 
             if (result.success && result.url) {
-                const ref = this.buildUploadedReference(file.name, result.url);
+                const templateVars = await this.getReferenceTemplateFileVars(file);
+                const ref = this.buildUploadedReference(result.url, templateVars);
                 new Notice(`${t('notice.uploadSuccess')}\n${result.url}`, 5000);
                 await navigator.clipboard.writeText(ref);
 
                 if (this.settings.autoReplaceAfterUpload) {
-                    await this.replaceReferenceInNote(file, result.url);
+                    await this.replaceReferenceInNote(file, result.url, undefined, templateVars);
                 }
             } else {
                 new Notice(t('notice.uploadFailed', { error: result.error ?? 'Unknown error' }));
@@ -480,16 +485,17 @@ export default class ImageManagerPlugin extends Plugin {
                     const result = await this.uploadService.uploadFile(imgFile, hostingConfig);
 
                     if (result.success && result.url) {
+                        const templateVars = await this.getReferenceTemplateFileVars(imgFile);
                         const newRef = this.buildUploadedReference(
-                            imgFile.name,
                             result.url,
+                            templateVars,
                             ref.altText || imgFile.name.replace(/\.[^.]+$/, '')
                         );
                         newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
                         success++;
 
                         // Update references in other notes (skip current file, handled by newContent)
-                        await this.replaceReferenceInNote(imgFile, result.url, file);
+                        await this.replaceReferenceInNote(imgFile, result.url, file, templateVars);
                     } else {
                         failures.push({
                             fileName: imgFile.name,
@@ -535,19 +541,43 @@ export default class ImageManagerPlugin extends Plugin {
         }
     }
 
-    private buildUploadedReference(filename: string, url: string, altText?: string): string {
-        const baseName = altText || filename.replace(/\.[^.]+$/, '');
+    private buildUploadedReference(
+        url: string,
+        fileVars: ReferenceTemplateFileVars,
+        altText?: string
+    ): string {
+        const baseName = altText || fileVars.fileBaseName;
         const readableUrl = makePublicUrlReadable(url);
         const customReference = renderCustomReference(this.settings.customReferenceTemplate, {
             fileUrl: readableUrl,
             fileAlt: baseName,
+            ...fileVars,
         });
         if (customReference !== null) return customReference;
 
         return `![${baseName}](${readableUrl})`;
     }
 
-    private async replaceReferenceInNote(imageFile: TFile, newUrl: string, skipFile?: TFile) {
+    private async getReferenceTemplateFileVars(file: TFile): Promise<ReferenceTemplateFileVars> {
+        return resolveReferenceTemplateFileVars(
+            this.settings.customReferenceTemplate,
+            file,
+            () => this.imageOptimizer.getImageInfo(file),
+            (error) => {
+                console.warn(
+                    `[ImageManager] Failed to read image dimensions for ${file.path}:`,
+                    error
+                );
+            }
+        );
+    }
+
+    private async replaceReferenceInNote(
+        imageFile: TFile,
+        newUrl: string,
+        skipFile: TFile | undefined,
+        fileVars: ReferenceTemplateFileVars
+    ) {
         const mdFiles = this.app.vault.getMarkdownFiles();
         let totalReplaced = 0;
 
@@ -565,9 +595,9 @@ export default class ImageManagerPlugin extends Plugin {
                 const ref = refs[i]!;
                 if (shouldReplaceLocalImageReference(ref.path, imageName, imagePath)) {
                     const newRef = this.buildUploadedReference(
-                        imageName,
                         newUrl,
-                        ref.altText || imageName
+                        fileVars,
+                        ref.altText || fileVars.fileBaseName
                     );
                     newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
                     replaced = true;
@@ -875,7 +905,8 @@ export default class ImageManagerPlugin extends Plugin {
             });
 
             if (result.success && result.url) {
-                const ref = this.buildUploadedReference(savedFile.name, result.url);
+                const templateVars = await this.getReferenceTemplateFileVars(savedFile);
+                const ref = this.buildUploadedReference(result.url, templateVars);
 
                 // Replace the local reference we just inserted with the remote URL
                 const cursor = editor.getCursor();
@@ -888,7 +919,12 @@ export default class ImageManagerPlugin extends Plugin {
                 }
 
                 // Replace references in other notes
-                await this.replaceReferenceInNote(savedFile, result.url, currentFile ?? undefined);
+                await this.replaceReferenceInNote(
+                    savedFile,
+                    result.url,
+                    currentFile ?? undefined,
+                    templateVars
+                );
 
                 // Delete local file if user doesn't want to keep it
                 if (!this.settings.keepLocalCopy) {

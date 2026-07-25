@@ -52,7 +52,7 @@ describe('uploaded image reference replacement', () => {
         const source = await readFile(mainPath, 'utf8');
 
         expect(source).toContain(
-            'replaceReferenceInNote(savedFile, result.url, currentFile ?? undefined)'
+            'currentFile ?? undefined,\n                    templateVars'
         );
     });
 });

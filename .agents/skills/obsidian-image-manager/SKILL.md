@@ -41,6 +41,7 @@ main.ts (entry and orchestration)
 │   ├── public-url.ts (Markdown-safe Unicode URL display)
 │   ├── image-scanner.ts
 │   ├── orphan-finder.ts ← ref-converter.ts
+│   ├── local-orphan-management.ts (fresh local orphan validation and trash)
 │   ├── image-optimizer.ts (Canvas API)
 │   ├── image-reorganizer.ts ← ref-converter.ts + path-utils.ts
 │   ├── batch-rename.ts ← ref-converter.ts + path-utils.ts
@@ -136,7 +137,7 @@ Other key settings:
 - `autoUploadOnPaste`: auto upload after paste (requires `reorganizeConvertFormat=true`)
 - `autoReplaceAfterUpload`: replace reference after upload
 - `keepLocalCopy`: keep local file after upload; when false, auto-upload removes the exact direct attachment folder only if it is still empty
-- `customReferenceTemplate`: optional upload-only custom reference template; `{fileUrl}` is required, `{fileAlt}` is supported, and empty or invalid templates safely fall back to Markdown
+- `customReferenceTemplate`: optional upload-only custom reference template; supports `{fileUrl}` (required), `{fileAlt}`, filename metadata, and intrinsic width/height. Empty, unknown-variable, or unavailable-dimension templates safely fall back to Markdown
 - `skipWikiRefsOnReorganize`: skip Wiki refs during reorganize
 - `uploadPathTemplate`: global upload path fallback; supports `{sourceDir}` for the Vault-relative parent directory
 - `urlPrefix`: public access URL base for Aliyun OSS, Qiniu, and S3; may include a bucket or directory path
@@ -290,6 +291,7 @@ Detailed documentation for each module:
 | CI/CD | [ci-cd.md](references/ci-cd.md) | Modifying release flow, troubleshooting CI |
 | Known issues | [known-issues.md](references/known-issues.md) | Troubleshooting similar bugs, avoiding repeated pitfalls |
 | Design documentation | [docs/design/README.md](../../../docs/design/README.md) | Creating or updating feature designs and tracking architectural decisions |
+| Local browser and reference templates | [local-image-browser-reference-template.md](../../../docs/design/local-image-browser-reference-template.md) | Modifying local reference badges, local orphan deletion, or upload reference template variables |
 | Issue #17 remote management plan | [issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md) | Planning or implementing remote image hosting browsing, reference status, preview, or deletion |
 
 ## Pending Features

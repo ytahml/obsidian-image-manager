@@ -112,6 +112,7 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
 | 上传前压缩 | `compressImage(file, quality)` | `src/main.ts` |
 | 批量上传压缩 | `compressImage(file, quality)` | `src/uploaders/upload-queue.ts` |
 | 手动压缩命令 | `compressImage(file, quality)` | `src/main.ts` |
+| 自定义上传引用宽高 | 模板实际使用 `{fileWidth}` / `{fileHeight}` 时调用 `getImageInfo` | `src/main.ts` |
 
 ## 性能考虑
 
@@ -126,3 +127,5 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
 2. **GIF 动画**：Canvas 只绘制第一帧，会丢失动画
 3. **大图片**：可能触发浏览器内存限制
 4. **质量损失**：有损压缩会降低图片质量
+
+自定义引用模板不使用宽高变量时不得读取尺寸。若模板使用宽高但 `getImageInfo` 无法返回正整数尺寸，上传仍视为成功，该次自定义引用安全回退为默认 Markdown。
