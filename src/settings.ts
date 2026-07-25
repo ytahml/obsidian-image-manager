@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { t, setLocale, type Locale } from './i18n';
 import { HostingConfigModal } from './modals/hosting-config';
 import { ConfirmDialog } from './modals/confirm-dialog';
+import { validateReferenceTemplate } from './utils/reference-template';
 
 export class ImageManagerSettingTab extends PluginSettingTab {
     plugin: ImageManagerPlugin;
@@ -423,18 +424,38 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         // Custom reference template applied to references generated after upload
-        new Setting(containerEl)
+        const customReferenceSetting = new Setting(containerEl)
             .setName(t('settings.customReferenceTemplate'))
-            .setDesc(t('settings.customReferenceTemplateDesc'))
-            .addText((text) =>
-                text
-                    .setPlaceholder(t('settings.customReferenceTemplatePlaceholder'))
-                    .setValue(this.plugin.settings.customReferenceTemplate)
-                    .onChange(async (value) => {
-                        this.plugin.settings.customReferenceTemplate = value;
-                        await this.plugin.saveSettings();
-                    })
-            );
+            .setDesc(t('settings.customReferenceTemplateDesc'));
+        const validationEl = customReferenceSetting.descEl.createDiv({
+            cls: 'custom-reference-template-validation',
+        });
+        const updateValidation = (value: string) => {
+            const validation = validateReferenceTemplate(value);
+            validationEl.removeClass('is-invalid');
+            if (validation.status !== 'invalid') {
+                validationEl.textContent = '';
+                return;
+            }
+
+            validationEl.addClass('is-invalid');
+            validationEl.textContent = validation.reason === 'missing-file-url'
+                ? t('settings.customReferenceTemplateMissingUrl')
+                : t('settings.customReferenceTemplateUnknownVariables', {
+                    variables: validation.unknownVariables.map((name) => `{${name}}`).join(', '),
+                });
+        };
+        updateValidation(this.plugin.settings.customReferenceTemplate);
+        customReferenceSetting.addText((text) => {
+            text
+                .setPlaceholder(t('settings.customReferenceTemplatePlaceholder'))
+                .setValue(this.plugin.settings.customReferenceTemplate)
+                .onChange(async (value) => {
+                    this.plugin.settings.customReferenceTemplate = value;
+                    updateValidation(value);
+                    await this.plugin.saveSettings();
+                });
+        });
 
         new Setting(containerEl)
             .setName(t('settings.autoReplaceAfterUpload'))

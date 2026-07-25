@@ -165,7 +165,23 @@ activeDocument.addEventListener('keydown', handler);
 
 项目 `lib` 为 `ES2017`，不要使用 ES2019 才加入类型库的 `Array.prototype.flatMap()`。官方类型检查会将缺失 API 解析为 error/any，并级联触发 `no-unsafe-return`、`no-unsafe-call` 与 `no-unsafe-member-access`。使用显式循环和类型明确的目标数组。
 
-### 12. editor-paste/editor-drop 处理器
+同理，不要使用 ES2020 才加入类型库的 `String.prototype.matchAll()`。需要读取正则捕获组时，创建局部全局正则并用显式类型的 `RegExp.exec()` 循环，避免共享 `lastIndex`，同时让捕获组的缺失情况经过 `undefined` 检查。
+
+### 12. createEl 标签简写
+
+官网 `prefer-create-el` 规则不仅禁止 `document.createElement()`，也要求已提供简写的标签使用最具体的 Obsidian helper：
+
+```typescript
+// ❌
+containerEl.createEl('span', { text: 'Status' });
+containerEl.createEl('div', { cls: 'panel' });
+
+// ✅
+containerEl.createSpan({ text: 'Status' });
+containerEl.createDiv({ cls: 'panel' });
+```
+
+### 13. editor-paste/editor-drop 处理器
 
 ```typescript
 // ❌ 直接在处理器中调用 preventDefault

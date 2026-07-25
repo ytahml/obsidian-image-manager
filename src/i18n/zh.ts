@@ -41,9 +41,13 @@ export const zh: Record<string, string> = {
     'settings.autoReplaceAfterUploadDesc': '上传后自动将本地引用替换为图床 URL',
     'settings.customReferenceTemplate': '自定义引用模板',
     'settings.customReferenceTemplateDesc':
-        '覆盖上传后生成的引用。使用 {fileUrl}（必填）和 {fileAlt}；空白或无效模板会使用默认 Markdown 格式。',
+        '覆盖上传后生成的引用。变量：{fileUrl}（必填）、{fileAlt}、{fileName}、{fileBaseName}、{fileExt}、{fileWidth}、{fileHeight}。未知变量或无法取得所需尺寸时使用默认 Markdown。',
     'settings.customReferenceTemplatePlaceholder':
         '<img src="{fileUrl}" alt="{fileAlt}" style="max-width:100%; height:auto;" />',
+    'settings.customReferenceTemplateMissingUrl':
+        '模板无效：请添加必填变量 {fileUrl}，运行时将使用默认 Markdown。',
+    'settings.customReferenceTemplateUnknownVariables':
+        '模板无效：不支持变量 {variables}，运行时将使用默认 Markdown。',
 
     // 命令
     'command.browseImages': '浏览图片',
@@ -105,8 +109,23 @@ export const zh: Record<string, string> = {
     'modal.imageBrowser.showing': '显示 {count} / {total} 张图片',
     'modal.imageBrowser.noImages': '仓库中未找到图片',
     'modal.imageBrowser.insertTooltip': '点击预览',
-    'modal.imageBrowser.orphanFilter': '孤立图片',
     'modal.imageBrowser.orphanScanning': '正在扫描孤立图片...',
+    'modal.imageBrowser.localReferenceFilter': '引用状态筛选',
+    'modal.imageBrowser.localReferenceAll': '全部引用状态',
+    'modal.imageBrowser.localReferenced': '已引用',
+    'modal.imageBrowser.localOrphan': '孤立图片',
+    'modal.imageBrowser.localUnknown': '无法判断',
+    'modal.imageBrowser.localChecking': '正在检查引用',
+    'modal.imageBrowser.localSelect': '选择',
+    'modal.imageBrowser.localDeleteSelection': '已选择 {count} 项 · {size}',
+    'modal.imageBrowser.localDeleteSelected': '移入回收站',
+    'modal.imageBrowser.localDeleteConfirmTitle': '将孤立图片移入回收站',
+    'modal.imageBrowser.localDeleteConfirm':
+        '将当前仍为孤立状态的 {count} 张图片（{size}）移入 Obsidian 配置的回收站吗？执行前会再次检查每张图片的引用状态。',
+    'modal.imageBrowser.localDeletePending': '正在移入回收站…',
+    'modal.imageBrowser.localDeleteResult':
+        '已将 {deleted} 张图片移入回收站；跳过 {skipped} 张；失败 {failed} 张。',
+    'modal.imageBrowser.localScanFailed': '无法确定本地引用状态，引用状态筛选和删除已禁用。',
     'modal.imageBrowser.localTab': '本地图片',
     'modal.imageBrowser.remoteTab': '图床图片',
     'modal.imageBrowser.remoteNoConfig': '请先在支持远程对象管理的图床配置中启用该功能，才能浏览远程元数据。',
@@ -175,6 +194,7 @@ export const zh: Record<string, string> = {
     'modal.remotePreview.configurationError': '预览配置不完整。',
     'modal.remotePreview.unsupported': '当前服务商不支持预览。',
     'modal.remotePreview.retry': '重试',
+    'modal.remotePreview.path': '远程路径：',
     'modal.remotePreview.size': '大小：{size}',
     'modal.remotePreview.modified': '修改时间：{time}',
     'modal.remotePreview.privateAccess': '访问方式：临时签名 URL',
@@ -265,11 +285,12 @@ export const zh: Record<string, string> = {
     'modal.orphan.selectAll': '全选',
     'modal.orphan.selectNone': '取消全选',
     'modal.orphan.totalSize': '总计：{size}',
-    'modal.orphan.deleteSelected': '删除选中',
+    'modal.orphan.deleteSelected': '移入回收站',
     'modal.orphan.noSelection': '未选择任何图片。',
     'modal.orphan.deleteConfirmTitle': '删除孤立图片',
-    'modal.orphan.deleteConfirmMsg': '确定要删除 {count} 个孤立图片吗？此操作不可撤销。',
-    'modal.orphan.deleted': '已删除 {count} 个孤立图片。',
+    'modal.orphan.deleteConfirmMsg':
+        '将当前仍为孤立状态的 {count} 张图片（{size}）移入 Obsidian 配置的回收站吗？执行前会再次检查引用状态。',
+    'modal.orphan.deleted': '已移入回收站 {deleted} 张；跳过 {skipped} 张；失败 {failed} 张。',
 
     // 重命名
     'modal.rename.title': '重命名图片',

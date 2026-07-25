@@ -42,9 +42,13 @@ export const en: Record<string, string> = {
         'Automatically replace local references with hosting URLs after uploading',
     'settings.customReferenceTemplate': 'Custom reference template',
     'settings.customReferenceTemplateDesc':
-        'Override the reference generated after upload. Use {fileUrl} (required) and {fileAlt}; invalid or empty templates use default Markdown.',
+        'Override references generated after upload. Variables: {fileUrl} (required), {fileAlt}, {fileName}, {fileBaseName}, {fileExt}, {fileWidth}, {fileHeight}. Unknown variables or unavailable requested dimensions use default Markdown.',
     'settings.customReferenceTemplatePlaceholder':
         '<img src="{fileUrl}" alt="{fileAlt}" style="max-width:100%; height:auto;" />',
+    'settings.customReferenceTemplateMissingUrl':
+        'Invalid template: add the required {fileUrl} variable. Default Markdown will be used.',
+    'settings.customReferenceTemplateUnknownVariables':
+        'Invalid template: unsupported variables {variables}. Default Markdown will be used.',
 
     // Commands
     'command.browseImages': 'Browse images',
@@ -106,8 +110,24 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.showing': 'Showing {count} of {total} images',
     'modal.imageBrowser.noImages': 'No images found in vault',
     'modal.imageBrowser.insertTooltip': 'Click to preview',
-    'modal.imageBrowser.orphanFilter': 'Orphan',
     'modal.imageBrowser.orphanScanning': 'Scanning for orphan images...',
+    'modal.imageBrowser.localReferenceFilter': 'Reference status filter',
+    'modal.imageBrowser.localReferenceAll': 'All reference states',
+    'modal.imageBrowser.localReferenced': 'Referenced',
+    'modal.imageBrowser.localOrphan': 'Orphan image',
+    'modal.imageBrowser.localUnknown': 'Unable to determine',
+    'modal.imageBrowser.localChecking': 'Checking references',
+    'modal.imageBrowser.localSelect': 'Select',
+    'modal.imageBrowser.localDeleteSelection': '{count} selected · {size}',
+    'modal.imageBrowser.localDeleteSelected': 'Move selected to trash',
+    'modal.imageBrowser.localDeleteConfirmTitle': 'Move orphan images to trash',
+    'modal.imageBrowser.localDeleteConfirm':
+        'Move {count} currently orphaned image(s) ({size}) to the trash configured in Obsidian? References will be checked again before each file is accepted for deletion.',
+    'modal.imageBrowser.localDeletePending': 'Moving to trash...',
+    'modal.imageBrowser.localDeleteResult':
+        'Moved {deleted} image(s) to trash; skipped {skipped}; failed {failed}.',
+    'modal.imageBrowser.localScanFailed':
+        'Could not determine local reference status. Reference status filtering and deletion are disabled.',
     'modal.imageBrowser.localTab': 'Local images',
     'modal.imageBrowser.remoteTab': 'Hosting images',
     'modal.imageBrowser.remoteNoConfig': 'Enable remote object management for a supported hosting configuration to browse remote metadata.',
@@ -176,6 +196,7 @@ export const en: Record<string, string> = {
     'modal.remotePreview.configurationError': 'Preview configuration is incomplete.',
     'modal.remotePreview.unsupported': 'This provider does not support preview.',
     'modal.remotePreview.retry': 'Retry',
+    'modal.remotePreview.path': 'Remote path: ',
     'modal.remotePreview.size': 'Size: {size}',
     'modal.remotePreview.modified': 'Modified: {time}',
     'modal.remotePreview.privateAccess': 'Access: temporary signed URL',
@@ -266,11 +287,12 @@ export const en: Record<string, string> = {
     'modal.orphan.selectAll': 'Select All',
     'modal.orphan.selectNone': 'Select None',
     'modal.orphan.totalSize': 'Total: {size}',
-    'modal.orphan.deleteSelected': 'Delete Selected',
+    'modal.orphan.deleteSelected': 'Move selected to trash',
     'modal.orphan.noSelection': 'No images selected.',
     'modal.orphan.deleteConfirmTitle': 'Delete Orphan Images',
-    'modal.orphan.deleteConfirmMsg': 'Are you sure you want to delete {count} orphan image(s)? This cannot be undone.',
-    'modal.orphan.deleted': 'Deleted {count} orphan image(s).',
+    'modal.orphan.deleteConfirmMsg':
+        'Move {count} currently orphaned image(s) ({size}) to the trash configured in Obsidian? References will be checked again before deletion.',
+    'modal.orphan.deleted': 'Moved {deleted} image(s) to trash; skipped {skipped}; failed {failed}.',
 
     // Rename Modal
     'modal.rename.title': 'Rename Image',

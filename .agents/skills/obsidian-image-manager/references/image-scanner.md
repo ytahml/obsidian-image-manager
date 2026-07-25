@@ -4,6 +4,7 @@
 
 - `src/utils/image-scanner.ts` — 图片文件扫描
 - `src/utils/orphan-finder.ts` — 孤立图片检测
+- `src/utils/local-orphan-management.ts` — 本地引用状态、fresh 选择校验与回收站删除
 
 ## ImageScanner
 
@@ -61,6 +62,8 @@ class OrphanFinder {
 
 `OrphanResult` 包含 `orphans: TFile[]`、`total` 和 `referenced`。
 
+`local-orphan-management.ts` 不缓存删除资格。图片浏览器可把一次扫描用于展示，但确认前和实际执行时必须分别获取新的 `OrphanResult`；只有仍存在于最新 `orphans` 集合的选择才交给 `fileManager.trashFile()`。文件消失或新增引用的路径报告为 skipped，单项回收站失败报告为 failed，后续项目继续顺序处理。
+
 ### 孤立图片检测流程
 
 ```
@@ -99,7 +102,7 @@ const refs = await orphanFinder.getReferencingNotes(file);
 
 | 场景 | 调用方法 | 说明 |
 |------|----------|------|
-| 图片浏览器 | `scanner.getAllImages()` + 过滤/排序 | ImageBrowserModal |
+| 图片浏览器 | `scanner.getAllImages()` + `scanLocalOrphans()` + 过滤/排序 | ImageBrowserModal |
 | 孤立图片检测 | `orphanFinder.findOrphans()` | OrphanImagesModal |
 | 批量上传 | `scanner.getAllImages()` | main.ts batchUpload |
 | 预览引用列表 | `orphanFinder.getReferencingNotes(file)` | ImagePreviewModal |

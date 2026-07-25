@@ -39,6 +39,7 @@ main.ts（入口）
 │   ├── public-url.ts（Markdown URL 的 Unicode 可读化）
 │   ├── image-scanner.ts
 │   ├── orphan-finder.ts ← ref-converter.ts
+│   ├── local-orphan-management.ts（本地引用状态、fresh 删除校验和回收站操作）
 │   ├── image-optimizer.ts
 │   ├── image-reorganizer.ts ← ref-converter.ts + path-utils.ts
 │   ├── batch-rename.ts ← ref-converter.ts
@@ -118,6 +119,7 @@ doUpload(file, config)
   → readBinary + 可选压缩
   → createUploader(config, globalTemplate).upload(data, filename, { sourcePath })
   → 成功：clipboard.writeText(ref)
+    → 自定义模板严格验证；只在使用宽高变量时读取固有尺寸
     → 仅在 Markdown 边界还原 URL 路径中的 Unicode，保留敏感 ASCII 编码
   → 可选 replaceReferenceInNote（遍历所有 MD 文件）
 ```
@@ -175,6 +177,7 @@ reorganizeConvertFormat
 | `uploaders/` | 图床上传 | 引用替换（main.ts 处理） |
 | `remote/` | 远程对象公共类型、能力、会话、安全策略，以及已接入 Provider 的列表、预览和删除协议 | 上传行为与上传凭据编排（由 `uploaders/` 负责） |
 | `image-optimizer.ts` | 压缩、格式转换 | 文件保存（调用者处理） |
+| `local-orphan-management.ts` | 本地孤立状态映射、fresh 选择校验、顺序移入回收站 | 永久删除、目录清理、远程引用判断 |
 
 ## Issue #17 当前交付状态
 

@@ -67,10 +67,10 @@ export class ImagePreviewModal extends Modal {
             // Expandable details
             const detailsToggle = refRow.createSpan({
                 cls: 'image-preview-details-toggle',
-                text: ' ▸',
+                text: ' ▾',
             });
-            const notesList = infoEl.createDiv({ cls: 'image-preview-notes image-preview-notes-hidden' });
-            let expanded = false;
+            const notesList = infoEl.createDiv({ cls: 'image-preview-notes' });
+            let expanded = true;
 
             detailsToggle.addEventListener('click', () => {
                 expanded = !expanded;
@@ -78,7 +78,7 @@ export class ImagePreviewModal extends Modal {
                 notesList.toggleClass('image-preview-notes-hidden', !expanded);
             });
 
-            for (const note of notes.slice(0, 10)) {
+            for (const note of notes) {
                 const noteRow = notesList.createDiv({ cls: 'image-preview-note-item' });
                 noteRow.createSpan({ cls: 'image-preview-note-path', text: note.path });
                 const linesSpan = noteRow.createSpan({ cls: 'image-preview-note-lines' });
@@ -102,12 +102,6 @@ export class ImagePreviewModal extends Modal {
                         });
                     });
                 }
-            }
-            if (notes.length > 10) {
-                notesList.createDiv({
-                    cls: 'image-preview-note-item image-preview-note-more',
-                    text: `+${notes.length - 10} more...`,
-                });
             }
         }
 
