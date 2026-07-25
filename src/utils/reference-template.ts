@@ -1,9 +1,16 @@
 export interface ReferenceTemplateVars {
     url: string;
+    alt: string;
 }
 
-/** Replace the {url} placeholder in a custom reference template.
- *  The caller treats an empty template as "use the default Markdown reference". */
-export function renderCustomReference(template: string, vars: ReferenceTemplateVars): string {
-    return template.replace(/\{url\}/g, vars.url);
+/**
+ * Render a custom upload reference template when it contains the required URL placeholder.
+ * Empty, whitespace-only, or invalid templates return null so callers can use Markdown safely.
+ */
+export function renderCustomReference(template: string, vars: ReferenceTemplateVars): string | null {
+    if (!template.trim().includes('{url}')) return null;
+
+    return template
+        .replace(/\{url\}/g, () => vars.url)
+        .replace(/\{alt\}/g, () => vars.alt);
 }

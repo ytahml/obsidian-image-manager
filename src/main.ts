@@ -572,11 +572,12 @@ export default class ImageManagerPlugin extends Plugin {
     private buildUploadedReference(filename: string, url: string, altText?: string): string {
         const baseName = altText || filename.replace(/\.[^.]+$/, '');
         const readableUrl = makePublicUrlReadable(url);
-        if (this.settings.customReferenceTemplate) {
-            return renderCustomReference(this.settings.customReferenceTemplate, {
-                url: readableUrl,
-            });
-        }
+        const customReference = renderCustomReference(this.settings.customReferenceTemplate, {
+            url: readableUrl,
+            alt: baseName,
+        });
+        if (customReference !== null) return customReference;
+
         return `![${baseName}](${readableUrl})`;
     }
 

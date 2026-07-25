@@ -152,6 +152,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     t('settings.addHosting'),
                     t('settings.defaultHosting'),
                     t('settings.uploadPathTemplate'),
+                    t('settings.customReferenceTemplate'),
                     t('settings.autoReplaceAfterUpload'),
                     t('settings.autoUploadOnPaste'),
                     t('settings.keepLocalCopy'),
