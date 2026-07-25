@@ -10,6 +10,7 @@ main.ts（入口）
 │   ├── uploader-factory.ts → 4 个上传器
 │   ├── upload-path.ts（共享上传路径模板解析）
 │   ├── public-url.ts（公共访问 URL 基础路径拼接）
+│   ├── upload-service.ts（四条上传入口的统一编排与结构化结果）
 │   └── upload-queue.ts
 ├── remote/（图床远程对象管理公共层）
 │   ├── types.ts（对象、分页、能力与删除结果）
@@ -27,9 +28,12 @@ main.ts（入口）
 │   ├── delete-session.ts（20 项选择、2 并发、停止调度和部分失败）
 │   ├── delete-audit.ts（最近 200 条脱敏结果与串行持久化）
 │   ├── result-page.ts（已扫描元数据的本地搜索与排序）
-│   └── providers/s3-compatible-remote.ts（S3 列举/目录/预览/删除、XML 解析、错误映射与引用 URL bases）
+│   ├── providers/s3-compatible-remote.ts（S3 列举/目录/预览/删除、XML 解析、错误映射与引用 URL bases）
+│   └── providers/qiniu-remote.ts（七牛列举/目录/预览/删除与错误映射）
 ├── s3/
 │   └── sigv4.ts（上传与远程管理共享的请求目标、canonical query 与 SigV4）
+├── qiniu/
+│   └── auth.ts（上传 token、管理请求签名和私有下载 URL）
 ├── utils/（工具模块）
 │   ├── ref-converter.ts ← constants.ts（正则）
 │   ├── public-url.ts（Markdown URL 的 Unicode 可读化）
@@ -72,17 +76,18 @@ main.ts（入口）
 `RemoteObjectProvider` 独立于 `UploaderBase`，避免 list/preview/delete 的管理权限扩张既有上传 API。
 
 - `createRemoteObjectProvider()` 通过可注册 builder 创建适配器；未实现的图床返回显式 `unsupported` 结果，不用异常表示 UI 能力状态。
-- 图床配置 Modal 和远程浏览器通过同一 Provider capability 判断开放远程管理；只有生产 registry 中具备 `list` 的配置可见。当前仅 S3-compatible 满足条件，阿里云 OSS、七牛和 Custom 保持仅上传。
+- 图床配置 Modal 和远程浏览器通过同一 Provider capability 判断开放远程管理；生产 registry 中具备 `list` 的 S3-compatible 和七牛 Kodo 配置可见。阿里云 OSS 和 Custom 保持仅上传。
 - `RemoteRequestClient` 封装 Obsidian `requestUrl`，允许 Provider 测试注入脱敏 mock。
 - `RemoteProviderError` 只保留分类、HTTP 状态和去掉账号、query、fragment 的 endpoint，不保留上游错误文本或请求头；浏览会话只发布结构化错误码和状态。
 - `RemoteListRequest.cursor` 属于 Provider 的不透明字符串，公共层只原样透传。
 - `RemoteReferenceIndex` 只在调用方显式扫描时读取 Markdown，完成后由 Vault 文件事件标记为 stale；不会后台自动重扫，非 Markdown 文件不属于远程引用管理范围。
 - `RemoteObjectReferenceLookup` 将标准 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和原始 URL 中可可靠映射的地址统一标记为 `referenced`，并保留笔记路径与行号供远程预览跳转；未完成、已失效或存在映射歧义的索引一律不返回“孤立图片”。
 - `RemoteBrowseSession` 只在用户明确扫描、继续或刷新时调用 `listObjects()`；扫描内部以 1000 项为请求批次自动追踪 opaque cursor，每最多 10 次请求暂停并等待用户继续。切换范围、停止和关闭视图会作废迟到响应，但当前 Provider 公共接口尚不承诺中断已经发出的 HTTP 请求。
-- S3-compatible 已注册首个完整远程管理 Provider：共享 SigV4 层保证上传、列举、预览和删除的请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和引用筛选在完整已扫描集合上执行，不再显示结果页码。
+- S3-compatible 已注册完整远程管理 Provider：共享 SigV4 层保证上传、列举、预览和删除的请求 URL 与 canonical URI/query 一致；浏览会话聚合 Provider 返回的多页元数据，搜索、排序和引用筛选在完整已扫描集合上执行，不再显示结果页码。
 - S3 Provider 额外提供 `folders` 能力：目录选择器使用独立的 `ListObjectsV2(prefix, delimiter='/')` 请求解析 `CommonPrefixes`，按 opaque cursor 加载更多虚拟文件夹；选择结果只更新管理前缀，递归对象扫描仍走原有无 delimiter 流程。
-- 远程浏览器初始不请求列表或图片；用户明确扫描后以响应式卡片展示结果。进入可视区域前约 200px 的支持图片自动加载，URL 解析最多 4 并发；首批渲染 60 张卡片，滚动时渐进追加，搜索/排序/引用状态筛选作用于完整扫描集合。私有模式使用 300 秒 presigned GET，公开模式只使用明确配置的 `urlPrefix`；点击缩略图仍打开独立大图 Modal。关闭或范围变化会清空会话 URL 并隔离迟到结果。当前不支持 OSS、七牛和 Custom 的列表能力。
-- S3 删除随远程对象管理启用，不增加独立开关；仍只有 fresh Markdown 索引中的 `not-referenced-in-current-vault`、当前 hosting、当前前缀和当前扫描对象可选择，UI 将该状态显示为“孤立图片 / Orphan image”。最终确认要求输入数量并勾选不可撤销确认，每批最多 20 项、最多 2 并发且无自动重试。用户结果统一显示“请求成功”，底层仍保留 `delete-marker | unknown` 供脱敏审计；接受请求后列表/预览/选择失效。
+- 七牛 Kodo 已注册完整远程管理 Provider：管理签名使用 `X-Qiniu-Date` 和末尾双换行的管理请求数据，`/list` 的 `marker` 全程视为不透明 cursor；公开模式由 `urlPrefix` 生成 URL，私有模式使用 300 秒下载 token，删除以 `EncodedEntryURI` 调用单对象 `/delete`。它复用公共会话、引用、缩略图和删除门禁。
+- 远程浏览器初始不请求列表或图片；用户明确扫描后以响应式卡片展示结果。进入可视区域前约 200px 的支持图片自动加载，URL 解析最多 4 并发；首批渲染 60 张卡片，滚动时渐进追加，搜索/排序/引用状态筛选作用于完整扫描集合。私有模式使用服务商临时 URL（S3 SigV4 presigned GET、七牛下载 token），公开模式只使用明确配置的 `urlPrefix`；点击缩略图仍打开独立大图 Modal。关闭或范围变化会清空会话 URL 并隔离迟到结果。当前不支持 OSS、Custom 的列表能力。
+- S3 与七牛删除随远程对象管理启用，不增加独立开关；仍只有 fresh Markdown 索引中的 `not-referenced-in-current-vault`、当前 hosting、当前前缀和当前扫描对象可选择，UI 将该状态显示为“孤立图片 / Orphan image”。最终确认要求输入数量并勾选不可撤销确认，每批最多 20 项、最多 2 并发且无自动重试。用户结果统一显示“请求成功”，底层仍保留 `delete-marker | unknown` 供脱敏审计；接受请求后列表/预览/选择失效。
 - 每个删除结果完成后通过串行 writer 写入 `ImageManagerSettings.remoteDeleteHistory`，按完成时间倒序最多保留 200 条；只含时间、hostingId、key、状态和稳定结果码，不含 endpoint、URL、凭据或响应正文。该字段严格定位为“本地诊断记录”，当前没有历史 UI，绝不参与远程存在、引用状态或删除资格判断。
 
 ## 关键数据流
@@ -174,5 +179,6 @@ reorganizeConvertFormat
 
 - S3-compatible 的 G0～G5、S3-1～S3-5 已通过 Cloudflare R2 与 MinIO 人工验收，并由 PR #27 合并到 `master`；Issue #26 已关闭。
 - 当前 S3 产品契约包含显式扫描、自动批次列举、虚拟文件夹选择、viewport 缩略图、独立大图预览、Markdown 广义 URL 引用定位和安全删除。
-- 2026-07-19 的 S3 优先上线收口已通过用户 Obsidian 验收：远程入口按 production `list` capability 门控，非 S3 保持仅上传，URL alias 使用一行一个的受校验基础路径。
-- Issue #17 尚未完成的架构工作是无持久清单的 G6 统一上传 Service、OSS/七牛原生 Provider，以及最终跨图床发布门禁。上传成功只失效远程会话，不能证明对象当前仍存在；这些能力不得被文档描述成已经可用。
+- 2026-07-19 的 S3 优先上线收口已通过用户 Obsidian 验收：远程入口按 production `list` capability 门控，URL alias 使用一行一个的受校验基础路径。
+- 2026-07-25 的七牛 Kodo 远程扫描、公开/私有预览、删除与 G6 上传入口回归已在真实 Obsidian 环境验收通过。G6 不持久化上传清单；上传成功只失效对应远程会话，不能证明对象当前仍存在。
+- Issue #17 尚未完成的架构工作是 OSS 原生 Provider 与最终跨图床发布门禁；这些能力不得被文档描述成已经可用。

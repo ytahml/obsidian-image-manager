@@ -36,8 +36,8 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Wiki → Markdown Reference Conversion | ✅ Implemented |
 | Markdown → Wiki Reference Conversion | ❌ Not Supported |
 | Image Hosting Upload (Aliyun OSS / Qiniu / S3 / Custom) | ✅ Implemented |
-| S3 Card Browser, Viewport Thumbnails, and Preview (R2 / MinIO) | ✅ Implemented |
-| Guarded S3 Remote Deletion (R2 / MinIO) | ✅ Implemented and accepted |
+| S3 / Qiniu Card Browser, Viewport Thumbnails, and Preview | ✅ Implemented and accepted |
+| Guarded S3 / Qiniu Remote Deletion | ✅ Implemented and accepted |
 | Auto Upload on Paste | ✅ Implemented |
 | Batch Upload Note Images | ✅ Implemented |
 | Batch Upload Entire Vault | ✅ Implemented |
@@ -52,13 +52,13 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 
 ---
 
-## S3 Remote Management Safety
+## Remote Management Safety
 
-S3 remote browsing lists objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
+S3-compatible and Qiniu remote browsing list objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
 
-Remote object management currently supports S3-compatible storage only. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators.
+Remote object management supports S3-compatible storage and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
 
-Deletion requires selecting at most 20 eligible objects, typing the selected count, and acknowledging that cloud deletion cannot be undone. Requests run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the S3 scope again. The plugin keeps up to 200 redacted local diagnostic records of completed delete requests; they never participate in remote-existence, reference, or deletion decisions, and do not contain presigned preview URLs or credentials.
+Deletion requires selecting at most 20 eligible objects, typing the selected count, and acknowledging that cloud deletion cannot be undone. Requests run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the configured scope again. The plugin keeps up to 200 redacted local diagnostic records of completed delete requests; they never participate in remote-existence, reference, or deletion decisions, and do not contain presigned preview URLs or credentials.
 
 ---
 
