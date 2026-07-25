@@ -10,6 +10,7 @@ import {
     parseQiniuListObjects,
     QiniuRemoteObjectProvider,
 } from '../src/remote/providers/qiniu-remote';
+import { buildQiniuManagementSigningString } from '../src/qiniu/auth';
 
 function hostingConfig(): ImageHostingConfig {
     const config: QiniuConfig = {
@@ -59,6 +60,16 @@ describe('Qiniu remote list parsing', () => {
 });
 
 describe('Qiniu remote provider', () => {
+    it('uses the required double line break after signed management headers', () => {
+        const url = new URL('https://rsf.qiniuapi.com/list?bucket=images&limit=1');
+        expect(buildQiniuManagementSigningString(
+            'GET', url, 'application/x-www-form-urlencoded', '20260725T040506Z'
+        )).toBe(
+            'GET /list?bucket=images&limit=1\nHost: rsf.qiniuapi.com\n' +
+            'Content-Type: application/x-www-form-urlencoded\nX-Qiniu-Date: 20260725T040506Z\n\n'
+        );
+    });
+
     it('uses the current list API with Qiniu management authorization and no secret leakage', async () => {
         const execute = vi.fn(async (_request: RequestUrlParam) => response(200, '{"marker":"","items":[]}'));
         const provider = new QiniuRemoteObjectProvider(

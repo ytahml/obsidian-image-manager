@@ -36,20 +36,31 @@ export async function createQiniuManagementHeaders(
 ): Promise<Record<string, string>> {
     const contentType = 'application/x-www-form-urlencoded';
     const qiniuDate = formatQiniuDate(date);
-    const pathAndQuery = `${url.pathname}${url.search}`;
-    const signingString = [
-        `${method} ${pathAndQuery}`,
-        `Host: ${url.host}`,
-        `Content-Type: ${contentType}`,
-        `X-Qiniu-Date: ${qiniuDate}`,
-        '',
-    ].join('\n');
+    const signingString = buildQiniuManagementSigningString(method, url, contentType, qiniuDate);
     const signature = qiniuBase64UrlEncode(await qiniuHmacSha1(config.secretKey.trim(), signingString));
     return {
         Authorization: `Qiniu ${config.accessKey.trim()}:${signature}`,
         'Content-Type': contentType,
         'X-Qiniu-Date': qiniuDate,
     };
+}
+
+/** Qiniu management credentials require two terminal line feeds before an empty body. */
+export function buildQiniuManagementSigningString(
+    method: string,
+    url: URL,
+    contentType: string,
+    qiniuDate: string
+): string {
+    const pathAndQuery = `${url.pathname}${url.search}`;
+    return [
+        `${method} ${pathAndQuery}`,
+        `Host: ${url.host}`,
+        `Content-Type: ${contentType}`,
+        `X-Qiniu-Date: ${qiniuDate}`,
+        '',
+        '',
+    ].join('\n');
 }
 
 export async function createQiniuPrivateDownloadUrl(
