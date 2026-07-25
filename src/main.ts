@@ -573,8 +573,8 @@ export default class ImageManagerPlugin extends Plugin {
         const baseName = altText || filename.replace(/\.[^.]+$/, '');
         const readableUrl = makePublicUrlReadable(url);
         const customReference = renderCustomReference(this.settings.customReferenceTemplate, {
-            url: readableUrl,
-            alt: baseName,
+            fileUrl: readableUrl,
+            fileAlt: baseName,
         });
         if (customReference !== null) return customReference;
 
