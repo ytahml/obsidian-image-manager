@@ -69,18 +69,25 @@ export class ExternalRenameRepairCoordinator<T extends object> {
             return;
         }
         const generation = this.generation;
-        this.running = this.repair(entries).then(() => undefined).catch((error) => {
+        this.running = this.runRepair(entries, generation);
+    }
+
+    private async runRepair(entries: readonly RenameRepairEntry[], generation: number): Promise<void> {
+        try {
+            await this.repair(entries);
+        } catch (error: unknown) {
             console.error('[ImageManager] External rename repair failed:', error);
-        }).finally(() => {
+        } finally {
             this.running = null;
-            if (generation !== this.generation) return;
-            if (this.readyWhileRunning) {
-                this.readyWhileRunning = false;
-                this.startDrain();
-            } else if (this.pending.size > 0 && this.timer === undefined) {
-                this.scheduleDrain();
+            if (generation === this.generation) {
+                if (this.readyWhileRunning) {
+                    this.readyWhileRunning = false;
+                    this.startDrain();
+                } else if (this.pending.size > 0 && this.timer === undefined) {
+                    this.scheduleDrain();
+                }
             }
-        });
+        }
     }
 
     private scheduleDrain(): void {
