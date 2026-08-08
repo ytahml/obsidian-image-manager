@@ -56,8 +56,12 @@ export function validateLocalOrphanSelection(
     return { eligible, skippedPaths };
 }
 
-export function scanLocalOrphans(app: App, supportedExtensions: string[]): Promise<OrphanResult> {
-    return new OrphanFinder(app, supportedExtensions).findOrphans();
+export function scanLocalOrphans(
+    app: App,
+    supportedExtensions: string[],
+    contentOverrides: ReadonlyMap<string, string> = new Map()
+): Promise<OrphanResult> {
+    return new OrphanFinder(app, supportedExtensions).findOrphans(contentOverrides);
 }
 
 export async function trashValidatedLocalOrphans(

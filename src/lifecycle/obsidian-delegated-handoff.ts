@@ -154,7 +154,7 @@ export class ObsidianDelegatedHandoff {
             return;
         }
 
-        if (!transaction.keepLocalCopy) await this.removeIfUnreferenced(item.file);
+        if (!transaction.keepLocalCopy) await this.removeIfUnreferenced(item.file, transaction);
         this.deps.notice('Image uploaded and the pasted reference was replaced.', 3000);
         this.completeItem(ready);
     }
@@ -199,8 +199,13 @@ export class ObsidianDelegatedHandoff {
         return true;
     }
 
-    private async removeIfUnreferenced(file: TFile): Promise<void> {
-        const result = await scanLocalOrphans(this.deps.app, this.deps.getSettings().supportedExtensions);
+    private async removeIfUnreferenced(file: TFile, transaction: DelegatedTransaction): Promise<void> {
+        const sourceContent = await this.readCurrentContent(transaction);
+        const result = await scanLocalOrphans(
+            this.deps.app,
+            this.deps.getSettings().supportedExtensions,
+            new Map([[transaction.note.path, sourceContent]])
+        );
         if (!result.orphans.some((orphan) => orphan.path === file.path)) return;
         await this.deps.app.fileManager.trashFile(file);
     }

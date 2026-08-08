@@ -130,6 +130,8 @@ ClipboardEvent/DragEvent
 4. 仅把仍存在且仍在 `orphans` 中的 TFile 交给 `fileManager.trashFile()`。
 5. 文件消失或新增引用报告 skipped；单项回收失败报告 failed，后续继续。
 
+委托自动接力在刚替换活动编辑器的事务引用后，复扫来源笔记必须使用 Editor 当前文本覆盖可能尚未刷新的 Vault 缓存；否则旧本地引用会导致错误保留本应回收的附件。
+
 专用 `OrphanImagesModal` 与图片浏览器共享这套 fresh 边界。
 
 ## 笔记图片上传与引用替换
