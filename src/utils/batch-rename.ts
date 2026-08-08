@@ -126,6 +126,8 @@ export class BatchRename {
                 const decodedRefPath = ref.format === 'markdown'
                     ? decodePathSegments(ref.path)
                     : ref.path;
+                const resolvedTarget = this.app.metadataCache.getFirstLinkpathDest(decodedRefPath, mdFile.path);
+                if (resolvedTarget && resolvedTarget.path !== newPath) continue;
                 // Try exact path, then resolve relative to note directory
                 const noteDir = mdFile.parent?.path ?? '';
                 const resolvedPath = noteDir ? `${noteDir}/${decodedRefPath}` : decodedRefPath;

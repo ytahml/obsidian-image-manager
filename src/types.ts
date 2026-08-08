@@ -144,7 +144,12 @@ export interface ImageManagerSettings {
     imagePathTemplate: string;
     imagePathBase: 'vault' | 'note';
     supportedExtensions: string[];
-    autoCompress: boolean;
+    /** Legacy persisted value, read only during migration. */
+    autoCompress?: boolean;
+    localManagementMode: 'managed' | 'delegated';
+    managedPasteReferenceFormat: ReferenceFormat;
+    compressManagedPasteLocal: boolean;
+    compressBeforeUpload: boolean;
     compressQuality: number;
     thumbnailSize: number;
     imageNamingTemplate: string;
@@ -169,7 +174,10 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     imagePathTemplate: 'attachments',
     imagePathBase: 'note',
     supportedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'avif'],
-    autoCompress: false,
+    localManagementMode: 'managed',
+    managedPasteReferenceFormat: 'markdown',
+    compressManagedPasteLocal: false,
+    compressBeforeUpload: false,
     compressQuality: 80,
     thumbnailSize: 200,
     imageNamingTemplate: 'image-{timestamp}',
@@ -186,3 +194,27 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     keepLocalCopy: false,
     remoteDeleteHistory: [],
 };
+
+export function normalizeImageManagerSettings(loaded: Partial<ImageManagerSettings> | null): ImageManagerSettings {
+    const merged = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
+    const legacyCompression = typeof loaded?.autoCompress === 'boolean' ? loaded.autoCompress : undefined;
+    const legacyMarkdown = loaded?.reorganizeConvertFormat ?? DEFAULT_SETTINGS.reorganizeConvertFormat;
+    const canResolveEnabledHosting = merged.hostingConfigs.some((config) => config.enabled);
+
+    merged.localManagementMode = loaded?.localManagementMode === 'delegated' ? 'delegated' : 'managed';
+    merged.managedPasteReferenceFormat = loaded?.managedPasteReferenceFormat === 'wiki'
+        ? 'wiki'
+        : legacyMarkdown ? 'markdown' : 'wiki';
+    merged.compressManagedPasteLocal = typeof loaded?.compressManagedPasteLocal === 'boolean'
+        ? loaded.compressManagedPasteLocal
+        : legacyCompression ?? DEFAULT_SETTINGS.compressManagedPasteLocal;
+    merged.compressBeforeUpload = typeof loaded?.compressBeforeUpload === 'boolean'
+        ? loaded.compressBeforeUpload
+        : legacyCompression ?? DEFAULT_SETTINGS.compressBeforeUpload;
+    merged.autoUploadOnPaste = Boolean(
+        loaded?.autoUploadOnPaste &&
+        legacyMarkdown &&
+        canResolveEnabledHosting
+    );
+    return merged;
+}

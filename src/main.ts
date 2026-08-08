@@ -1,5 +1,5 @@
 import { Notice, Plugin, TAbstractFile, TFile, TFolder, MarkdownView, SuggestModal } from 'obsidian';
-import { ImageManagerSettings, DEFAULT_SETTINGS, ImageHostingConfig } from './types';
+import { ImageManagerSettings, ImageHostingConfig, normalizeImageManagerSettings } from './types';
 import { ImageManagerSettingTab } from './settings';
 import { ImageBrowserModal } from './modals/image-browser';
 import { OrphanImagesModal } from './modals/orphan-images';
@@ -28,6 +28,7 @@ import { shouldReplaceLocalImageReference } from './utils/upload-reference';
 import { RemoteReferenceIndex } from './remote/reference-index';
 import type { RemoteDeleteAuditEntry } from './remote/types';
 import { normalizeRemoteDeleteHistory, RemoteDeleteAuditWriter } from './remote/delete-audit';
+import { ObsidianDelegatedHandoff } from './lifecycle/obsidian-delegated-handoff';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -36,7 +37,9 @@ export default class ImageManagerPlugin extends Plugin {
     batchRename: BatchRename;
     remoteReferenceIndex: RemoteReferenceIndex;
     uploadService: UploadService;
+    private delegatedHandoff: ObsidianDelegatedHandoff;
     private isReorganizing = false;
+    private readonly renameRepairTimers = new Map<string, number>();
     private remoteDeleteAuditWriter: RemoteDeleteAuditWriter;
     async onload() {
         await this.loadSettings();
@@ -52,6 +55,17 @@ export default class ImageManagerPlugin extends Plugin {
             (history) => { this.settings.remoteDeleteHistory = history; },
             () => this.saveSettings()
         );
+        this.delegatedHandoff = new ObsidianDelegatedHandoff({
+            app: this.app,
+            getSettings: () => this.settings,
+            uploadService: this.uploadService,
+            refConverter: this.refConverter,
+            isImageFile: (file) => this.isImageFile(file),
+            buildUploadedReference: (url, vars, alt) => this.buildUploadedReference(url, vars, alt),
+            getReferenceTemplateFileVars: (file) => this.getReferenceTemplateFileVars(file),
+            getDefaultHostingConfig: () => this.getDefaultHostingConfig(),
+            notice: (message, timeout) => new Notice(message, timeout),
+        });
 
         // Ribbon icon
         if (this.settings.enableImageBrowser) {
@@ -104,7 +118,6 @@ export default class ImageManagerPlugin extends Plugin {
             id: 'upload-note-images',
             name: t('command.uploadNoteImages'),
             checkCallback: (checking) => {
-                if (!this.settings.reorganizeConvertFormat) return false;
                 const file = this.app.workspace.getActiveFile();
                 if (!file || file.extension !== 'md') return false;
                 if (!checking) void this.uploadNoteImages(file);
@@ -191,15 +204,27 @@ export default class ImageManagerPlugin extends Plugin {
         this.registerEvent(
             this.app.vault.on('rename', (file, oldPath) => {
                 this.invalidateRemoteReferenceIndex(file);
+                if (file instanceof TFile) this.delegatedHandoff.onRename(file);
                 if (!(file instanceof TFile) || !this.isImageFile(file)) return;
                 if (this.isReorganizing) return;
-                window.setTimeout(() => {
+                if (this.delegatedHandoff.isTrackingFile(file)) return;
+                const previous = this.renameRepairTimers.get(oldPath);
+                if (previous !== undefined) window.clearTimeout(previous);
+                const timer = window.setTimeout(() => {
+                    this.renameRepairTimers.delete(oldPath);
                     void this.batchRename.fixBrokenImageRefs(oldPath, file.path);
-                }, 100);
+                }, 250);
+                this.renameRepairTimers.set(oldPath, timer);
             })
         );
-        this.registerEvent(this.app.vault.on('create', (file) => this.invalidateRemoteReferenceIndex(file)));
-        this.registerEvent(this.app.vault.on('modify', (file) => this.invalidateRemoteReferenceIndex(file)));
+        this.registerEvent(this.app.vault.on('create', (file) => {
+            this.invalidateRemoteReferenceIndex(file);
+            if (file instanceof TFile) this.delegatedHandoff.onCreate(file);
+        }));
+        this.registerEvent(this.app.vault.on('modify', (file) => {
+            this.invalidateRemoteReferenceIndex(file);
+            if (file instanceof TFile && file.extension === 'md') this.delegatedHandoff.onModify(file);
+        }));
         this.registerEvent(this.app.vault.on('delete', (file) => this.invalidateRemoteReferenceIndex(file)));
 
         // Right-click menu: image management
@@ -214,13 +239,11 @@ export default class ImageManagerPlugin extends Plugin {
                     });
                 } else if (file instanceof TFile && file.extension === 'md') {
                     menu.addSeparator();
-                    if (this.settings.reorganizeConvertFormat) {
-                        menu.addItem((item) => {
-                            item.setTitle(`Markdown Image Manager: ${t('command.uploadNoteImages')}`)
-                                .setIcon('upload')
-                                .onClick(() => { void this.uploadNoteImages(file); });
-                        });
-                    }
+                    menu.addItem((item) => {
+                        item.setTitle(`Markdown Image Manager: ${t('command.uploadNoteImages')}`)
+                            .setIcon('upload')
+                            .onClick(() => { void this.uploadNoteImages(file); });
+                    });
                     menu.addItem((item) => {
                         item.setTitle(`Markdown Image Manager: ${t('command.reorganizeImages')}`)
                             .setIcon('image-file')
@@ -236,7 +259,11 @@ export default class ImageManagerPlugin extends Plugin {
         );
     }
 
-    onunload() {}
+    onunload() {
+        this.delegatedHandoff.cancelAll('unload');
+        for (const timer of this.renameRepairTimers.values()) window.clearTimeout(timer);
+        this.renameRepairTimers.clear();
+    }
 
     private invalidateRemoteReferenceIndex(file: TAbstractFile) {
         if (file instanceof TFile && file.extension === 'md') {
@@ -246,12 +273,16 @@ export default class ImageManagerPlugin extends Plugin {
 
     async loadSettings() {
         const loaded = await this.loadData() as Partial<ImageManagerSettings> | null;
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
+        this.settings = normalizeImageManagerSettings(loaded);
         this.settings.remoteDeleteHistory = normalizeRemoteDeleteHistory(loaded?.remoteDeleteHistory);
     }
 
     async saveSettings() {
         await this.saveData(this.settings);
+    }
+
+    cancelDelegatedTransactions(): void {
+        this.delegatedHandoff.cancelAll('cancelled');
     }
 
     recordRemoteDeleteAudit(entry: RemoteDeleteAuditEntry): Promise<void> {
@@ -699,6 +730,11 @@ export default class ImageManagerPlugin extends Plugin {
         const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
         if (imageFiles.length === 0) return false;
 
+        if (this.settings.localManagementMode === 'delegated') {
+            this.delegatedHandoff.start(editor, file, imageFiles.length);
+            return false;
+        }
+
         this.processImageFiles(imageFiles, editor, file);
         return true;
     }
@@ -709,6 +745,11 @@ export default class ImageManagerPlugin extends Plugin {
 
         const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
         if (imageFiles.length === 0) return false;
+
+        if (this.settings.localManagementMode === 'delegated') {
+            this.delegatedHandoff.start(editor, file, imageFiles.length);
+            return false;
+        }
 
         this.processImageFiles(imageFiles, editor, file);
         return true;
@@ -830,7 +871,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         // Compress if enabled
         let outputData: ArrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-        if (this.settings.autoCompress && ext !== 'svg') {
+        if (this.settings.compressManagedPasteLocal && ext !== 'svg') {
             try {
                 const blob = new Blob([data], { type: mimeType });
                 const img = await this.blobToImage(blob);
@@ -875,7 +916,7 @@ export default class ImageManagerPlugin extends Plugin {
         // Insert reference based on format setting
         const noteDir = currentFile?.parent?.path ?? '';
         let ref: string;
-        if (this.settings.reorganizeConvertFormat) {
+        if (this.settings.managedPasteReferenceFormat === 'markdown') {
             // Markdown standard format: ![alt](path)
             const relativePath = noteDir ? this.computeRelativePath(noteDir, savedFile.path) : savedFile.path;
             const encodedPath = encodePathSegments(relativePath);
@@ -887,7 +928,7 @@ export default class ImageManagerPlugin extends Plugin {
         editor.replaceSelection(ref);
 
         // Auto-upload to hosting if enabled (requires Markdown format)
-        if (this.settings.autoUploadOnPaste && this.settings.reorganizeConvertFormat) {
+        if (this.settings.autoUploadOnPaste) {
             this.autoUploadAfterPaste(savedFile, outputData, editor, currentFile).catch(() => {});
         }
     }

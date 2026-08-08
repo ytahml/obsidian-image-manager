@@ -48,7 +48,7 @@ export class UploadService {
     ): Promise<UploadOperationResult> {
         let data = await this.app.vault.readBinary(file);
         const originalSize = data.byteLength;
-        if (this.settings.autoCompress) {
+        if (this.settings.compressBeforeUpload) {
             const compressed = await this.optimizer.compressImage(file, this.settings.compressQuality);
             data = compressed.data;
         }

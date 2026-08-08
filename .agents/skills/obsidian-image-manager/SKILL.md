@@ -64,3 +64,4 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 | [docs/design/README.md](../../../docs/design/README.md) | Creating or locating durable product/design decisions |
 | [local-image-browser-reference-template.md](../../../docs/design/local-image-browser-reference-template.md) | Changing local reference states, orphan deletion, preview references, remote path display, or custom reference templates |
 | [issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md) | Changing remote object-management product or safety contracts |
+| [issue-36-local-image-workflow-ownership.md](../../../docs/design/issue-36-local-image-workflow-ownership.md) | Changing paste/drop ownership, delegated attachment handling, automatic hosting handoff, or third-party attachment-manager compatibility |
