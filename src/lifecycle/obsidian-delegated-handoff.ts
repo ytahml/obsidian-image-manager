@@ -5,6 +5,8 @@ import { RefConverter } from '../utils/ref-converter';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
 import { PasteLifecycleCoordinator, type HandoffReadyItem, type PasteLifecycleCancellation } from './paste-lifecycle';
 import type { UploadOperationResult, UploadService } from '../uploaders/upload-service';
+import { getDelegatedReferenceId } from './reference-identity';
+import { UploadConcurrencyLimiter } from './upload-concurrency-limiter';
 
 interface DelegatedItem {
     file?: TFile;
@@ -37,6 +39,7 @@ export interface DelegatedHandoffDependencies {
 export class ObsidianDelegatedHandoff {
     private readonly coordinator: PasteLifecycleCoordinator;
     private readonly transactions = new Map<string, DelegatedTransaction>();
+    private readonly uploadLimiter = new UploadConcurrencyLimiter(2);
 
     constructor(private readonly deps: DelegatedHandoffDependencies) {
         this.coordinator = new PasteLifecycleCoordinator(
@@ -139,7 +142,9 @@ export class ObsidianDelegatedHandoff {
             return;
         }
 
-        const result = await this.deps.uploadService.uploadFile(item.file, transaction.hosting, { maxRetries: 2 });
+        const result = await this.uploadLimiter.run(() =>
+            this.deps.uploadService.uploadFile(item.file!, transaction.hosting, { maxRetries: 2 })
+        );
         if (!result.success || !result.url) {
             this.deps.notice('Automatic upload failed. Use an explicit upload command to retry.', 5000);
             this.completeItem(ready);
@@ -229,7 +234,7 @@ export class ObsidianDelegatedHandoff {
     }
 
     private referenceId(reference: ImageReference): string {
-        return `${reference.col}:${reference.fullMatch}`;
+        return getDelegatedReferenceId(reference);
     }
 
     private offsetToPosition(content: string, offset: number): { line: number; ch: number } {
