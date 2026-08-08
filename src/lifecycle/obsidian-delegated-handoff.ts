@@ -20,6 +20,10 @@ interface DelegatedTransaction {
     items: DelegatedItem[];
     hosting: ImageHostingConfig;
     keepLocalCopy: boolean;
+    compressBeforeUpload: boolean;
+    compressQuality: number;
+    uploadPathTemplate: string;
+    customReferenceTemplate: string;
     completedItems: number;
 }
 
@@ -29,8 +33,8 @@ export interface DelegatedHandoffDependencies {
     uploadService: UploadService;
     refConverter: RefConverter;
     isImageFile: (file: TFile) => boolean;
-    buildUploadedReference: (url: string, vars: ReferenceTemplateFileVars, alt?: string) => string;
-    getReferenceTemplateFileVars: (file: TFile) => Promise<ReferenceTemplateFileVars>;
+    buildUploadedReference: (url: string, vars: ReferenceTemplateFileVars, alt?: string, template?: string) => string;
+    getReferenceTemplateFileVars: (file: TFile, template?: string) => Promise<ReferenceTemplateFileVars>;
     getDefaultHostingConfig: () => ImageHostingConfig | null;
     notice: (message: string, timeout?: number) => Notice;
 }
@@ -64,6 +68,10 @@ export class ObsidianDelegatedHandoff {
             items: Array.from({ length: imageCount }, () => ({ moved: false })),
             hosting: this.cloneHosting(hosting),
             keepLocalCopy: settings.keepLocalCopy,
+            compressBeforeUpload: settings.compressBeforeUpload,
+            compressQuality: settings.compressQuality,
+            uploadPathTemplate: settings.uploadPathTemplate,
+            customReferenceTemplate: settings.customReferenceTemplate,
             completedItems: 0,
         });
     }
@@ -143,7 +151,12 @@ export class ObsidianDelegatedHandoff {
         }
 
         const result = await this.uploadLimiter.run(() =>
-            this.deps.uploadService.uploadFile(item.file!, transaction.hosting, { maxRetries: 2 })
+            this.deps.uploadService.uploadFile(item.file!, transaction.hosting, {
+                maxRetries: 2,
+                compressBeforeUpload: transaction.compressBeforeUpload,
+                compressQuality: transaction.compressQuality,
+                uploadPathTemplate: transaction.uploadPathTemplate,
+            })
         );
         if (!result.success || !result.url) {
             this.deps.notice('Automatic upload failed. Use an explicit upload command to retry.', 5000);
@@ -177,8 +190,8 @@ export class ObsidianDelegatedHandoff {
             .filter((reference) => this.resolvesTo(reference, transaction.note, file));
         if (matches.length !== 1) return false;
         const match = matches[0]!;
-        const vars = await this.deps.getReferenceTemplateFileVars(file);
-        const replacement = this.deps.buildUploadedReference(result.url, vars, match.altText);
+        const vars = await this.deps.getReferenceTemplateFileVars(file, transaction.customReferenceTemplate);
+        const replacement = this.deps.buildUploadedReference(result.url, vars, match.altText, transaction.customReferenceTemplate);
         const editorContent = this.isSourceEditorActive(transaction)
             ? this.readEditorContent(transaction.editor)
             : null;

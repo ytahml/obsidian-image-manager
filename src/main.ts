@@ -61,8 +61,8 @@ export default class ImageManagerPlugin extends Plugin {
             uploadService: this.uploadService,
             refConverter: this.refConverter,
             isImageFile: (file) => this.isImageFile(file),
-            buildUploadedReference: (url, vars, alt) => this.buildUploadedReference(url, vars, alt),
-            getReferenceTemplateFileVars: (file) => this.getReferenceTemplateFileVars(file),
+            buildUploadedReference: (url, vars, alt, template) => this.buildUploadedReference(url, vars, alt, template),
+            getReferenceTemplateFileVars: (file, template) => this.getReferenceTemplateFileVars(file, template),
             getDefaultHostingConfig: () => this.getDefaultHostingConfig(),
             notice: (message, timeout) => new Notice(message, timeout),
         });
@@ -560,11 +560,12 @@ export default class ImageManagerPlugin extends Plugin {
     private buildUploadedReference(
         url: string,
         fileVars: ReferenceTemplateFileVars,
-        altText?: string
+        altText?: string,
+        template: string = this.settings.customReferenceTemplate
     ): string {
         const baseName = altText || fileVars.fileBaseName;
         const readableUrl = makePublicUrlReadable(url);
-        const customReference = renderCustomReference(this.settings.customReferenceTemplate, {
+        const customReference = renderCustomReference(template, {
             fileUrl: readableUrl,
             fileAlt: baseName,
             ...fileVars,
@@ -574,9 +575,12 @@ export default class ImageManagerPlugin extends Plugin {
         return `![${baseName}](${readableUrl})`;
     }
 
-    private async getReferenceTemplateFileVars(file: TFile): Promise<ReferenceTemplateFileVars> {
+    private async getReferenceTemplateFileVars(
+        file: TFile,
+        template: string = this.settings.customReferenceTemplate
+    ): Promise<ReferenceTemplateFileVars> {
         return resolveReferenceTemplateFileVars(
-            this.settings.customReferenceTemplate,
+            template,
             file,
             () => this.imageOptimizer.getImageInfo(file),
             (error) => {

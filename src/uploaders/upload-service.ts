@@ -18,6 +18,9 @@ export interface UploadOperationResult {
 
 export interface UploadServiceOptions {
     maxRetries?: number;
+    compressBeforeUpload?: boolean;
+    compressQuality?: number;
+    uploadPathTemplate?: string;
 }
 
 /**
@@ -48,8 +51,8 @@ export class UploadService {
     ): Promise<UploadOperationResult> {
         let data = await this.app.vault.readBinary(file);
         const originalSize = data.byteLength;
-        if (this.settings.compressBeforeUpload) {
-            const compressed = await this.optimizer.compressImage(file, this.settings.compressQuality);
+        if (options.compressBeforeUpload ?? this.settings.compressBeforeUpload) {
+            const compressed = await this.optimizer.compressImage(file, options.compressQuality ?? this.settings.compressQuality);
             data = compressed.data;
         }
         return this.uploadData(data, file.name, hostingConfig, {
@@ -66,7 +69,7 @@ export class UploadService {
         originalSize: number = data.byteLength
     ): Promise<UploadOperationResult> {
         const maxRetries = Math.max(0, Math.floor(options.maxRetries ?? 0));
-        const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
+        const uploader = createUploader(hostingConfig, options.uploadPathTemplate ?? this.settings.uploadPathTemplate);
         let attempts = 0;
         let lastResult: UploadResult | undefined;
         let lastError: unknown;
