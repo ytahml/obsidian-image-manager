@@ -15,6 +15,7 @@ import { UploadConcurrencyLimiter } from './upload-concurrency-limiter';
 import { t } from '../i18n';
 import { DelegatedTransactionMatcher, type DelegatedItemClaim } from './delegated-transaction-matcher';
 import { KeyedSerialExecutor } from './keyed-serial-executor';
+import { decodePathSegments } from '../utils/path-utils';
 import {
     summarizeDelegatedTransaction,
     type DelegatedTransactionOutcome,
@@ -201,7 +202,10 @@ export class ObsidianDelegatedHandoff {
         if (this.transactions.get(id) !== transaction) return;
         const references = this.transactionReferences(transaction, this.deps.refConverter.parseReferences(content));
         const resolved = references.map((reference) => {
-            const file = this.deps.app.metadataCache.getFirstLinkpathDest(reference.path, transaction.note.path);
+            const file = this.deps.app.metadataCache.getFirstLinkpathDest(
+                this.linkpathForResolution(reference),
+                transaction.note.path
+            );
             if (!(file instanceof TFile)) return null;
             const fileId = this.fileIds.get(file);
             if (!fileId) return null;
@@ -304,7 +308,6 @@ export class ObsidianDelegatedHandoff {
                 });
                 return;
             }
-
             await this.noteEffects.run(transaction.note.path, async () => {
                 if (!await this.validateReadyItem(ready, transaction, item)) {
                     this.recordOutcome(ready, transaction, {
@@ -351,14 +354,19 @@ export class ObsidianDelegatedHandoff {
         const vars = await this.deps.getReferenceTemplateFileVars(file, transaction.customReferenceTemplate);
         const replacement = this.deps.buildUploadedReference(result.url, vars, match.altText, transaction.customReferenceTemplate);
         if (!await this.validateReadyItem(ready, transaction, { ...transaction.items[ready.itemIndex]!, file })) return false;
-        const editorContent = this.isSourceEditorActive(transaction)
-            ? this.readEditorContent(transaction.editor)
-            : null;
-        if (editorContent === content) {
+        const sourceView = this.findSourceView(transaction);
+        if (sourceView) {
+            const editorContent = this.readEditorContent(transaction.editor);
+            if (editorContent === null) return false;
+            const editorMatches = this.deps.refConverter.parseReferences(editorContent)
+                .filter((reference) => this.referenceId(reference) === ready.referenceId)
+                .filter((reference) => this.resolvesTo(reference, transaction.note, file));
+            if (editorMatches.length !== 1) return false;
+            const editorMatch = editorMatches[0]!;
             transaction.items[ready.itemIndex]!.replacementApplied = true;
             transaction.items[ready.itemIndex]!.replacementReference = replacement;
-            const start = this.offsetToPosition(content, match.col);
-            const end = this.offsetToPosition(content, match.col + match.fullMatch.length);
+            const start = this.offsetToPosition(editorContent, editorMatch.col);
+            const end = this.offsetToPosition(editorContent, editorMatch.col + editorMatch.fullMatch.length);
             transaction.editor.replaceRange(replacement, start, end);
         } else {
             let replaced = false;
@@ -431,7 +439,14 @@ export class ObsidianDelegatedHandoff {
     }
 
     private resolvesTo(reference: ImageReference, note: TFile, file: TFile): boolean {
-        return this.deps.app.metadataCache.getFirstLinkpathDest(reference.path, note.path) === file;
+        return this.deps.app.metadataCache.getFirstLinkpathDest(
+            this.linkpathForResolution(reference),
+            note.path
+        ) === file;
+    }
+
+    private linkpathForResolution(reference: ImageReference): string {
+        return reference.format === 'markdown' ? decodePathSegments(reference.path) : reference.path;
     }
 
     private async validateReadyItem(

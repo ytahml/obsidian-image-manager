@@ -60,11 +60,20 @@ function harness(initialContent = '') {
             uploadPath: '', urlPrefix: '',
         }],
     };
+    const replaceRange = vi.fn((
+        replacement: string,
+        start: { line: number; ch: number },
+        end: { line: number; ch: number }
+    ) => {
+        const offset = (position: { line: number; ch: number }) => {
+            const lines = content.split('\n');
+            return lines.slice(0, position.line).reduce((total, line) => total + line.length + 1, 0) + position.ch;
+        };
+        content = content.substring(0, offset(start)) + replacement + content.substring(offset(end));
+    });
     const editor = {
         getValue: () => content,
-        replaceRange: (replacement: string, start: { ch: number }, end: { ch: number }) => {
-            content = content.substring(0, start.ch) + replacement + content.substring(end.ch);
-        },
+        replaceRange,
     } as unknown as Editor;
     const view = new (MarkdownView as unknown as { new(): MarkdownView })();
     view.file = note;
@@ -81,6 +90,7 @@ function harness(initialContent = '') {
         protectionOwners = Math.max(0, protectionOwners - 1);
         if (protectionOwners === 0) protectionEndedAt = Date.now();
     });
+    const process = vi.fn(async (_target: TFile, update: (current: string) => string) => { content = update(content); });
     const app = {
         workspace: { getLeavesOfType: () => [{ view }] },
         metadataCache: {
@@ -89,7 +99,7 @@ function harness(initialContent = '') {
         vault: {
             read: async () => content,
             getAbstractFileByPath: (path: string) => files.get(path) ?? null,
-            process: async (_target: TFile, update: (current: string) => string) => { content = update(content); },
+            process,
             getFiles: () => Array.from(files.values()),
             getMarkdownFiles: () => [note],
             cachedRead: async () => content,
@@ -98,6 +108,7 @@ function harness(initialContent = '') {
     } as unknown as App;
     const uploadFile = vi.fn();
     const notice = vi.fn();
+    const getReferenceTemplateFileVars = vi.fn(async () => ({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' }));
     const handoff = new ObsidianDelegatedHandoff({
         app,
         getSettings: () => settings,
@@ -105,7 +116,7 @@ function harness(initialContent = '') {
         refConverter: { parseReferences } as unknown as RefConverter,
         isImageFile: (target) => target.extension === 'png',
         buildUploadedReference: (url) => `![](${url})`,
-        getReferenceTemplateFileVars: async () => ({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' }),
+        getReferenceTemplateFileVars,
         getDefaultHostingConfig: () => settings.hostingConfigs.find((config) => config.id === settings.defaultHostingId && config.enabled) ?? null,
         notice,
         beginIndeterminate,
@@ -117,6 +128,7 @@ function harness(initialContent = '') {
     });
     return {
         handoff, note, editor, settings, files, uploadFile, notice, trashFile, endIndeterminate,
+        replaceRange, process, getReferenceTemplateFileVars,
         getProtectionEndedAt: () => protectionEndedAt,
         setExternalProtection: (value: boolean) => { externalProtection = value; },
         setContent: (next: string) => { content = next; },
@@ -149,6 +161,23 @@ describe('ObsidianDelegatedHandoff', () => {
 
         expect(target.uploadFile).not.toHaveBeenCalled();
         target.handoff.cancelAll('unload');
+    });
+
+    it('resolves the URL-encoded Markdown path produced by the default Obsidian paste flow', async () => {
+        const target = harness();
+        const image = file('Pasted image.png');
+        target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/pasted.png' });
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](Pasted%20image.png)');
+        target.handoff.onModify(target.note);
+
+        await vi.advanceTimersByTimeAsync(1_200);
+        await flushPromises();
+
+        expect(target.uploadFile).toHaveBeenCalledTimes(1);
+        expect(target.getContent()).toBe('![](https://cdn.test/pasted.png)');
     });
 
     it('fails closed when more newly referenced files appear than the paste transaction contains', async () => {
@@ -214,6 +243,32 @@ describe('ObsidianDelegatedHandoff', () => {
 
         expect(target.getContent()).toBe('![](moved/a.png)');
         expect(target.notice).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-locates in the live source editor instead of writing behind it when content changes during upload', async () => {
+        const target = harness();
+        const image = file('a.png');
+        let finishTemplateVars!: (vars: { fileName: string; fileBaseName: string; fileExt: string }) => void;
+        target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
+        target.getReferenceTemplateFileVars.mockReturnValue(new Promise((resolve) => {
+            finishTemplateVars = resolve;
+        }));
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](a.png)');
+        target.handoff.onModify(target.note);
+        await vi.advanceTimersByTimeAsync(1_200);
+        await flushPromises();
+        expect(target.getReferenceTemplateFileVars).toHaveBeenCalledTimes(1);
+
+        target.setContent('prefix\n![](a.png)');
+        finishTemplateVars({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' });
+        await flushPromises();
+
+        expect(target.process).not.toHaveBeenCalled();
+        expect(target.replaceRange).toHaveBeenCalledTimes(1);
+        expect(target.getContent()).toBe('prefix\n![](https://cdn.test/a.png)');
     });
 
     it('does not add an older transaction candidate to a transaction started before its later rename', async () => {
