@@ -7,6 +7,7 @@ import { PasteLifecycleCoordinator, type HandoffReadyItem, type PasteLifecycleCa
 import type { UploadOperationResult, UploadService } from '../uploaders/upload-service';
 import { getDelegatedReferenceId } from './reference-identity';
 import { UploadConcurrencyLimiter } from './upload-concurrency-limiter';
+import { t } from '../i18n';
 
 interface DelegatedItem {
     file?: TFile;
@@ -165,7 +166,7 @@ export class ObsidianDelegatedHandoff {
             })
         );
         if (!result.success || !result.url) {
-            this.deps.notice('Automatic upload failed. Use an explicit upload command to retry.', 5000);
+            this.deps.notice(t('notice.delegatedUploadFailed'), 5000);
             this.completeItem(ready);
             return;
         }
@@ -173,13 +174,13 @@ export class ObsidianDelegatedHandoff {
         if (!this.coordinator.isCurrent(ready.transactionId, ready.itemIndex, ready.referenceId)) return;
         const replacement = await this.replaceExactReference(transaction, item.file, ready.referenceId, result);
         if (!replacement) {
-            this.deps.notice('Upload completed, but the reference changed. The local file was kept and the remote object may be unused.', 6000);
+            this.deps.notice(t('notice.delegatedReferenceChanged'), 6000);
             this.completeItem(ready);
             return;
         }
 
         if (!transaction.keepLocalCopy) await this.removeIfUnreferenced(item.file, transaction);
-        this.deps.notice('Image uploaded and the pasted reference was replaced.', 3000);
+        this.deps.notice(t('notice.delegatedUploadSuccess'), 3000);
         this.completeItem(ready);
     }
 
@@ -291,7 +292,7 @@ export class ObsidianDelegatedHandoff {
     private handleCancellation(cancellation: PasteLifecycleCancellation): void {
         this.transactions.delete(cancellation.transactionId);
         if (cancellation.reason === 'timeout') {
-            this.deps.notice('Automatic upload timed out. The local file and reference were kept.', 5000);
+            this.deps.notice(t('notice.delegatedUploadTimedOut'), 5000);
         }
     }
 }
