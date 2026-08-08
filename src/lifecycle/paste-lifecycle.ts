@@ -20,6 +20,10 @@ export interface PasteLifecycleCancellation {
     reason: PasteLifecycleCancelReason;
 }
 
+export interface PasteLifecycleItemCancellation extends PasteLifecycleCancellation {
+    itemIndex: number;
+}
+
 interface LifecycleItem {
     fileId?: string;
     filePath?: string;
@@ -48,7 +52,8 @@ export class PasteLifecycleCoordinator {
     constructor(
         private readonly scheduler: LifecycleScheduler,
         private readonly onReady: (item: HandoffReadyItem) => void,
-        private readonly onCancelled: (cancellation: PasteLifecycleCancellation) => void
+        private readonly onCancelled: (cancellation: PasteLifecycleCancellation) => void,
+        private readonly onItemCancelled: (cancellation: PasteLifecycleItemCancellation) => void = () => undefined
     ) {}
 
     start(notePath: string, itemCount: number): string {
@@ -86,7 +91,7 @@ export class PasteLifecycleCoordinator {
         const transaction = this.transactions.get(transactionId);
         const currentItem = transaction?.items[itemIndex];
         if (currentItem?.state === 'in-flight') {
-            if (currentItem.referenceId !== referenceId) this.cancel(transactionId, 'ambiguous');
+            if (currentItem.referenceId !== referenceId) this.cancelItem(transactionId, itemIndex, 'ambiguous');
             return;
         }
         const item = this.getPendingItem(transactionId, itemIndex);
@@ -117,7 +122,7 @@ export class PasteLifecycleCoordinator {
         const item = transaction?.items[itemIndex];
         if (!item) return;
         if (item.state === 'in-flight') {
-            this.cancel(transactionId, 'ambiguous');
+            this.cancelItem(transactionId, itemIndex, 'ambiguous');
             return;
         }
         if (item.state === 'completed') return;
@@ -152,6 +157,16 @@ export class PasteLifecycleCoordinator {
         const item = transaction?.items[itemIndex];
         if (!transaction || !item || item.state !== 'in-flight') return;
         item.state = 'completed';
+        this.finishIfComplete(transaction);
+    }
+
+    cancelItem(transactionId: string, itemIndex: number, reason: PasteLifecycleCancelReason): void {
+        const transaction = this.transactions.get(transactionId);
+        const item = transaction?.items[itemIndex];
+        if (!transaction || !item || item.state === 'completed') return;
+        if (item.readyTimer !== undefined) this.scheduler.cancel(item.readyTimer);
+        item.state = 'completed';
+        this.onItemCancelled({ transactionId, notePath: transaction.notePath, itemIndex, reason });
         this.finishIfComplete(transaction);
     }
 

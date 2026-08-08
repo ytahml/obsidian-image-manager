@@ -26,7 +26,7 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 
 ## Non-Negotiable Business Rules
 
-- `reorganizeConvertFormat` is the Markdown/hosting gate. When false, paste uses Wiki references and hosting UI/commands are unavailable.
+- `managedPasteReferenceFormat` only selects managed paste output, and `reorganizeConvertFormat` only controls explicit reorganization conversion. Neither gates hosting commands or automatic upload.
 - Remote listing never starts on browser open. The user must explicitly scan; search, sort, and reference filters operate on the complete scanned in-memory set.
 - Provider cursors are opaque. Shared code must not parse, decode, re-encode, or synthesize them.
 - Any reliably mapped remote URL in supported Markdown content counts as `referenced`, regardless of whether it appears as an image, link, HTML, frontmatter, Wiki wrapper, or raw URL.

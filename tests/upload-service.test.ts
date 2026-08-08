@@ -78,6 +78,36 @@ describe('UploadService', () => {
         expect(listener).toHaveBeenCalledTimes(1);
     });
 
+    it('stops before a retry when the calling transaction is no longer current', async () => {
+        const target = uploader(
+            { success: false, error: 'temporary', originalPath: 'a.png' },
+            { success: true, url: 'https://cdn.example.com/a.png', objectKey: 'a.png', originalPath: 'a.png' }
+        );
+        createUploader.mockReturnValue(target);
+        const service = new UploadService({} as App, settings);
+        const beforeAttempt = vi.fn(async (attempt: number) => attempt === 1);
+
+        await expect(service.uploadData(new ArrayBuffer(0), 'a.png', hostingConfig('qiniu'), undefined, {
+            maxRetries: 2,
+            beforeAttempt,
+        })).resolves.toMatchObject({ success: false, attempts: 1, cancelled: true });
+        expect(beforeAttempt).toHaveBeenCalledTimes(2);
+        expect(target.upload).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails closed without throwing when transaction validation itself fails', async () => {
+        const target = uploader({
+            success: true, url: 'https://cdn.example.com/a.png', objectKey: 'a.png', originalPath: 'a.png',
+        });
+        createUploader.mockReturnValue(target);
+        const service = new UploadService({} as App, settings);
+
+        await expect(service.uploadData(new ArrayBuffer(0), 'a.png', hostingConfig('qiniu'), undefined, {
+            beforeAttempt: async () => { throw new Error('source deleted'); },
+        })).resolves.toMatchObject({ success: false, attempts: 0, cancelled: true });
+        expect(target.upload).not.toHaveBeenCalled();
+    });
+
     it('keeps Custom URL-only and rejects a native success that lacks its object key', async () => {
         const service = new UploadService({} as App, settings);
         const listener = vi.fn();

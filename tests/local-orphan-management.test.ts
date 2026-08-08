@@ -21,7 +21,7 @@ function image(path: string, size = 10): TFile {
 }
 
 function result(orphans: TFile[]): OrphanResult {
-    return { orphans, total: orphans.length, referenced: 0 };
+    return { orphans, indeterminate: [], total: orphans.length, referenced: 0 };
 }
 
 describe('local orphan management', () => {
@@ -31,6 +31,7 @@ describe('local orphan management', () => {
         expect(getLocalReferenceState('orphan.png', null, 'failed')).toBe('unknown');
         expect(getLocalReferenceState('orphan.png', paths, 'ready')).toBe('orphan');
         expect(getLocalReferenceState('referenced.png', paths, 'ready')).toBe('referenced');
+        expect(getLocalReferenceState('changing.png', paths, 'ready', new Set(['changing.png']))).toBe('unknown');
     });
 
     it('filters the complete local result by referenced or orphan state', () => {
@@ -42,6 +43,7 @@ describe('local orphan management', () => {
         const orphanPaths = new Set(['orphan.png', 'nested/orphan.webp']);
 
         expect(filterLocalImagesByReferenceState(images, orphanPaths, 'all')).toEqual(images);
+        expect(filterLocalImagesByReferenceState(images, orphanPaths, 'referenced', new Set(['referenced.png']))).toEqual([]);
         expect(filterLocalImagesByReferenceState(images, orphanPaths, 'referenced')).toEqual([
             { path: 'referenced.png' },
         ]);

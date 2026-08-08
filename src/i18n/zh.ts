@@ -383,4 +383,5 @@ export const zh: Record<string, string> = {
     'notice.delegatedReferenceChanged': '上传已完成，但引用已变化。已保留本地文件，远程对象可能未被使用。',
     'notice.delegatedUploadSuccess': '图片已上传，刚粘贴的引用已替换。',
     'notice.delegatedUploadTimedOut': '自动上传超时。已保留本地文件和引用。',
+    'notice.delegatedUploadSummary': '图床接力：成功 {success} 项，取消 {cancelled} 项，失败 {failed} 项。{reason}',
 };

@@ -4,6 +4,7 @@ import { MD_IMAGE_REGEX, WIKI_IMAGE_REGEX } from '../constants';
 
 export interface OrphanResult {
     orphans: TFile[];
+    indeterminate: TFile[];
     total: number;
     referenced: number;
 }
@@ -31,6 +32,7 @@ export class OrphanFinder {
 
         return {
             orphans,
+            indeterminate: [],
             total: allImages.length,
             referenced: allImages.length - orphans.length,
         };

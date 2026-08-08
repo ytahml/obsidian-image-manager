@@ -10,7 +10,10 @@
 | `imagePathTemplate` | `attachments` | 粘贴图片目标路径 |
 | `imagePathBase` | `note` | `vault` / `note` 路径基准 |
 | `supportedExtensions` | png/jpg/jpeg/gif/bmp/svg/webp/ico/tiff/avif | 本地扫描与命令识别 |
-| `autoCompress` | false | 粘贴/上传前压缩 |
+| `localManagementMode` | `managed` | 新附件本地管理权：`managed` / `delegated` |
+| `managedPasteReferenceFormat` | `markdown` | managed 粘贴引用格式 |
+| `compressManagedPasteLocal` | false | managed 粘贴时修改本地附件 |
+| `compressBeforeUpload` | false | 只压缩上传载荷 |
 | `compressQuality` | 80 | 1–100 |
 | `thumbnailSize` | 200 | 本地卡片 80–400 |
 | `imageNamingTemplate` | `image-{timestamp}` | 粘贴命名 |
@@ -20,7 +23,7 @@
 | `uploadPathTemplate` | `images/{year}/{month}/{hash}.{ext}` | 原生图床全局 fallback |
 | `autoReplaceAfterUpload` | false | 上传后替换本地引用 |
 | `customReferenceTemplate` | `''` | 上传后自定义文本引用 |
-| `reorganizeConvertFormat` | true | Markdown/hosting 关键门控 |
+| `reorganizeConvertFormat` | true | 显式整理时是否转换为 Markdown |
 | `skipWikiRefsOnReorganize` | true | 整理时是否跳过 Wiki |
 | `enableImageBrowser` | true | ribbon 与 browser command |
 | `autoUploadOnPaste` | false | 粘贴后自动上传 |
@@ -29,14 +32,11 @@
 
 加载设置使用 `Object.assign({}, DEFAULT_SETTINGS, loaded)` 兼容旧 data，不能修改默认值对象；新增字段必须提供默认值和必要规范化。
 
-## Markdown/Hosting 门控
+## 本地管理与图床接力
 
-`reorganizeConvertFormat`：
+`localManagementMode` 只决定自动 paste/drop 的本地管理权；`autoUploadOnPaste` 独立决定是否接续图床上传。`managedPasteReferenceFormat` 只影响 managed 初始引用，`reorganizeConvertFormat` 只影响显式整理。手动上传与自动上传均不受这两个格式设置门控。
 
-- true：粘贴生成 Markdown；显示图床设置；上传命令可用；整理可把 Wiki 转 Markdown。
-- false：粘贴生成 Wiki；图床设置区只显示禁用说明；上传笔记命令隐藏/不可用；整理保持原格式。
-
-不要新增第二套“启用图床”总开关。`autoUploadOnPaste` 即使旧数据为 true，也必须受 Markdown gate 约束。
+Obsidian 1.12 fallback 在 delegated 下禁用并解释路径、命名、命名提示、managed 引用格式和本地粘贴压缩，同时保留其值；图床接力设置继续可编辑。1.13 声明式设置页的等价改造不属于 Issue 36 当前实施范围。
 
 ## SettingTab 版本兼容
 

@@ -387,4 +387,5 @@ export const en: Record<string, string> = {
     'notice.delegatedReferenceChanged': 'Upload completed, but the reference changed. The local file was kept and the remote object may be unused.',
     'notice.delegatedUploadSuccess': 'Image uploaded and the pasted reference was replaced.',
     'notice.delegatedUploadTimedOut': 'Automatic upload timed out. The local file and reference were kept.',
+    'notice.delegatedUploadSummary': 'Hosting handoff: {success} succeeded, {cancelled} cancelled, {failed} failed. {reason}',
 };

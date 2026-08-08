@@ -4,7 +4,7 @@ import {
     type LifecycleScheduler,
 } from '../src/lifecycle/paste-lifecycle';
 
-function scheduler(): LifecycleScheduler & { runAll(): void } {
+function scheduler(): LifecycleScheduler & { runAll(): void; runThrough(maxDelay: number): void } {
     const tasks: Array<{ delay: number; callback: () => void }> = [];
     return {
         schedule: (delay, callback) => {
@@ -15,6 +15,10 @@ function scheduler(): LifecycleScheduler & { runAll(): void } {
         runAll: () => {
             tasks.sort((a, b) => a.delay - b.delay);
             while (tasks.length > 0) tasks.shift()?.callback();
+        },
+        runThrough: (maxDelay) => {
+            tasks.sort((a, b) => a.delay - b.delay);
+            while (tasks[0] && tasks[0].delay <= maxDelay) tasks.shift()?.callback();
         },
     };
 }
@@ -96,5 +100,39 @@ describe('PasteLifecycleCoordinator', () => {
         timers.runAll();
         expect(ready).not.toHaveBeenCalled();
         expect(cancelled).toHaveBeenCalledWith(expect.objectContaining({ reason: 'unload' }));
+    });
+
+    it('cancels only the changed in-flight item and lets another item finish', () => {
+        const timers = scheduler();
+        const ready = vi.fn();
+        const itemCancelled = vi.fn();
+        const coordinator = new PasteLifecycleCoordinator(timers, ready, vi.fn(), itemCancelled);
+        const transaction = coordinator.start('note.md', 2);
+        coordinator.observeCandidate(transaction, 0, 'file-1', 'a.png');
+        coordinator.observeCandidate(transaction, 1, 'file-2', 'b.png');
+        coordinator.observeReference(transaction, 0, 'file-1', 'ref-1', true);
+        coordinator.observeReference(transaction, 1, 'file-2', 'ref-2', true);
+        timers.runThrough(800);
+
+        coordinator.invalidate(transaction, 0);
+        expect(itemCancelled).toHaveBeenCalledWith(expect.objectContaining({ itemIndex: 0, reason: 'ambiguous' }));
+        expect(coordinator.isCurrent(transaction, 1, 'ref-2')).toBe(true);
+    });
+
+    it('keeps sibling items current when an in-flight reference identity changes', () => {
+        const timers = scheduler();
+        const itemCancelled = vi.fn();
+        const coordinator = new PasteLifecycleCoordinator(timers, vi.fn(), vi.fn(), itemCancelled);
+        const transaction = coordinator.start('note.md', 2);
+        coordinator.observeCandidate(transaction, 0, 'file-1', 'a.png');
+        coordinator.observeCandidate(transaction, 1, 'file-2', 'b.png');
+        coordinator.observeReference(transaction, 0, 'file-1', 'ref-1', true);
+        coordinator.observeReference(transaction, 1, 'file-2', 'ref-2', true);
+        timers.runThrough(800);
+
+        coordinator.observeReference(transaction, 0, 'file-1', 'changed-ref', true);
+
+        expect(itemCancelled).toHaveBeenCalledWith(expect.objectContaining({ itemIndex: 0, reason: 'ambiguous' }));
+        expect(coordinator.isCurrent(transaction, 1, 'ref-2')).toBe(true);
     });
 });

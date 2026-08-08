@@ -14,6 +14,7 @@ export interface UploadOperationResult {
     error?: string;
     originalSize?: number;
     uploadedSize?: number;
+    cancelled?: boolean;
 }
 
 export interface UploadServiceOptions {
@@ -21,6 +22,7 @@ export interface UploadServiceOptions {
     compressBeforeUpload?: boolean;
     compressQuality?: number;
     uploadPathTemplate?: string;
+    beforeAttempt?: (attempt: number) => boolean | Promise<boolean>;
 }
 
 /**
@@ -75,6 +77,25 @@ export class UploadService {
         let lastError: unknown;
 
         while (attempts <= maxRetries) {
+            let mayAttempt = true;
+            try {
+                mayAttempt = !options.beforeAttempt || await options.beforeAttempt(attempts + 1);
+            } catch {
+                mayAttempt = false;
+            }
+            if (!mayAttempt) {
+                return {
+                    hostingId: hostingConfig.id,
+                    hostingType: hostingConfig.type,
+                    success: false,
+                    cancelled: true,
+                    originalPath: lastResult?.originalPath ?? filename,
+                    attempts,
+                    error: 'Upload cancelled because the source transaction changed',
+                    originalSize,
+                    uploadedSize: data.byteLength,
+                };
+            }
             attempts++;
             try {
                 const result = await uploader.upload(data, filename, context);

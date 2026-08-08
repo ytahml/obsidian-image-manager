@@ -29,6 +29,9 @@ import { RemoteReferenceIndex } from './remote/reference-index';
 import type { RemoteDeleteAuditEntry } from './remote/types';
 import { normalizeRemoteDeleteHistory, RemoteDeleteAuditWriter } from './remote/delete-audit';
 import { ObsidianDelegatedHandoff } from './lifecycle/obsidian-delegated-handoff';
+import { chooseManagedPasteUploadSource } from './lifecycle/managed-paste-upload-policy';
+import { ExternalRenameRepairCoordinator } from './lifecycle/external-rename-repair-coordinator';
+import { IndeterminateImageRegistry } from './lifecycle/indeterminate-image-registry';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -39,7 +42,8 @@ export default class ImageManagerPlugin extends Plugin {
     uploadService: UploadService;
     private delegatedHandoff: ObsidianDelegatedHandoff;
     private isReorganizing = false;
-    private readonly renameRepairTimers = new Map<string, number>();
+    private renameRepairCoordinator: ExternalRenameRepairCoordinator<TFile>;
+    private indeterminateImages: IndeterminateImageRegistry<TFile>;
     private remoteDeleteAuditWriter: RemoteDeleteAuditWriter;
     async onload() {
         await this.loadSettings();
@@ -49,6 +53,21 @@ export default class ImageManagerPlugin extends Plugin {
         this.imageOptimizer = new ImageOptimizer(this.app);
         this.uploadService = new UploadService(this.app, this.settings);
         this.batchRename = new BatchRename(this.app, this.settings);
+        this.indeterminateImages = new IndeterminateImageRegistry<TFile>({
+            schedule: (delay, callback) => window.setTimeout(callback, delay),
+            cancel: (id) => window.clearTimeout(id),
+        });
+        this.renameRepairCoordinator = new ExternalRenameRepairCoordinator<TFile>(
+            {
+                schedule: (delay, callback) => window.setTimeout(callback, delay),
+                cancel: (id) => window.clearTimeout(id),
+            },
+            (entries) => this.batchRename.fixBrokenImageRefsBatch(entries),
+            2_000,
+            (file) => !this.delegatedHandoff.isTrackingFile(file) &&
+                !this.indeterminateImages.paths().has(file.path) &&
+                this.app.vault.getAbstractFileByPath(file.path) === file
+        );
         this.remoteReferenceIndex = new RemoteReferenceIndex(this.app, this.refConverter);
         this.remoteDeleteAuditWriter = new RemoteDeleteAuditWriter(
             () => this.settings.remoteDeleteHistory,
@@ -65,6 +84,9 @@ export default class ImageManagerPlugin extends Plugin {
             getReferenceTemplateFileVars: (file, template) => this.getReferenceTemplateFileVars(file, template),
             getDefaultHostingConfig: () => this.getDefaultHostingConfig(),
             notice: (message, timeout) => new Notice(message, timeout),
+            beginIndeterminate: (file) => this.indeterminateImages.begin(file, file.path),
+            touchIndeterminate: (file) => this.indeterminateImages.touch(file, file.path),
+            endIndeterminate: (file) => this.indeterminateImages.end(file, file.path),
         });
 
         // Ribbon icon
@@ -206,15 +228,9 @@ export default class ImageManagerPlugin extends Plugin {
                 this.invalidateRemoteReferenceIndex(file);
                 if (file instanceof TFile) this.delegatedHandoff.onRename(file);
                 if (!(file instanceof TFile) || !this.isImageFile(file)) return;
+                this.indeterminateImages.touch(file, file.path);
                 if (this.isReorganizing) return;
-                if (this.delegatedHandoff.isTrackingFile(file)) return;
-                const previous = this.renameRepairTimers.get(oldPath);
-                if (previous !== undefined) window.clearTimeout(previous);
-                const timer = window.setTimeout(() => {
-                    this.renameRepairTimers.delete(oldPath);
-                    void this.batchRename.fixBrokenImageRefs(oldPath, file.path);
-                }, 250);
-                this.renameRepairTimers.set(oldPath, timer);
+                this.renameRepairCoordinator.observe(file, oldPath, file.path);
             })
         );
         this.registerEvent(this.app.vault.on('create', (file) => {
@@ -223,9 +239,15 @@ export default class ImageManagerPlugin extends Plugin {
         }));
         this.registerEvent(this.app.vault.on('modify', (file) => {
             this.invalidateRemoteReferenceIndex(file);
-            if (file instanceof TFile && file.extension === 'md') this.delegatedHandoff.onModify(file);
+            if (file instanceof TFile) this.delegatedHandoff.onModify(file);
         }));
-        this.registerEvent(this.app.vault.on('delete', (file) => this.invalidateRemoteReferenceIndex(file)));
+        this.registerEvent(this.app.vault.on('delete', (file) => {
+            this.invalidateRemoteReferenceIndex(file);
+            if (file instanceof TFile) {
+                this.delegatedHandoff.onDelete(file);
+                this.renameRepairCoordinator.forget(file);
+            }
+        }));
 
         // Right-click menu: image management
         this.registerEvent(
@@ -261,8 +283,8 @@ export default class ImageManagerPlugin extends Plugin {
 
     onunload() {
         this.delegatedHandoff.cancelAll('unload');
-        for (const timer of this.renameRepairTimers.values()) window.clearTimeout(timer);
-        this.renameRepairTimers.clear();
+        this.renameRepairCoordinator.cancel();
+        this.indeterminateImages.clear();
     }
 
     private invalidateRemoteReferenceIndex(file: TAbstractFile) {
@@ -283,6 +305,10 @@ export default class ImageManagerPlugin extends Plugin {
 
     cancelDelegatedTransactions(): void {
         this.delegatedHandoff.cancelAll('cancelled');
+    }
+
+    getIndeterminateImagePaths(): Set<string> {
+        return this.indeterminateImages.paths();
     }
 
     recordRemoteDeleteAudit(entry: RemoteDeleteAuditEntry): Promise<void> {
@@ -860,6 +886,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         // Compress if enabled
         let outputData: ArrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        let localDataCompressed = false;
         if (this.settings.compressManagedPasteLocal && ext !== 'svg') {
             try {
                 const blob = new Blob([data], { type: mimeType });
@@ -880,6 +907,7 @@ export default class ImageManagerPlugin extends Plugin {
                     );
                 });
                 outputData = await compressedBlob.arrayBuffer();
+                localDataCompressed = true;
                 URL.revokeObjectURL(img.src);
             } catch {
                 outputData = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
@@ -918,11 +946,17 @@ export default class ImageManagerPlugin extends Plugin {
 
         // Auto-upload to hosting if enabled (requires Markdown format)
         if (this.settings.autoUploadOnPaste) {
-            this.autoUploadAfterPaste(savedFile, outputData, editor, currentFile).catch(() => {});
+            this.autoUploadAfterPaste(savedFile, outputData, localDataCompressed, editor, currentFile).catch(() => {});
         }
     }
 
-    private async autoUploadAfterPaste(savedFile: TFile, data: ArrayBuffer, editor: import('obsidian').Editor, currentFile: TFile | null) {
+    private async autoUploadAfterPaste(
+        savedFile: TFile,
+        data: ArrayBuffer,
+        localDataCompressed: boolean,
+        editor: import('obsidian').Editor,
+        currentFile: TFile | null
+    ) {
         const hostingConfig = this.getDefaultHostingConfig();
         if (!hostingConfig) return;
         const attachmentFolder = savedFile.parent;
@@ -930,9 +964,15 @@ export default class ImageManagerPlugin extends Plugin {
         const notice = new Notice(t('notice.autoUploading'), 0);
 
         try {
-            const result = await this.uploadService.uploadData(data, savedFile.name, hostingConfig, {
-                sourcePath: savedFile.path,
+            const uploadSource = chooseManagedPasteUploadSource({
+                localCompressed: localDataCompressed,
+                uploadCompression: this.settings.compressBeforeUpload,
             });
+            const result = uploadSource === 'saved-file'
+                ? await this.uploadService.uploadFile(savedFile, hostingConfig)
+                : await this.uploadService.uploadData(data, savedFile.name, hostingConfig, {
+                    sourcePath: savedFile.path,
+                });
 
             if (result.success && result.url) {
                 const templateVars = await this.getReferenceTemplateFileVars(savedFile);
