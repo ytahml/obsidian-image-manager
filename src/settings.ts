@@ -251,6 +251,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
     // --- General ---
 
     private renderGeneral(containerEl: HTMLElement) {
+        const delegated = this.plugin.settings.localManagementMode === 'delegated';
         new Setting(containerEl).setName(t('settings.general')).setHeading();
 
         new Setting(containerEl)
@@ -276,6 +277,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 text
                     .setPlaceholder(DEFAULT_SETTINGS.imagePathTemplate)
                     .setValue(this.plugin.settings.imagePathTemplate)
+                    .setDisabled(delegated)
                     .onChange(async (value) => {
                         this.plugin.settings.imagePathTemplate = value || DEFAULT_SETTINGS.imagePathTemplate;
                         await this.plugin.saveSettings();
@@ -290,6 +292,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     .addOption('vault', t('settings.imagePathBase.vault'))
                     .addOption('note', t('settings.imagePathBase.note'))
                     .setValue(this.plugin.settings.imagePathBase)
+                    .setDisabled(delegated)
                     .onChange(async (value: string) => {
                         this.plugin.settings.imagePathBase = value as 'vault' | 'note';
                         await this.plugin.saveSettings();
@@ -304,6 +307,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     .addOption('markdown', t('settings.managedPasteReferenceFormat.markdown'))
                     .addOption('wiki', t('settings.managedPasteReferenceFormat.wiki'))
                     .setValue(this.plugin.settings.managedPasteReferenceFormat)
+                    .setDisabled(delegated)
                     .onChange(async (value: 'markdown' | 'wiki') => {
                     this.plugin.settings.managedPasteReferenceFormat = value;
                     await this.plugin.saveSettings();
@@ -334,6 +338,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
     // --- Image Naming ---
 
     private renderImageNaming(containerEl: HTMLElement) {
+        const delegated = this.plugin.settings.localManagementMode === 'delegated';
         new Setting(containerEl).setName(t('settings.imageNaming')).setHeading();
 
         new Setting(containerEl)
@@ -343,6 +348,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 text
                     .setPlaceholder(DEFAULT_SETTINGS.imageNamingTemplate)
                     .setValue(this.plugin.settings.imageNamingTemplate)
+                    .setDisabled(delegated)
                     .onChange(async (value) => {
                         this.plugin.settings.imageNamingTemplate = value || DEFAULT_SETTINGS.imageNamingTemplate;
                         await this.plugin.saveSettings();
@@ -356,13 +362,14 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 toggle.setValue(this.plugin.settings.promptImageName).onChange(async (value) => {
                     this.plugin.settings.promptImageName = value;
                     await this.plugin.saveSettings();
-                })
+                }).setDisabled(delegated)
             );
     }
 
     // --- Compression ---
 
     private renderCompression(containerEl: HTMLElement) {
+        const delegated = this.plugin.settings.localManagementMode === 'delegated';
         new Setting(containerEl).setName(t('settings.compression')).setHeading();
 
         new Setting(containerEl)
@@ -372,7 +379,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 toggle.setValue(this.plugin.settings.compressManagedPasteLocal).onChange(async (value) => {
                     this.plugin.settings.compressManagedPasteLocal = value;
                     await this.plugin.saveSettings();
-                })
+                }).setDisabled(delegated)
             );
 
         new Setting(containerEl)

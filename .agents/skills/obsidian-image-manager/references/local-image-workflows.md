@@ -136,6 +136,8 @@ ClipboardEvent/DragEvent
 
 委托模式在候选附件 create 或 rename 后会延迟再次解析来源笔记，覆盖附件管理器事件先于笔记缓存更新、或用户切换笔记的事件顺序。
 
+Obsidian 1.12 fallback 设置页在 delegated 模式禁用本地路径、命名、managed 粘贴引用格式和本地粘贴压缩；图床接力设置保持可编辑。
+
 专用 `OrphanImagesModal` 与图片浏览器共享这套 fresh 边界。
 
 ## 笔记图片上传与引用替换
