@@ -35,4 +35,23 @@ describe('OrphanFinder', () => {
 
         expect(result.orphans).toEqual([image]);
     });
+
+    it('keeps a local image when another note still references it after the source is replaced', async () => {
+        const source = file('notes/source.md', 'md');
+        const other = file('notes/other.md', 'md');
+        const image = file('notes/image.png', 'png');
+        const app = {
+            vault: {
+                getFiles: () => [source, other, image],
+                getMarkdownFiles: () => [source, other],
+                cachedRead: vi.fn(async (entry: TFile) => entry === source
+                    ? '![image](https://example.test/image.png)'
+                    : '![](image.png)'),
+            },
+        } as unknown as App;
+
+        const result = await new OrphanFinder(app, ['png']).findOrphans();
+
+        expect(result.orphans).toEqual([]);
+    });
 });
