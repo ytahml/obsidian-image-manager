@@ -41,6 +41,8 @@ public-url.ts    公共 URL base 规范化与拼接
 
 重试只在统一编排层发生。`UploadQueue` 启动 3 个 worker，并为每文件向 Service 配置最多 3 次重试。成功 listener 只在完整成功后发布；失败不发布远程会话失效。
 
+需要事务一致性的调用方可提供每次尝试前的异步验证。验证失败时 Service 在发出下一次请求前返回取消结果；普通手动、笔记和批量上传不提供该钩子，保持原重试策略。
+
 原生成功必须同时有 URL 与 objectKey；Custom 保持 URL-only。操作结果可包含 attempts、originalSize、uploadedSize、hostingId，但不写入 `data.json` 上传清单。
 
 ## 公共 URL 与引用

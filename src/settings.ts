@@ -39,6 +39,24 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 heading: t('settings.general'),
                 items: [
                     {
+                        name: t('settings.localManagementMode'),
+                        desc: t('settings.localManagementModeDesc'),
+                        render: (setting) => {
+                            setting.addDropdown((dropdown) =>
+                                dropdown
+                                    .addOption('managed', t('settings.localManagementMode.managed'))
+                                    .addOption('delegated', t('settings.localManagementMode.delegated'))
+                                    .setValue(this.plugin.settings.localManagementMode)
+                                    .onChange(async (value: 'managed' | 'delegated') => {
+                                        this.plugin.settings.localManagementMode = value;
+                                        this.plugin.cancelDelegatedTransactions();
+                                        await this.plugin.saveSettings();
+                                        this.refresh();
+                                    })
+                            );
+                        },
+                    },
+                    {
                         name: t('settings.imagePathTemplate'),
                         desc: t('settings.imagePathTemplateDesc'),
                         render: (setting) => {
@@ -67,8 +85,24 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                         },
                     },
                     {
-                        name: t('settings.useMarkdownFormat'),
-                        desc: t('settings.useMarkdownFormatDesc'),
+                        name: t('settings.managedPasteReferenceFormat'),
+                        desc: t('settings.managedPasteReferenceFormatDesc'),
+                        render: (setting) => {
+                            setting.addDropdown((dropdown) =>
+                                dropdown
+                                    .addOption('markdown', t('settings.managedPasteReferenceFormat.markdown'))
+                                    .addOption('wiki', t('settings.managedPasteReferenceFormat.wiki'))
+                                    .setValue(this.plugin.settings.managedPasteReferenceFormat)
+                                    .onChange(async (value: 'markdown' | 'wiki') => {
+                                        this.plugin.settings.managedPasteReferenceFormat = value;
+                                        await this.plugin.saveSettings();
+                                    })
+                            );
+                        },
+                    },
+                    {
+                        name: t('settings.reorganizeConvertFormat'),
+                        desc: t('settings.reorganizeConvertFormatDesc'),
                         render: (setting) => {
                             setting.addToggle((toggle) =>
                                 toggle
@@ -120,9 +154,14 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                 heading: t('settings.compression'),
                 items: [
                     {
-                        name: t('settings.autoCompress'),
-                        desc: t('settings.autoCompressDesc'),
-                        control: { type: 'toggle', key: 'autoCompress' },
+                        name: t('settings.compressManagedPasteLocal'),
+                        desc: t('settings.compressManagedPasteLocalDesc'),
+                        control: { type: 'toggle', key: 'compressManagedPasteLocal' },
+                    },
+                    {
+                        name: t('settings.compressBeforeUpload'),
+                        desc: t('settings.compressBeforeUploadDesc'),
+                        control: { type: 'toggle', key: 'compressBeforeUpload' },
                     },
                     {
                         name: t('settings.compressQuality'),
@@ -212,15 +251,33 @@ export class ImageManagerSettingTab extends PluginSettingTab {
     // --- General ---
 
     private renderGeneral(containerEl: HTMLElement) {
+        const delegated = this.plugin.settings.localManagementMode === 'delegated';
         new Setting(containerEl).setName(t('settings.general')).setHeading();
 
         new Setting(containerEl)
+            .setName(t('settings.localManagementMode'))
+            .setDesc(t('settings.localManagementModeDesc'))
+            .addDropdown((dropdown) =>
+                dropdown
+                    .addOption('managed', t('settings.localManagementMode.managed'))
+                    .addOption('delegated', t('settings.localManagementMode.delegated'))
+                    .setValue(this.plugin.settings.localManagementMode)
+                    .onChange(async (value: 'managed' | 'delegated') => {
+                        this.plugin.settings.localManagementMode = value;
+                        this.plugin.cancelDelegatedTransactions();
+                        await this.plugin.saveSettings();
+                        this.refresh();
+                    })
+            );
+
+        new Setting(containerEl)
             .setName(t('settings.imagePathTemplate'))
-            .setDesc(t('settings.imagePathTemplateDesc'))
+            .setDesc(delegated ? `${t('settings.imagePathTemplateDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.imagePathTemplateDesc'))
             .addText((text) =>
                 text
                     .setPlaceholder(DEFAULT_SETTINGS.imagePathTemplate)
                     .setValue(this.plugin.settings.imagePathTemplate)
+                    .setDisabled(delegated)
                     .onChange(async (value) => {
                         this.plugin.settings.imagePathTemplate = value || DEFAULT_SETTINGS.imagePathTemplate;
                         await this.plugin.saveSettings();
@@ -229,12 +286,13 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.imagePathBase'))
-            .setDesc(t('settings.imagePathBaseDesc'))
+            .setDesc(delegated ? `${t('settings.imagePathBaseDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.imagePathBaseDesc'))
             .addDropdown((dropdown) =>
                 dropdown
                     .addOption('vault', t('settings.imagePathBase.vault'))
                     .addOption('note', t('settings.imagePathBase.note'))
                     .setValue(this.plugin.settings.imagePathBase)
+                    .setDisabled(delegated)
                     .onChange(async (value: string) => {
                         this.plugin.settings.imagePathBase = value as 'vault' | 'note';
                         await this.plugin.saveSettings();
@@ -242,13 +300,27 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName(t('settings.useMarkdownFormat'))
-            .setDesc(t('settings.useMarkdownFormatDesc'))
+            .setName(t('settings.managedPasteReferenceFormat'))
+            .setDesc(delegated ? `${t('settings.managedPasteReferenceFormatDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.managedPasteReferenceFormatDesc'))
+            .addDropdown((dropdown) =>
+                dropdown
+                    .addOption('markdown', t('settings.managedPasteReferenceFormat.markdown'))
+                    .addOption('wiki', t('settings.managedPasteReferenceFormat.wiki'))
+                    .setValue(this.plugin.settings.managedPasteReferenceFormat)
+                    .setDisabled(delegated)
+                    .onChange(async (value: 'markdown' | 'wiki') => {
+                    this.plugin.settings.managedPasteReferenceFormat = value;
+                    await this.plugin.saveSettings();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.reorganizeConvertFormat'))
+            .setDesc(t('settings.reorganizeConvertFormatDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.reorganizeConvertFormat).onChange(async (value) => {
                     this.plugin.settings.reorganizeConvertFormat = value;
                     await this.plugin.saveSettings();
-                    this.refresh();
                 })
             );
 
@@ -266,15 +338,17 @@ export class ImageManagerSettingTab extends PluginSettingTab {
     // --- Image Naming ---
 
     private renderImageNaming(containerEl: HTMLElement) {
+        const delegated = this.plugin.settings.localManagementMode === 'delegated';
         new Setting(containerEl).setName(t('settings.imageNaming')).setHeading();
 
         new Setting(containerEl)
             .setName(t('settings.imageNamingTemplate'))
-            .setDesc(t('settings.imageNamingTemplateDesc'))
+            .setDesc(delegated ? `${t('settings.imageNamingTemplateDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.imageNamingTemplateDesc'))
             .addText((text) =>
                 text
                     .setPlaceholder(DEFAULT_SETTINGS.imageNamingTemplate)
                     .setValue(this.plugin.settings.imageNamingTemplate)
+                    .setDisabled(delegated)
                     .onChange(async (value) => {
                         this.plugin.settings.imageNamingTemplate = value || DEFAULT_SETTINGS.imageNamingTemplate;
                         await this.plugin.saveSettings();
@@ -283,26 +357,37 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.promptImageName'))
-            .setDesc(t('settings.promptImageNameDesc'))
+            .setDesc(delegated ? `${t('settings.promptImageNameDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.promptImageNameDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.promptImageName).onChange(async (value) => {
                     this.plugin.settings.promptImageName = value;
                     await this.plugin.saveSettings();
-                })
+                }).setDisabled(delegated)
             );
     }
 
     // --- Compression ---
 
     private renderCompression(containerEl: HTMLElement) {
+        const delegated = this.plugin.settings.localManagementMode === 'delegated';
         new Setting(containerEl).setName(t('settings.compression')).setHeading();
 
         new Setting(containerEl)
-            .setName(t('settings.autoCompress'))
-            .setDesc(t('settings.autoCompressDesc'))
+            .setName(t('settings.compressManagedPasteLocal'))
+            .setDesc(delegated ? `${t('settings.compressManagedPasteLocalDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.compressManagedPasteLocalDesc'))
             .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.autoCompress).onChange(async (value) => {
-                    this.plugin.settings.autoCompress = value;
+                toggle.setValue(this.plugin.settings.compressManagedPasteLocal).onChange(async (value) => {
+                    this.plugin.settings.compressManagedPasteLocal = value;
+                    await this.plugin.saveSettings();
+                }).setDisabled(delegated)
+            );
+
+        new Setting(containerEl)
+            .setName(t('settings.compressBeforeUpload'))
+            .setDesc(t('settings.compressBeforeUploadDesc'))
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.compressBeforeUpload).onChange(async (value) => {
+                    this.plugin.settings.compressBeforeUpload = value;
                     await this.plugin.saveSettings();
                 })
             );
@@ -356,14 +441,6 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
     private renderImageHosting(containerEl: HTMLElement) {
         new Setting(containerEl).setName(t('settings.imageHosting')).setHeading();
-
-        if (!this.plugin.settings.reorganizeConvertFormat) {
-            containerEl.createDiv({
-                cls: 'setting-item-description',
-                text: t('settings.hostingDisabledByFormat'),
-            });
-            return;
-        }
 
         // Hosting providers list
         const hostingListEl = containerEl.createDiv({ cls: 'hosting-config-list' });
@@ -471,8 +548,10 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             .setName(t('settings.autoUploadOnPaste'))
             .setDesc(t('settings.autoUploadOnPasteDesc'))
             .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
+                toggle.setDisabled(this.plugin.settings.hostingConfigs.every((config) => !config.enabled))
+                    .setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
                     this.plugin.settings.autoUploadOnPaste = value;
+                    if (!value) this.plugin.cancelDelegatedTransactions();
                     await this.plugin.saveSettings();
                 })
             );

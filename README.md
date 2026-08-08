@@ -244,6 +244,8 @@ Deletion requires selecting at most 20 eligible objects, typing the selected cou
 - **Auto Upload on Paste** — Automatically upload to default hosting on paste/drag & drop
 - **Keep Local Copy** — Whether to keep local file after upload
 
+Compatibility: when delegated mode is used with Attachment Management 0.12.1, keep **Keep Local Copy** disabled. Its attachment rename workflow can write the local reference again and overwrite the uploaded reference; `keepLocalCopy=true` is not supported for this combination in the initial release.
+
 ---
 
 ## Usage

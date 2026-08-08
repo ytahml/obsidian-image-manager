@@ -25,6 +25,7 @@
 
 | 文档 | 状态 | 关联 Issue | 说明 |
 |------|------|------------|------|
+| [Issue #36 本地图片工作流所有权与图床接力](issue-36-local-image-workflow-ownership.md) | 已实现，待真实 Obsidian 验收 | [#36](https://github.com/ytahml/obsidian-image-manager/issues/36) | 本地管理权委托、自动图床接力、事务安全与兼容迁移已落地；仍需真实 Obsidian 环境验收。 |
 | [Issue #17 图床远程对象管理](issue-17-remote-image-management.md) | 实施中 | [#17](https://github.com/ytahml/obsidian-image-manager/issues/17) | S3、七牛与阿里云 OSS 原生 Provider 均已合并到 `master`；OSS 真实环境验收与最终跨图床收尾仍待完成 |
 | [本地图片浏览器与上传引用模板增强](local-image-browser-reference-template.md) | 已实现 | — | 本地引用状态筛选、安全回收站删除、默认展开完整引用列表、远程路径信息与严格引用模板契约均已通过真实 Obsidian 验收 |
 

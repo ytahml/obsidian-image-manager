@@ -26,7 +26,7 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 
 ## Non-Negotiable Business Rules
 
-- `reorganizeConvertFormat` is the Markdown/hosting gate. When false, paste uses Wiki references and hosting UI/commands are unavailable.
+- `managedPasteReferenceFormat` only selects managed paste output, and `reorganizeConvertFormat` only controls explicit reorganization conversion. Neither gates hosting commands or automatic upload.
 - Remote listing never starts on browser open. The user must explicitly scan; search, sort, and reference filters operate on the complete scanned in-memory set.
 - Provider cursors are opaque. Shared code must not parse, decode, re-encode, or synthesize them.
 - Any reliably mapped remote URL in supported Markdown content counts as `referenced`, regardless of whether it appears as an image, link, HTML, frontmatter, Wiki wrapper, or raw URL.
@@ -64,3 +64,4 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 | [docs/design/README.md](../../../docs/design/README.md) | Creating or locating durable product/design decisions |
 | [local-image-browser-reference-template.md](../../../docs/design/local-image-browser-reference-template.md) | Changing local reference states, orphan deletion, preview references, remote path display, or custom reference templates |
 | [issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md) | Changing remote object-management product or safety contracts |
+| [issue-36-local-image-workflow-ownership.md](../../../docs/design/issue-36-local-image-workflow-ownership.md) | Changing paste/drop ownership, delegated attachment handling, automatic hosting handoff, or third-party attachment-manager compatibility |

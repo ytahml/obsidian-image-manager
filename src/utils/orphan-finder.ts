@@ -4,6 +4,7 @@ import { MD_IMAGE_REGEX, WIKI_IMAGE_REGEX } from '../constants';
 
 export interface OrphanResult {
     orphans: TFile[];
+    indeterminate: TFile[];
     total: number;
     referenced: number;
 }
@@ -20,9 +21,9 @@ export class OrphanFinder {
     /**
      * 查找所有未被任何笔记引用的孤立图片
      */
-    async findOrphans(): Promise<OrphanResult> {
+    async findOrphans(contentOverrides: ReadonlyMap<string, string> = new Map()): Promise<OrphanResult> {
         const allImages = this.scanner.getAllImages();
-        const referencedPaths = await this.getAllReferencedImages();
+        const referencedPaths = await this.getAllReferencedImages(contentOverrides);
 
         const orphans = allImages.filter((file) => {
             // Check if the image name or path is referenced
@@ -31,6 +32,7 @@ export class OrphanFinder {
 
         return {
             orphans,
+            indeterminate: [],
             total: allImages.length,
             referenced: allImages.length - orphans.length,
         };
@@ -39,12 +41,12 @@ export class OrphanFinder {
     /**
      * 获取所有笔记中引用的图片路径集合
      */
-    private async getAllReferencedImages(): Promise<Set<string>> {
+    private async getAllReferencedImages(contentOverrides: ReadonlyMap<string, string>): Promise<Set<string>> {
         const referenced = new Set<string>();
         const mdFiles = this.app.vault.getMarkdownFiles();
 
         for (const file of mdFiles) {
-            const content = await this.app.vault.cachedRead(file);
+            const content = contentOverrides.get(file.path) ?? await this.app.vault.cachedRead(file);
             const noteDir = file.path.substring(0, file.path.lastIndexOf('/'));
             this.extractReferences(content, referenced, noteDir);
         }

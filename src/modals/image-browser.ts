@@ -23,6 +23,7 @@ export class ImageBrowserModal extends Modal {
     private allImages: TFile[] = [];
     private filteredImages: TFile[] = [];
     private orphanPaths: Set<string> | null = null;
+    private indeterminatePaths = new Set<string>();
     private gridEl: HTMLDivElement | null = null;
     private countEl: HTMLSpanElement | null = null;
     private searchInput: HTMLInputElement | null = null;
@@ -38,6 +39,7 @@ export class ImageBrowserModal extends Modal {
     private localViewVersion = 0;
     private deleting = false;
     private debounceTimer: number | null = null;
+    private protectionRefreshTimer: number | null = null;
 
     constructor(app: App, private plugin: ImageManagerPlugin) {
         super(app);
@@ -68,12 +70,15 @@ export class ImageBrowserModal extends Modal {
 
     onClose() {
         if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
         this.localViewVersion++;
         this.remoteView?.close();
         this.contentEl.empty();
     }
 
     private showLocalView() {
+        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
+        this.protectionRefreshTimer = null;
         const version = ++this.localViewVersion;
         this.remoteView?.close();
         this.remoteView = null;
@@ -128,6 +133,8 @@ export class ImageBrowserModal extends Modal {
 
     private showRemoteView() {
         if (!this.viewEl) return;
+        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
+        this.protectionRefreshTimer = null;
         this.localViewVersion++;
         this.viewEl.empty();
         this.remoteView = new RemoteImageBrowserView(
@@ -151,7 +158,8 @@ export class ImageBrowserModal extends Modal {
             images = filterLocalImagesByReferenceState(
                 images,
                 this.orphanPaths,
-                this.referenceFilter
+                this.referenceFilter,
+                this.indeterminatePaths
             );
         }
         const sortBy = (this.sortSelect?.value ?? 'name') as 'name' | 'size' | 'modified' | 'created';
@@ -173,7 +181,8 @@ export class ImageBrowserModal extends Modal {
             const referenceState = getLocalReferenceState(
                 file.path,
                 this.orphanPaths,
-                this.localScanState
+                this.localScanState,
+                this.indeterminatePaths
             );
             card.toggleClass('is-selected', this.selectedPaths.has(file.path));
             card.setAttribute('title', `${file.path}\n${t('modal.imageBrowser.insertTooltip')}`);
@@ -212,13 +221,19 @@ export class ImageBrowserModal extends Modal {
         if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
         this.applyFilterAndSort();
         try {
-            const result = await scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions);
+            const result = await scanLocalOrphans(
+                this.app,
+                this.plugin.settings.supportedExtensions,
+                new Map(),
+                this.plugin.getIndeterminateImagePaths()
+            );
             if (version !== this.localViewVersion) return;
             this.applyLocalOrphanResult(result);
         } catch (error) {
             if (version !== this.localViewVersion) return;
             this.localScanState = 'failed';
             this.orphanPaths = null;
+            this.indeterminatePaths.clear();
             this.selectedPaths.clear();
             if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
             this.applyFilterAndSort();
@@ -230,11 +245,21 @@ export class ImageBrowserModal extends Modal {
     private applyLocalOrphanResult(result: OrphanResult): void {
         this.localScanState = 'ready';
         this.orphanPaths = new Set(result.orphans.map((file) => file.path));
+        this.indeterminatePaths = new Set(result.indeterminate.map((file) => file.path));
         for (const path of this.selectedPaths) {
             if (!this.orphanPaths.has(path)) this.selectedPaths.delete(path);
         }
         if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = false;
         this.applyFilterAndSort();
+        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
+        this.protectionRefreshTimer = null;
+        if (this.indeterminatePaths.size > 0) {
+            const version = this.localViewVersion;
+            this.protectionRefreshTimer = window.setTimeout(() => {
+                this.protectionRefreshTimer = null;
+                if (version === this.localViewVersion) void this.scanLocalReferenceStates(version);
+            }, 2_100);
+        }
     }
 
     private updateDeleteToolbar(): void {
@@ -264,7 +289,9 @@ export class ImageBrowserModal extends Modal {
         try {
             const freshResult = await scanLocalOrphans(
                 this.app,
-                this.plugin.settings.supportedExtensions
+                this.plugin.settings.supportedExtensions,
+                new Map(),
+                this.plugin.getIndeterminateImagePaths()
             );
             if (version !== this.localViewVersion) return;
             this.applyLocalOrphanResult(freshResult);
@@ -321,7 +348,12 @@ export class ImageBrowserModal extends Modal {
             const result = await trashValidatedLocalOrphans(
                 this.app,
                 paths,
-                () => scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions)
+                () => scanLocalOrphans(
+                    this.app,
+                    this.plugin.settings.supportedExtensions,
+                    new Map(),
+                    this.plugin.getIndeterminateImagePaths()
+                )
             );
             new Notice(t('modal.imageBrowser.localDeleteResult', {
                 deleted: String(result.deletedPaths.length),

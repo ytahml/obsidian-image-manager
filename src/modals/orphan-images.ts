@@ -32,7 +32,7 @@ export class OrphanImagesModal extends Modal {
         });
 
         // Scan for orphans
-        const result = await scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions);
+        const result = await this.scanProtectedOrphans();
         this.orphans = result.orphans;
 
         // Update status
@@ -135,10 +135,7 @@ export class OrphanImagesModal extends Modal {
         }
 
         try {
-            const freshResult = await scanLocalOrphans(
-                this.app,
-                this.plugin.settings.supportedExtensions
-            );
+            const freshResult = await this.scanProtectedOrphans();
             const validation = validateLocalOrphanSelection(this.selected, freshResult);
             this.orphans = freshResult.orphans;
             this.selected = new Set(validation.eligible.map((file) => file.path));
@@ -173,7 +170,7 @@ export class OrphanImagesModal extends Modal {
         const result = await trashValidatedLocalOrphans(
             this.app,
             paths,
-            () => scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions)
+            () => this.scanProtectedOrphans()
         );
         new Notice(t('modal.orphan.deleted', {
             deleted: String(result.deletedPaths.length),
@@ -181,7 +178,7 @@ export class OrphanImagesModal extends Modal {
             failed: String(result.failedPaths.length),
         }));
 
-        const refreshed = await scanLocalOrphans(this.app, this.plugin.settings.supportedExtensions);
+        const refreshed = await this.scanProtectedOrphans();
         this.orphans = refreshed.orphans;
         this.selected.clear();
 
@@ -190,5 +187,14 @@ export class OrphanImagesModal extends Modal {
         } else {
             this.renderList();
         }
+    }
+
+    private scanProtectedOrphans() {
+        return scanLocalOrphans(
+            this.app,
+            this.plugin.settings.supportedExtensions,
+            new Map(),
+            this.plugin.getIndeterminateImagePaths()
+        );
     }
 }

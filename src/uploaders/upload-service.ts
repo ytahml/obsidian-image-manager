@@ -14,10 +14,15 @@ export interface UploadOperationResult {
     error?: string;
     originalSize?: number;
     uploadedSize?: number;
+    cancelled?: boolean;
 }
 
 export interface UploadServiceOptions {
     maxRetries?: number;
+    compressBeforeUpload?: boolean;
+    compressQuality?: number;
+    uploadPathTemplate?: string;
+    beforeAttempt?: (attempt: number) => boolean | Promise<boolean>;
 }
 
 /**
@@ -48,8 +53,8 @@ export class UploadService {
     ): Promise<UploadOperationResult> {
         let data = await this.app.vault.readBinary(file);
         const originalSize = data.byteLength;
-        if (this.settings.autoCompress) {
-            const compressed = await this.optimizer.compressImage(file, this.settings.compressQuality);
+        if (options.compressBeforeUpload ?? this.settings.compressBeforeUpload) {
+            const compressed = await this.optimizer.compressImage(file, options.compressQuality ?? this.settings.compressQuality);
             data = compressed.data;
         }
         return this.uploadData(data, file.name, hostingConfig, {
@@ -66,12 +71,31 @@ export class UploadService {
         originalSize: number = data.byteLength
     ): Promise<UploadOperationResult> {
         const maxRetries = Math.max(0, Math.floor(options.maxRetries ?? 0));
-        const uploader = createUploader(hostingConfig, this.settings.uploadPathTemplate);
+        const uploader = createUploader(hostingConfig, options.uploadPathTemplate ?? this.settings.uploadPathTemplate);
         let attempts = 0;
         let lastResult: UploadResult | undefined;
         let lastError: unknown;
 
         while (attempts <= maxRetries) {
+            let mayAttempt = true;
+            try {
+                mayAttempt = !options.beforeAttempt || await options.beforeAttempt(attempts + 1);
+            } catch {
+                mayAttempt = false;
+            }
+            if (!mayAttempt) {
+                return {
+                    hostingId: hostingConfig.id,
+                    hostingType: hostingConfig.type,
+                    success: false,
+                    cancelled: true,
+                    originalPath: lastResult?.originalPath ?? filename,
+                    attempts,
+                    error: 'Upload cancelled because the source transaction changed',
+                    originalSize,
+                    uploadedSize: data.byteLength,
+                };
+            }
             attempts++;
             try {
                 const result = await uploader.upload(data, filename, context);

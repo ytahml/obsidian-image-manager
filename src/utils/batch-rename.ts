@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { RefConverter } from './ref-converter';
 import type { ImageManagerSettings } from '../types';
 import { decodePathSegments, encodePathSegments } from './path-utils';
+import type { RenameRepairEntry } from '../lifecycle/external-rename-repair-coordinator';
 
 export interface RenameResult {
     file: TFile;
@@ -103,10 +104,12 @@ export class BatchRename {
      * 丢失了相对路径中的目录部分
      */
     async fixBrokenImageRefs(oldPath: string, newPath: string): Promise<number> {
-        const oldName = oldPath.split('/').pop() ?? oldPath;
-        const newName = newPath.split('/').pop() ?? newPath;
-        const oldBaseName = oldName.replace(/\.[^.]+$/, '');
-        const newBaseName = newName.replace(/\.[^.]+$/, '');
+        return this.fixBrokenImageRefsBatch([{ oldPath, newPath }]);
+    }
+
+    /** Repairs a coalesced rename batch with one Markdown-vault scan. */
+    async fixBrokenImageRefsBatch(entries: readonly RenameRepairEntry[]): Promise<number> {
+        if (entries.length === 0) return 0;
         const mdFiles = this.app.vault.getMarkdownFiles();
         let updatedCount = 0;
 
@@ -119,48 +122,11 @@ export class BatchRename {
 
             for (let i = refs.length - 1; i >= 0; i--) {
                 const ref = refs[i]!;
-
-                if (ref.path !== newName && ref.path.split('/').pop() !== newName) continue;
-
-                // Skip if reference already points to a valid file
-                const decodedRefPath = ref.format === 'markdown'
-                    ? decodePathSegments(ref.path)
-                    : ref.path;
-                // Try exact path, then resolve relative to note directory
-                const noteDir = mdFile.parent?.path ?? '';
-                const resolvedPath = noteDir ? `${noteDir}/${decodedRefPath}` : decodedRefPath;
-                if (this.app.vault.getAbstractFileByPath(decodedRefPath) ||
-                    this.app.vault.getAbstractFileByPath(resolvedPath)) continue;
-
-                // Restore directory path
-                // For moves (directory changed), use new location; for renames, use old directory
-                const oldDir = oldPath.substring(0, oldPath.lastIndexOf('/'));
-                const newDir = newPath.substring(0, newPath.lastIndexOf('/'));
-                const dir = oldDir !== newDir ? newDir : oldDir;
-                const absolutePath = dir ? `${dir}/${newName}` : newName;
-
-                // Compute correct path: relative to note if imagePathBase is 'note'
-                let correctPath = absolutePath;
-                if (this.settings.imagePathBase === 'note' && ref.format === 'markdown') {
-                    const noteDir = mdFile.parent?.path ?? '';
-                    if (noteDir) {
-                        correctPath = this.refConverter.computeRelativePath(noteDir, absolutePath);
-                    }
-                }
-                if (decodedRefPath === correctPath) continue;
-
-                // Update alt text if it was the old filename
-                let altText = ref.altText;
-                if (altText === oldBaseName || altText === oldName) {
-                    altText = newBaseName;
-                }
-
-                const newRef =
-                    ref.format === 'wiki'
-                        ? altText
-                            ? `![[${correctPath}|${altText}]]`
-                            : `![[${correctPath}]]`
-                        : `![${altText}](${encodePathSegments(correctPath)})`;
+                const repairs = entries
+                    .map((entry) => this.buildBrokenRefRepair(ref, mdFile, entry))
+                    .filter((repair): repair is string => repair !== null);
+                if (repairs.length !== 1) continue;
+                const newRef = repairs[0]!;
 
                 newContent =
                     newContent.substring(0, ref.col) +
@@ -176,6 +142,41 @@ export class BatchRename {
         }
 
         return updatedCount;
+    }
+
+    private buildBrokenRefRepair(
+        ref: ReturnType<RefConverter['parseReferences']>[number],
+        mdFile: TFile,
+        entry: RenameRepairEntry
+    ): string | null {
+        if (!(this.app.vault.getAbstractFileByPath(entry.newPath) instanceof TFile)) return null;
+        const oldName = entry.oldPath.split('/').pop() ?? entry.oldPath;
+        const newName = entry.newPath.split('/').pop() ?? entry.newPath;
+        if (ref.path !== newName && ref.path.split('/').pop() !== newName) return null;
+
+        const decodedRefPath = ref.format === 'markdown' ? decodePathSegments(ref.path) : ref.path;
+        const resolvedTarget = this.app.metadataCache.getFirstLinkpathDest(decodedRefPath, mdFile.path);
+        if (resolvedTarget) return null;
+        const noteDir = mdFile.parent?.path ?? '';
+        const resolvedPath = noteDir ? `${noteDir}/${decodedRefPath}` : decodedRefPath;
+        if (this.app.vault.getAbstractFileByPath(decodedRefPath) || this.app.vault.getAbstractFileByPath(resolvedPath)) return null;
+
+        const oldDir = entry.oldPath.substring(0, entry.oldPath.lastIndexOf('/'));
+        const newDir = entry.newPath.substring(0, entry.newPath.lastIndexOf('/'));
+        const dir = oldDir !== newDir ? newDir : oldDir;
+        const absolutePath = dir ? `${dir}/${newName}` : newName;
+        let correctPath = absolutePath;
+        if (this.settings.imagePathBase === 'note' && ref.format === 'markdown' && noteDir) {
+            correctPath = this.refConverter.computeRelativePath(noteDir, absolutePath);
+        }
+        if (decodedRefPath === correctPath) return null;
+
+        const oldBaseName = oldName.replace(/\.[^.]+$/, '');
+        const newBaseName = newName.replace(/\.[^.]+$/, '');
+        const altText = ref.altText === oldBaseName || ref.altText === oldName ? newBaseName : ref.altText;
+        return ref.format === 'wiki'
+            ? altText ? `![[${correctPath}|${altText}]]` : `![[${correctPath}]]`
+            : `![${altText}](${encodePathSegments(correctPath)})`;
     }
 
     /** 构建更新后的引用字符串，保留原有目录路径 */
