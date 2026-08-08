@@ -176,6 +176,7 @@ Obsidian 内置更新可能剥离 Markdown 目录。普通 rename 事件等待�
 - `SKILL.md` 负责入口、全局边界和路由，不堆阶段流水。
 - references 保存当前实现知识与开发注意事项。
 - `docs/design/` 保存需求、决策、安全契约、验收和历史证据。
+- `docs/agents/` 保存可选工程技能的 Issue tracker、triage label 与领域文档消费约定，不复制产品事实。
 - README 只描述用户可见能力、配置、风险和使用方式。
 - 行为、架构或工作流变化后同步相应层；不要让 README、skill、design 与代码互相矛盾。
 

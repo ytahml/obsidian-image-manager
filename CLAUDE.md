@@ -13,3 +13,17 @@ Before analyzing, changing, testing, or reviewing this project:
 5. Run `npm test` and `npm run build` before committing.
 
 Do not duplicate project architecture, commands, or workflow details in this file.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in GitHub Issues for `ytahml/obsidian-image-manager`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The canonical triage roles use the repository label mapping. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository: use root `CONTEXT.md` and `docs/adr/` when present. See `docs/agents/domain.md`.

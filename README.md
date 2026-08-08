@@ -5,7 +5,7 @@
 
 English | [中文](README_ZH.md)
 
-Obsidian image management plugin — supports image compression, image hosting upload, reference format conversion, local and remote image browsing, and more.
+Obsidian image management plugin — manage an image from paste or drag-and-drop through naming, compression, hosting upload, reference updates, browsing, reorganization, and guarded cleanup.
 
 > **Note**: This plugin is primarily designed for vaults that use standard Markdown format (`![alt](image.png)`) for image references.
 >
@@ -40,6 +40,7 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Aliyun OSS / S3 / Qiniu Card Browser, Viewport Thumbnails, and Preview | ✅ Implemented |
 | Custom Upload Reference Template | ✅ Implemented |
 | Auto Upload on Paste | ✅ Implemented |
+| Image Lifecycle Management (Managed / Delegated) | ✅ Implemented |
 | Batch Upload Note Images | ✅ Implemented |
 | Batch Upload Entire Vault | ✅ Implemented |
 | Orphan Image Detection & Cleanup | ✅ Implemented |
@@ -50,6 +51,39 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 | Chinese/English Internationalization | ✅ Implemented |
 | Image Hosting Migration | ❌ Not Implemented |
 | Replace Hosting References with Local | ❌ Not Implemented |
+
+---
+
+## Image Lifecycle Management
+
+Image management is more than uploading a file. The plugin follows an image through its local creation, reference insertion, optional upload and exact-reference replacement, later rename or reorganization, and finally guarded orphan cleanup.
+
+- **Managed mode** is the default: this plugin creates the local attachment, applies its naming, path, and optional local-compression settings, then inserts the initial reference.
+- **Delegated mode** lets Obsidian or an external attachment manager own that local work. The plugin observes only public Vault events and current resolvable references, then hands the finished attachment to the optional automatic-upload flow without relying on a manager's ID or fixed delay.
+- For each delegated paste or drop, the plugin requires a unique attachment-to-reference match. It revalidates the transaction before retries, replacement, and any local cleanup; stale or ambiguous work leaves the local file and reference unchanged.
+- If **Keep Local Copy** is disabled, cleanup uses Obsidian's trash only after the attachment is no longer protected by recent lifecycle changes and fresh scans still show no local references. This protects the current vault; it cannot establish that an image is unused outside the vault.
+
+```mermaid
+flowchart LR
+    A["Paste or drag and drop"] --> B{"Who owns local handling?"}
+    B -->|Managed| C["Create attachment\nname, path, optional local compression"]
+    B -->|Delegated| D["External manager\ncreates or updates attachment"]
+    C --> E["Insert or verify\nlocal reference"]
+    D --> E
+    E --> F{"Auto upload enabled?"}
+    F -->|No| G["Keep local image\nand reference"]
+    F -->|Yes| H["Uniquely match one attachment\nto one new reference"]
+    H -->|Ambiguous or changed| G
+    H -->|Unique| I["Upload hosting payload\nrevalidate before retries"]
+    I --> J["Replace the exact reference"]
+    J --> K["Browse, rename, or reorganize later"]
+    G --> K
+    K --> L{"Keep local copy?"}
+    L -->|Yes| M["Retain local attachment"]
+    L -->|No| N["Fresh scan and change-protection window"]
+    N -->|Referenced or changed| M
+    N -->|No local reference| O["Move attachment to Obsidian trash"]
+```
 
 ---
 
@@ -215,7 +249,7 @@ src/
 
 ### Image Hosting
 
-> **Note**: Image hosting requires "Use Markdown Standard Format" to be enabled.
+> **Note**: Image hosting is independent of the managed paste-reference format. Upload results use standard Markdown or a valid custom reference template.
 
 - **Add Image Hosting** — Supports Aliyun OSS, Qiniu Cloud, S3 compatible storage, custom HTTP endpoint
 - **Upload Path Template** — Supports `{year}`, `{month}`, `{day}`, `{filename}`, `{ext}`, `{hash}`, `{timestamp}`, `{sourceDir}`
@@ -241,10 +275,11 @@ Deletion requires selecting at most 20 eligible objects, typing the selected cou
 
 ### Auto Upload
 
+- **Local Image Management Mode** — Choose **Managed** (this plugin owns local paste/drop handling) or **Delegated** (Obsidian or an external attachment manager owns local handling)
 - **Auto Upload on Paste** — Automatically upload to default hosting on paste/drag & drop
 - **Keep Local Copy** — Whether to keep local file after upload
 
-Compatibility: when delegated mode is used with Attachment Management 0.12.1, keep **Keep Local Copy** disabled. Its attachment rename workflow can write the local reference again and overwrite the uploaded reference; `keepLocalCopy=true` is not supported for this combination in the initial release.
+In **Delegated** mode, automatic upload waits until it can uniquely match the created attachment with this paste/drop's newly inserted reference. It replaces only that exact reference and keeps the local file when the transaction becomes ambiguous or changes while an upload is in flight.
 
 ---
 
@@ -268,9 +303,9 @@ The image browser manages both local images and remote objects from supported ho
 
 ### Paste/Drag & Drop Images
 
-1. Paste or drag & drop image into note
-2. Auto save to configured path, insert reference
-3. If "Auto Upload" is enabled, async upload to hosting and replace reference
+1. In **Managed** mode, paste or drag & drop an image and the plugin saves it to the configured path and inserts a reference.
+2. In **Delegated** mode, Obsidian or an external attachment manager performs that local step.
+3. If **Auto Upload on Paste** is enabled, the plugin uploads only after it can validate the attachment and the new reference; it then replaces that exact reference.
 
 ### Upload to Image Hosting
 
@@ -377,7 +412,7 @@ Unknown variables, a missing `{fileUrl}`, or unavailable requested dimensions ca
 ## Known Limitations
 
 - Does not support Markdown → Wiki format conversion (only Wiki → Markdown one-way conversion)
-- Image hosting requires "Use Markdown Standard Format" to be enabled
+- Hosting results use standard Markdown or a valid custom reference template; the plugin does not generate Wiki-style hosting references
 - Remote reference indexing scans Markdown files in the current vault
 - Custom HTTP hosting is upload-only because it has no common list, preview, or delete protocol
 - Clipboard writes use the browser `navigator.clipboard` API; mobile behavior still depends on the host platform and permissions

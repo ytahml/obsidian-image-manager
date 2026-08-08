@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.1.2
+
+### 🇺🇸 English
+
+#### New features
+
+- Added an opt-in **delegated** local image-management mode. Obsidian or a compatible attachment-management plugin can own local image creation, naming, moving, and initial reference updates, while this plugin continues the optional automatic image-hosting handoff ([PR #38](https://github.com/ytahml/obsidian-image-manager/pull/38))
+- Added transaction-based paste and drag-and-drop handoff that uniquely matches new attachments with their newly inserted references before uploading and replacing only that exact reference
+- Added per-note serial writes and bounded upload concurrency so concurrent paste transactions do not race when they update references or evaluate local cleanup
+
+#### Improvements
+
+- Separated managed local-paste compression from upload-payload compression; delegated mode never modifies the attachment manager's local file
+- Hardened automatic local cleanup with attachment identity checks, change-protection windows, fresh reference scans before confirmation and execution, and Obsidian's trash
+- Coalesced external rename repairs into non-overlapping batches and deferred them while delegated attachments are still indeterminate
+- Clarified local-management ownership, automatic-upload behavior, compatible Attachment Management setup, and lifecycle safety boundaries in the README
+
+#### Fixes
+
+- Fixed delegated path resolution for encoded local references and prevented stale upload results from replacing references or deleting local files
+- Fixed official TypeScript ESLint warnings in the external rename-repair coordinator by handling repair failures through an explicitly typed async path
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 新增可选的 **委托（delegated）** 本地图片管理模式：Obsidian 或兼容的附件管理插件负责本地图片创建、命名、移动和初始引用更新，本插件继续承担可选的自动图床接力（[PR #38](https://github.com/ytahml/obsidian-image-manager/pull/38)）
+- 新增基于事务的粘贴/拖放接力：只有在新附件与本次新增引用能唯一对应时，才上传并替换该精确引用
+- 同一来源笔记的引用写回和本地清理改为串行执行，并限制并发上传，避免多次粘贴事务彼此竞争
+
+#### 改进
+
+- 拆分 managed 本地粘贴压缩与上传载荷压缩；委托模式绝不修改附件管理者创建的本地文件
+- 自动本地清理新增附件身份校验、变更保护期、确认前与执行前的 fresh 引用扫描，并统一通过 Obsidian 回收站处理
+- 外部重命名修复改为不重叠的批处理；委托附件仍处于状态未定时延后修复
+- README 补充本地管理权、自动上传、Attachment Management 兼容配置和生命周期安全边界说明
+
+#### 修复
+
+- 修复编码本地引用在委托模式下的路径解析，并阻止已失效的上传结果替换引用或删除本地文件
+- 外部重命名修复协调器改为显式类型安全的异步错误处理，修复 Obsidian 官方检查报告的 TypeScript ESLint 告警
+
+---
+
 ## 1.1.1
 
 ### 🇺🇸 English
