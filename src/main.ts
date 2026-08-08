@@ -32,6 +32,9 @@ import { ObsidianDelegatedHandoff } from './lifecycle/obsidian-delegated-handoff
 import { chooseManagedPasteUploadSource } from './lifecycle/managed-paste-upload-policy';
 import { ExternalRenameRepairCoordinator } from './lifecycle/external-rename-repair-coordinator';
 import { IndeterminateImageRegistry } from './lifecycle/indeterminate-image-registry';
+import { scanLocalOrphans } from './utils/local-orphan-management';
+import { ConfirmDialog } from './modals/confirm-dialog';
+import { findExactManagedPasteReference } from './lifecycle/managed-paste-reference';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -87,6 +90,7 @@ export default class ImageManagerPlugin extends Plugin {
             beginIndeterminate: (file) => this.indeterminateImages.begin(file, file.path),
             touchIndeterminate: (file) => this.indeterminateImages.touch(file, file.path),
             endIndeterminate: (file) => this.indeterminateImages.end(file, file.path),
+            isIndeterminate: (file) => this.indeterminateImages.paths().has(file.path),
         });
 
         // Ribbon icon
@@ -321,6 +325,11 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async compressCurrentImage(file: TFile) {
+        if (this.confirmDelegatedLocalMutation('modal.delegatedRisk.compress', () => this.performCompressCurrentImage(file))) return;
+        await this.performCompressCurrentImage(file);
+    }
+
+    private async performCompressCurrentImage(file: TFile) {
         try {
             const result = await this.imageOptimizer.compressImage(file, this.settings.compressQuality);
             if (result.optimizedSize >= result.originalSize) {
@@ -662,6 +671,11 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private renameImage(file: TFile) {
+        if (this.confirmDelegatedLocalMutation('modal.delegatedRisk.rename', () => this.openRenameImageModal(file))) return;
+        this.openRenameImageModal(file);
+    }
+
+    private openRenameImageModal(file: TFile) {
         new RenameImageModal(this.app, file, (newName) => {
             void (async () => {
                 try {
@@ -681,6 +695,11 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async reorganizeNote(file: TFile) {
+        if (this.confirmDelegatedLocalMutation('modal.delegatedRisk.reorganize', () => this.performReorganizeNote(file))) return;
+        await this.performReorganizeNote(file);
+    }
+
+    private async performReorganizeNote(file: TFile) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
         this.isReorganizing = true;
         try {
@@ -700,6 +719,11 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async reorganizeFolder(folderPath: string) {
+        if (this.confirmDelegatedLocalMutation('modal.delegatedRisk.reorganize', () => this.performReorganizeFolder(folderPath))) return;
+        await this.performReorganizeFolder(folderPath);
+    }
+
+    private async performReorganizeFolder(folderPath: string) {
         const reorganizer = new ImageReorganizer(this.app, this.settings, this.resolveImagePath.bind(this));
         this.isReorganizing = true;
         try {
@@ -716,6 +740,20 @@ export default class ImageManagerPlugin extends Plugin {
         } finally {
             this.isReorganizing = false;
         }
+    }
+
+    private confirmDelegatedLocalMutation(
+        messageKey: Parameters<typeof t>[0],
+        onConfirm: () => void | Promise<void>
+    ): boolean {
+        if (this.settings.localManagementMode !== 'delegated') return false;
+        new ConfirmDialog(this.app, {
+            title: t('modal.delegatedRisk.title'),
+            message: t(messageKey),
+            confirmText: t('modal.delegatedRisk.confirm'),
+            onConfirm,
+        }).open();
+        return true;
     }
 
     private async convertNoteToFormat(file: TFile, targetFormat: 'wiki' | 'markdown') {
@@ -946,12 +984,13 @@ export default class ImageManagerPlugin extends Plugin {
 
         // Auto-upload to hosting if enabled (requires Markdown format)
         if (this.settings.autoUploadOnPaste) {
-            this.autoUploadAfterPaste(savedFile, outputData, localDataCompressed, editor, currentFile).catch(() => {});
+            this.autoUploadAfterPaste(savedFile, ref, outputData, localDataCompressed, editor, currentFile).catch(() => {});
         }
     }
 
     private async autoUploadAfterPaste(
         savedFile: TFile,
+        localReference: string,
         data: ArrayBuffer,
         localDataCompressed: boolean,
         editor: import('obsidian').Editor,
@@ -976,17 +1015,15 @@ export default class ImageManagerPlugin extends Plugin {
 
             if (result.success && result.url) {
                 const templateVars = await this.getReferenceTemplateFileVars(savedFile);
-                const ref = this.buildUploadedReference(result.url, templateVars);
-
-                // Replace the local reference we just inserted with the remote URL
-                const cursor = editor.getCursor();
-                const line = editor.getLine(cursor.line);
-                const localRefMatch = line.match(/!\[.*?\]\(.*?\)|!\[\[.*?\]\]/);
-                if (localRefMatch) {
-                    const start = localRefMatch.index!;
-                    const end = start + localRefMatch[0].length;
-                    editor.replaceRange(ref, { line: cursor.line, ch: start }, { line: cursor.line, ch: end });
-                }
+                const replaced = this.replaceManagedPasteReference(
+                    editor,
+                    currentFile,
+                    savedFile,
+                    localReference,
+                    result.url,
+                    templateVars
+                );
+                if (!replaced) throw new Error(t('notice.delegatedReferenceChanged'));
 
                 // Replace references in other notes
                 await this.replaceReferenceInNote(
@@ -998,6 +1035,20 @@ export default class ImageManagerPlugin extends Plugin {
 
                 // Delete local file if user doesn't want to keep it
                 if (!this.settings.keepLocalCopy) {
+                    const overrides = currentFile
+                        ? new Map([[currentFile.path, editor.getValue()]])
+                        : new Map<string, string>();
+                    const localState = await scanLocalOrphans(
+                        this.app,
+                        this.settings.supportedExtensions,
+                        overrides,
+                        this.getIndeterminateImagePaths()
+                    );
+                    if (!localState.orphans.some((file) => file === savedFile)) {
+                        notice.hide();
+                        new Notice(t('notice.autoUploadSuccess'), 3000);
+                        return;
+                    }
                     await this.app.fileManager.trashFile(savedFile);
                     await removeEmptyDirectParent(this.app.vault, attachmentFolder);
                 }
@@ -1012,6 +1063,34 @@ export default class ImageManagerPlugin extends Plugin {
             notice.hide();
             new Notice(t('notice.autoUploadFailed', { error: e instanceof Error ? e.message : 'Unknown' }), 5000);
         }
+    }
+
+    private replaceManagedPasteReference(
+        editor: import('obsidian').Editor,
+        currentFile: TFile | null,
+        savedFile: TFile,
+        localReference: string,
+        url: string,
+        templateVars: ReferenceTemplateFileVars
+    ): boolean {
+        if (!currentFile) return false;
+        const content = editor.getValue();
+        const match = findExactManagedPasteReference(
+            this.refConverter.parseReferences(content),
+            localReference,
+            (reference) => this.app.metadataCache.getFirstLinkpathDest(reference.path, currentFile.path) === savedFile
+        );
+        if (!match) return false;
+        const replacement = this.buildUploadedReference(url, templateVars, match.altText || templateVars.fileBaseName);
+        const start = this.offsetToEditorPosition(content, match.col);
+        const end = this.offsetToEditorPosition(content, match.col + match.fullMatch.length);
+        editor.replaceRange(replacement, start, end);
+        return true;
+    }
+
+    private offsetToEditorPosition(content: string, offset: number): { line: number; ch: number } {
+        const lines = content.substring(0, offset).split('\n');
+        return { line: lines.length - 1, ch: lines[lines.length - 1]!.length };
     }
 
     private getDefaultHostingConfig(): ImageHostingConfig | null {

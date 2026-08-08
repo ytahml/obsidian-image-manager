@@ -22,6 +22,7 @@ export const zh: Record<string, string> = {
     'settings.localManagementModeDesc': '选择由 Image Manager 还是 Obsidian/其他插件管理新附件',
     'settings.localManagementMode.managed': '由 Image Manager 管理',
     'settings.localManagementMode.delegated': '委托给 Obsidian 或其他插件',
+    'settings.delegatedManagedControlDesc': '委托模式下此步骤由其他附件管理器负责，因此不可用。',
     'settings.managedPasteReferenceFormat': '受管粘贴引用格式',
     'settings.managedPasteReferenceFormatDesc': '仅在 Image Manager 管理粘贴附件时使用',
     'settings.managedPasteReferenceFormat.markdown': 'Markdown',
@@ -290,6 +291,11 @@ export const zh: Record<string, string> = {
     'modal.confirm.ok': '确认',
     'modal.confirm.cancel': '取消',
     'modal.confirm.processing': '正在处理…',
+    'modal.delegatedRisk.title': '确认修改本地附件',
+    'modal.delegatedRisk.confirm': '继续',
+    'modal.delegatedRisk.rename': '外部附件管理器之后可能再次重命名或移动此文件，并修改其引用。',
+    'modal.delegatedRisk.reorganize': '外部附件策略之后可能再次移动这些文件，使本次整理路径失效。',
+    'modal.delegatedRisk.compress': '此操作会覆盖本地文件，外部附件关联或内容哈希可能不再匹配。',
 
     // 孤立图片
     'modal.orphan.title': '孤立图片',

@@ -272,7 +272,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.imagePathTemplate'))
-            .setDesc(t('settings.imagePathTemplateDesc'))
+            .setDesc(delegated ? `${t('settings.imagePathTemplateDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.imagePathTemplateDesc'))
             .addText((text) =>
                 text
                     .setPlaceholder(DEFAULT_SETTINGS.imagePathTemplate)
@@ -286,7 +286,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.imagePathBase'))
-            .setDesc(t('settings.imagePathBaseDesc'))
+            .setDesc(delegated ? `${t('settings.imagePathBaseDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.imagePathBaseDesc'))
             .addDropdown((dropdown) =>
                 dropdown
                     .addOption('vault', t('settings.imagePathBase.vault'))
@@ -301,7 +301,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.managedPasteReferenceFormat'))
-            .setDesc(t('settings.managedPasteReferenceFormatDesc'))
+            .setDesc(delegated ? `${t('settings.managedPasteReferenceFormatDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.managedPasteReferenceFormatDesc'))
             .addDropdown((dropdown) =>
                 dropdown
                     .addOption('markdown', t('settings.managedPasteReferenceFormat.markdown'))
@@ -343,7 +343,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.imageNamingTemplate'))
-            .setDesc(t('settings.imageNamingTemplateDesc'))
+            .setDesc(delegated ? `${t('settings.imageNamingTemplateDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.imageNamingTemplateDesc'))
             .addText((text) =>
                 text
                     .setPlaceholder(DEFAULT_SETTINGS.imageNamingTemplate)
@@ -357,7 +357,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.promptImageName'))
-            .setDesc(t('settings.promptImageNameDesc'))
+            .setDesc(delegated ? `${t('settings.promptImageNameDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.promptImageNameDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.promptImageName).onChange(async (value) => {
                     this.plugin.settings.promptImageName = value;
@@ -374,7 +374,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.compressManagedPasteLocal'))
-            .setDesc(t('settings.compressManagedPasteLocalDesc'))
+            .setDesc(delegated ? `${t('settings.compressManagedPasteLocalDesc')} ${t('settings.delegatedManagedControlDesc')}` : t('settings.compressManagedPasteLocalDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.compressManagedPasteLocal).onChange(async (value) => {
                     this.plugin.settings.compressManagedPasteLocal = value;

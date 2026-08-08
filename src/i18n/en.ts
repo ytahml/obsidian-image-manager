@@ -22,6 +22,7 @@ export const en: Record<string, string> = {
     'settings.localManagementModeDesc': 'Choose whether Image Manager or another plugin manages new local attachments',
     'settings.localManagementMode.managed': 'Managed by Image Manager',
     'settings.localManagementMode.delegated': 'Delegated to Obsidian or another plugin',
+    'settings.delegatedManagedControlDesc': 'Unavailable in delegated mode because another attachment manager owns this step.',
     'settings.managedPasteReferenceFormat': 'Managed paste reference format',
     'settings.managedPasteReferenceFormatDesc': 'Used only when Image Manager manages pasted attachments',
     'settings.managedPasteReferenceFormat.markdown': 'Markdown',
@@ -292,6 +293,11 @@ export const en: Record<string, string> = {
     'modal.confirm.ok': 'Confirm',
     'modal.confirm.cancel': 'Cancel',
     'modal.confirm.processing': 'Processing...',
+    'modal.delegatedRisk.title': 'Confirm local attachment change',
+    'modal.delegatedRisk.confirm': 'Continue',
+    'modal.delegatedRisk.rename': 'An external attachment manager may rename or move this file again and change its links.',
+    'modal.delegatedRisk.reorganize': 'An external attachment policy may move these files again and undo the resulting paths.',
+    'modal.delegatedRisk.compress': 'This overwrites the local file. External attachment associations or content hashes may no longer match.',
 
     // Orphan Images Modal
     'modal.orphan.title': 'Orphan Images',

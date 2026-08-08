@@ -46,7 +46,10 @@ interface DelegatedTransaction {
     activeHandoffs: number;
     noticeFinished: boolean;
     protectedFiles: Set<string>;
+    movedFiles: Set<string>;
     resolveTimers: Set<number>;
+    releasedProtections: Set<string>;
+    protectionWaits: Map<number, { itemIndex: number; resolve: (completed: boolean) => void }>;
 }
 
 export interface DelegatedHandoffDependencies {
@@ -62,6 +65,7 @@ export interface DelegatedHandoffDependencies {
     beginIndeterminate: (file: TFile) => void;
     touchIndeterminate: (file: TFile) => void;
     endIndeterminate: (file: TFile) => void;
+    isIndeterminate: (file: TFile) => boolean;
 }
 
 /** Obsidian adapter for the pure delegated paste lifecycle coordinator. */
@@ -112,7 +116,10 @@ export class ObsidianDelegatedHandoff {
             activeHandoffs: 0,
             noticeFinished: false,
             protectedFiles: new Set(),
+            movedFiles: new Set(),
             resolveTimers: new Set(),
+            releasedProtections: new Set(),
+            protectionWaits: new Map(),
         });
     }
 
@@ -135,6 +142,7 @@ export class ObsidianDelegatedHandoff {
             const fileId = this.fileIds.get(file);
             if (!fileId || !transaction.matcher.observesCandidate(fileId)) continue;
             this.deps.touchIndeterminate(file);
+            transaction.movedFiles.add(fileId);
             transaction.matcher.observeCandidate(fileId, file.path);
             const index = transaction.items.findIndex((item) => item.fileId === fileId);
             if (index >= 0) {
@@ -381,6 +389,7 @@ export class ObsidianDelegatedHandoff {
         file: TFile,
         transaction: DelegatedTransaction
     ): Promise<void> {
+        if (!await this.waitForProtection(ready, file, transaction)) return;
         const sourceContent = await this.readCurrentContent(transaction);
         const result = await scanLocalOrphans(
             this.deps.app,
@@ -395,8 +404,30 @@ export class ObsidianDelegatedHandoff {
             new Map([[transaction.note.path, await this.readCurrentContent(transaction)]])
         );
         if (!fresh.orphans.some((orphan) => orphan.path === file.path)) return;
+        if (this.deps.isIndeterminate(file)) return;
         if (!await this.validatePostReplacement(ready, transaction, transaction.items[ready.itemIndex]!)) return;
         await this.deps.app.fileManager.trashFile(file);
+    }
+
+    private waitForProtection(
+        ready: HandoffReadyItem,
+        file: TFile,
+        transaction: DelegatedTransaction
+    ): Promise<boolean> {
+        if (!transaction.releasedProtections.has(ready.fileId)) {
+            transaction.releasedProtections.add(ready.fileId);
+            this.deps.endIndeterminate(file);
+        }
+        return new Promise((resolve) => {
+            const timer = window.setTimeout(() => {
+                transaction.protectionWaits.delete(timer);
+                resolve(
+                    !this.deps.isIndeterminate(file) &&
+                    this.validatePostReplacementState(ready, transaction, transaction.items[ready.itemIndex]!)
+                );
+            }, 2_000);
+            transaction.protectionWaits.set(timer, { itemIndex: ready.itemIndex, resolve });
+        });
     }
 
     private resolvesTo(reference: ImageReference, note: TFile, file: TFile): boolean {
@@ -422,11 +453,19 @@ export class ObsidianDelegatedHandoff {
         transaction: DelegatedTransaction,
         item: DelegatedItem
     ): Promise<boolean> {
-        if (transaction.outcomes[ready.itemIndex] || !this.validateItemIdentity(ready, transaction, item)) return false;
+        if (!this.validatePostReplacementState(ready, transaction, item)) return false;
         if (!item.replacementReference) return false;
         const content = await this.readCurrentContent(transaction);
         const occurrences = content.split(item.replacementReference).length - 1;
         return occurrences === 1 && this.validateItemIdentity(ready, transaction, item);
+    }
+
+    private validatePostReplacementState(
+        ready: HandoffReadyItem,
+        transaction: DelegatedTransaction,
+        item: DelegatedItem
+    ): boolean {
+        return !transaction.outcomes[ready.itemIndex] && this.validateItemIdentity(ready, transaction, item);
     }
 
     private validateItemIdentity(
@@ -555,6 +594,7 @@ export class ObsidianDelegatedHandoff {
             item.file = file;
             item.fileId = claim.fileId;
             item.referenceId = claim.referenceId;
+            item.moved = transaction.movedFiles.has(claim.fileId);
             transaction.matcher.claim(claim);
             this.claimedFileOwners.set(claim.fileId, id);
             this.coordinator.observeCandidate(id, claim.itemIndex, claim.fileId, claim.filePath);
@@ -564,6 +604,7 @@ export class ObsidianDelegatedHandoff {
     private handleCancellation(cancellation: PasteLifecycleCancellation): void {
         const transaction = this.transactions.get(cancellation.transactionId);
         if (!transaction) return;
+        this.cancelProtectionWaits(transaction);
         for (let index = 0; index < transaction.outcomes.length; index++) {
             if (!transaction.outcomes[index]) {
                 transaction.outcomes[index] = cancellation.reason === 'timeout'
@@ -579,6 +620,7 @@ export class ObsidianDelegatedHandoff {
     private handleItemCancellation(cancellation: PasteLifecycleItemCancellation): void {
         const transaction = this.transactions.get(cancellation.transactionId);
         if (!transaction) return;
+        this.cancelProtectionWaits(transaction, cancellation.itemIndex);
         transaction.outcomes[cancellation.itemIndex] = cancellation.reason === 'cancelled' || cancellation.reason === 'unload'
             ? { status: 'cancelled' }
             : { status: 'failed', reason: t('notice.delegatedReferenceChanged') };
@@ -605,7 +647,7 @@ export class ObsidianDelegatedHandoff {
         transaction.resolveTimers.clear();
         for (const fileId of transaction.protectedFiles) {
             const file = this.filesById.get(fileId);
-            if (file) this.deps.endIndeterminate(file);
+            if (file && !transaction.releasedProtections.has(fileId)) this.deps.endIndeterminate(file);
             if (this.claimedFileOwners.get(fileId) === id) this.claimedFileOwners.delete(fileId);
             const stillObserved = Array.from(this.transactions.values())
                 .some((other) => other.matcher.observesCandidate(fileId));
@@ -623,5 +665,14 @@ export class ObsidianDelegatedHandoff {
             failed: String(summary.failed),
             reason: summary.reason ?? t('notice.delegatedUploadFailed'),
         }), 7000);
+    }
+
+    private cancelProtectionWaits(transaction: DelegatedTransaction, itemIndex?: number): void {
+        for (const [timer, wait] of transaction.protectionWaits) {
+            if (itemIndex !== undefined && wait.itemIndex !== itemIndex) continue;
+            window.clearTimeout(timer);
+            wait.resolve(false);
+            transaction.protectionWaits.delete(timer);
+        }
     }
 }

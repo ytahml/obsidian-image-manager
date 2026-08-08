@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { scanLocalOrphans } = vi.hoisted(() => ({ scanLocalOrphans: vi.fn() }));
+
 vi.mock('obsidian', () => ({
     MarkdownView: class MarkdownView {},
     Notice: class Notice {},
     TFile: class TFile {},
 }));
+vi.mock('../src/utils/local-orphan-management', () => ({ scanLocalOrphans }));
 
 import { MarkdownView, TFile, type App, type Editor } from 'obsidian';
 import { DEFAULT_SETTINGS, type ImageManagerSettings, type ImageReference } from '../src/types';
@@ -66,6 +69,18 @@ function harness(initialContent = '') {
     const view = new (MarkdownView as unknown as { new(): MarkdownView })();
     view.file = note;
     view.editor = editor;
+    const trashFile = vi.fn();
+    let protectionOwners = 0;
+    let protectionEndedAt: number | null = null;
+    let externalProtection = false;
+    const beginIndeterminate = vi.fn(() => {
+        protectionOwners++;
+        protectionEndedAt = null;
+    });
+    const endIndeterminate = vi.fn(() => {
+        protectionOwners = Math.max(0, protectionOwners - 1);
+        if (protectionOwners === 0) protectionEndedAt = Date.now();
+    });
     const app = {
         workspace: { getLeavesOfType: () => [{ view }] },
         metadataCache: {
@@ -79,7 +94,7 @@ function harness(initialContent = '') {
             getMarkdownFiles: () => [note],
             cachedRead: async () => content,
         },
-        fileManager: { trashFile: vi.fn() },
+        fileManager: { trashFile },
     } as unknown as App;
     const uploadFile = vi.fn();
     const notice = vi.fn();
@@ -93,12 +108,17 @@ function harness(initialContent = '') {
         getReferenceTemplateFileVars: async () => ({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' }),
         getDefaultHostingConfig: () => settings.hostingConfigs.find((config) => config.id === settings.defaultHostingId && config.enabled) ?? null,
         notice,
-        beginIndeterminate: vi.fn(),
+        beginIndeterminate,
         touchIndeterminate: vi.fn(),
-        endIndeterminate: vi.fn(),
+        endIndeterminate,
+        isIndeterminate: () => externalProtection || protectionOwners > 0 || (
+            protectionEndedAt !== null && Date.now() - protectionEndedAt < 2_000
+        ),
     });
     return {
-        handoff, note, editor, settings, files, uploadFile, notice,
+        handoff, note, editor, settings, files, uploadFile, notice, trashFile, endIndeterminate,
+        getProtectionEndedAt: () => protectionEndedAt,
+        setExternalProtection: (value: boolean) => { externalProtection = value; },
         setContent: (next: string) => { content = next; },
         getContent: () => content,
     };
@@ -107,6 +127,7 @@ function harness(initialContent = '') {
 describe('ObsidianDelegatedHandoff', () => {
     beforeEach(() => {
         vi.useFakeTimers();
+        scanLocalOrphans.mockReset();
         // Vitest runs without an Obsidian window; expose its fake-timer host to the adapter.
         // eslint-disable-next-line obsidianmd/no-global-this
         vi.stubGlobal('window', globalThis);
@@ -217,5 +238,50 @@ describe('ObsidianDelegatedHandoff', () => {
         expect(target.uploadFile).toHaveBeenCalledTimes(1);
         expect(target.getContent()).toBe('![](https://cdn.test/a.png)');
         target.handoff.cancelAll('unload');
+    });
+
+    it('waits for the per-image protection window before automatic local recovery', async () => {
+        const target = harness();
+        const image = file('a.png');
+        target.settings.keepLocalCopy = false;
+        target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
+        scanLocalOrphans.mockResolvedValue({ orphans: [image], indeterminate: [], total: 1, referenced: 0 });
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](a.png)');
+        target.handoff.onModify(target.note);
+        await vi.advanceTimersByTimeAsync(1_200);
+        await flushPromises();
+
+        expect(target.endIndeterminate).toHaveBeenCalledWith(image);
+        expect(target.trashFile).not.toHaveBeenCalled();
+        const elapsed = Date.now() - target.getProtectionEndedAt()!;
+        await vi.advanceTimersByTimeAsync(1_999 - elapsed);
+        expect(target.trashFile).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        await flushPromises();
+        expect(target.trashFile).toHaveBeenCalledWith(image);
+    });
+
+    it('keeps the local file when another transaction still protects the candidate', async () => {
+        const target = harness();
+        const image = file('a.png');
+        target.settings.keepLocalCopy = false;
+        target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
+        scanLocalOrphans.mockResolvedValue({ orphans: [image], indeterminate: [], total: 1, referenced: 0 });
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](a.png)');
+        target.handoff.onModify(target.note);
+        await vi.advanceTimersByTimeAsync(1_200);
+        await flushPromises();
+        target.setExternalProtection(true);
+
+        await vi.advanceTimersByTimeAsync(2_000);
+        await flushPromises();
+
+        expect(target.trashFile).not.toHaveBeenCalled();
     });
 });
