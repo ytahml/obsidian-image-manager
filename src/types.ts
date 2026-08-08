@@ -211,10 +211,8 @@ export function normalizeImageManagerSettings(loaded: Partial<ImageManagerSettin
     merged.compressBeforeUpload = typeof loaded?.compressBeforeUpload === 'boolean'
         ? loaded.compressBeforeUpload
         : legacyCompression ?? DEFAULT_SETTINGS.compressBeforeUpload;
-    merged.autoUploadOnPaste = Boolean(
-        loaded?.autoUploadOnPaste &&
-        legacyMarkdown &&
-        canResolveEnabledHosting
-    );
+    merged.autoUploadOnPaste = loaded?.localManagementMode === 'managed' || loaded?.localManagementMode === 'delegated'
+        ? Boolean(loaded.autoUploadOnPaste)
+        : Boolean(loaded?.autoUploadOnPaste && legacyMarkdown && canResolveEnabledHosting);
     return merged;
 }

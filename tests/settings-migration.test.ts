@@ -40,4 +40,15 @@ describe('settings migration', () => {
         expect(settings.compressManagedPasteLocal).toBe(false);
         expect(settings.compressBeforeUpload).toBe(true);
     });
+
+    it('does not let a legacy format value gate a migrated automatic upload setting', () => {
+        const settings = normalizeImageManagerSettings({
+            localManagementMode: 'delegated',
+            autoUploadOnPaste: true,
+            reorganizeConvertFormat: false,
+            hostingConfigs: [{ id: 'hosting', enabled: true }] as never,
+        });
+
+        expect(settings.autoUploadOnPaste).toBe(true);
+    });
 });

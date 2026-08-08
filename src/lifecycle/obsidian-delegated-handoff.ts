@@ -9,6 +9,7 @@ import type { UploadOperationResult, UploadService } from '../uploaders/upload-s
 interface DelegatedItem {
     file?: TFile;
     moved: boolean;
+    referenceId?: string;
 }
 
 interface DelegatedTransaction {
@@ -71,6 +72,7 @@ export class ObsidianDelegatedHandoff {
             if (index < 0) continue;
             transaction.items[index]!.file = file;
             this.coordinator.observeCandidate(id, index, file.path, file.path);
+            void this.resolveReferences(id, transaction);
             return;
         }
     }
@@ -81,6 +83,7 @@ export class ObsidianDelegatedHandoff {
             if (index < 0) continue;
             transaction.items[index]!.moved = true;
             this.coordinator.observeCandidate(id, index, file.path, file.path);
+            void this.resolveReferences(id, transaction);
         }
     }
 
@@ -114,6 +117,7 @@ export class ObsidianDelegatedHandoff {
                 continue;
             }
             const reference = matches[0]!;
+            item.referenceId = this.referenceId(reference);
             this.coordinator.observeReference(
                 id,
                 index,
@@ -127,61 +131,70 @@ export class ObsidianDelegatedHandoff {
     private async handoff(ready: HandoffReadyItem): Promise<void> {
         const transaction = this.transactions.get(ready.transactionId);
         const item = transaction?.items[ready.itemIndex];
-        if (!transaction || !item?.file) return;
+        if (!transaction || !item?.file || item.referenceId !== ready.referenceId) return;
         if (this.deps.getSettings().localManagementMode !== 'delegated' ||
             !this.deps.getSettings().autoUploadOnPaste ||
             !this.isHostingStillEnabled(transaction.hosting)) {
-            this.completeItem(ready.transactionId, transaction);
+            this.completeItem(ready);
             return;
         }
 
         const result = await this.deps.uploadService.uploadFile(item.file, transaction.hosting, { maxRetries: 2 });
         if (!result.success || !result.url) {
             this.deps.notice('Automatic upload failed. Use an explicit upload command to retry.', 5000);
-            this.completeItem(ready.transactionId, transaction);
+            this.completeItem(ready);
             return;
         }
 
-        const replacement = await this.replaceExactReference(transaction, item.file, result);
+        if (!this.coordinator.isCurrent(ready.transactionId, ready.itemIndex, ready.referenceId)) return;
+        const replacement = await this.replaceExactReference(transaction, item.file, ready.referenceId, result);
         if (!replacement) {
             this.deps.notice('Upload completed, but the reference changed. The local file was kept and the remote object may be unused.', 6000);
-            this.completeItem(ready.transactionId, transaction);
+            this.completeItem(ready);
             return;
         }
 
         if (!transaction.keepLocalCopy) await this.removeIfUnreferenced(item.file);
         this.deps.notice('Image uploaded and the pasted reference was replaced.', 3000);
-        this.completeItem(ready.transactionId, transaction);
+        this.completeItem(ready);
     }
 
     private async replaceExactReference(
         transaction: DelegatedTransaction,
         file: TFile,
+        referenceId: string,
         result: UploadOperationResult
     ): Promise<boolean> {
         if (!result.url) return false;
         const content = await this.readCurrentContent(transaction);
         const matches = this.deps.refConverter.parseReferences(content)
+            .filter((reference) => this.referenceId(reference) === referenceId)
             .filter((reference) => this.resolvesTo(reference, transaction.note, file));
         if (matches.length !== 1) return false;
         const match = matches[0]!;
         const vars = await this.deps.getReferenceTemplateFileVars(file);
         const replacement = this.deps.buildUploadedReference(result.url, vars, match.altText);
-        const editorContent = this.readEditorContent(transaction.editor);
+        const editorContent = this.isSourceEditorActive(transaction)
+            ? this.readEditorContent(transaction.editor)
+            : null;
         if (editorContent === content) {
             const start = this.offsetToPosition(content, match.col);
             const end = this.offsetToPosition(content, match.col + match.fullMatch.length);
             transaction.editor.replaceRange(replacement, start, end);
         } else {
+            let replaced = false;
             await this.deps.app.vault.process(transaction.note, (current) => {
                 const currentMatches = this.deps.refConverter.parseReferences(current)
+                    .filter((reference) => this.referenceId(reference) === referenceId)
                     .filter((reference) => this.resolvesTo(reference, transaction.note, file));
                 if (currentMatches.length !== 1) return current;
                 const currentMatch = currentMatches[0]!;
+                replaced = true;
                 return current.substring(0, currentMatch.col) +
                     replacement +
                     current.substring(currentMatch.col + currentMatch.fullMatch.length);
             });
+            if (!replaced) return false;
         }
         return true;
     }
@@ -197,7 +210,9 @@ export class ObsidianDelegatedHandoff {
     }
 
     private async readCurrentContent(transaction: DelegatedTransaction): Promise<string> {
-        return this.readEditorContent(transaction.editor) ?? await this.deps.app.vault.cachedRead(transaction.note);
+        return this.isSourceEditorActive(transaction)
+            ? this.readEditorContent(transaction.editor) ?? await this.deps.app.vault.cachedRead(transaction.note)
+            : await this.deps.app.vault.cachedRead(transaction.note);
     }
 
     private readEditorContent(editor: Editor): string | null {
@@ -232,9 +247,16 @@ export class ObsidianDelegatedHandoff {
         };
     }
 
-    private completeItem(transactionId: string, transaction: DelegatedTransaction): void {
+    private completeItem(ready: HandoffReadyItem): void {
+        this.coordinator.complete(ready.transactionId, ready.itemIndex);
+        const transaction = this.transactions.get(ready.transactionId);
+        if (!transaction) return;
         transaction.completedItems++;
-        if (transaction.completedItems >= transaction.items.length) this.transactions.delete(transactionId);
+        if (transaction.completedItems >= transaction.items.length) this.transactions.delete(ready.transactionId);
+    }
+
+    private isSourceEditorActive(transaction: DelegatedTransaction): boolean {
+        return this.deps.app.workspace.getActiveFile()?.path === transaction.note.path;
     }
 
     private handleCancellation(cancellation: PasteLifecycleCancellation): void {

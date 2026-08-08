@@ -365,11 +365,6 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async uploadCurrentImage() {
-        if (!this.settings.reorganizeConvertFormat) {
-            new Notice(t('settings.hostingDisabledByFormat'));
-            return;
-        }
-
         const file = this.app.workspace.getActiveFile();
         if (!file || !this.isImageFile(file)) {
             new Notice(t('notice.noActiveEditor'));
@@ -392,11 +387,6 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async batchUpload() {
-        if (!this.settings.reorganizeConvertFormat) {
-            new Notice(t('settings.hostingDisabledByFormat'));
-            return;
-        }
-
         const scanner = new ImageScanner(this.app, this.settings.supportedExtensions);
         const images = scanner.getAllImages();
 
@@ -471,11 +461,6 @@ export default class ImageManagerPlugin extends Plugin {
     }
 
     private async uploadNoteImages(file: TFile) {
-        if (!this.settings.reorganizeConvertFormat) {
-            new Notice(t('settings.hostingDisabledByFormat'));
-            return;
-        }
-
         const configs = this.settings.hostingConfigs.filter((c) => c.enabled);
         if (configs.length === 0) {
             new Notice(t('notice.noHostingConfig'));

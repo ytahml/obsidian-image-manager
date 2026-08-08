@@ -25,7 +25,7 @@ interface LifecycleItem {
     filePath?: string;
     referenceId?: string;
     readyTimer?: number;
-    completed: boolean;
+    state: 'pending' | 'in-flight' | 'completed';
 }
 
 interface LifecycleTransaction {
@@ -56,13 +56,13 @@ export class PasteLifecycleCoordinator {
         const transaction: LifecycleTransaction = {
             id,
             notePath,
-            items: Array.from({ length: itemCount }, () => ({ completed: false })),
+            items: Array.from({ length: itemCount }, () => ({ state: 'pending' })),
             timeoutTimer: -1,
             cancelled: false,
         };
         transaction.timeoutTimer = this.scheduler.schedule(HARD_TIMEOUT_DELAY, () => {
             const current = this.transactions.get(id);
-            if (!current || current.cancelled || current.items.every((item) => item.completed)) return;
+            if (!current || current.cancelled || current.items.every((item) => item.state === 'completed')) return;
             this.cancel(id, 'timeout');
         });
         this.transactions.set(id, transaction);
@@ -84,6 +84,11 @@ export class PasteLifecycleCoordinator {
         strongConvergence: boolean
     ): void {
         const transaction = this.transactions.get(transactionId);
+        const currentItem = transaction?.items[itemIndex];
+        if (currentItem?.state === 'in-flight') {
+            if (currentItem.referenceId !== referenceId) this.cancel(transactionId, 'ambiguous');
+            return;
+        }
         const item = this.getPendingItem(transactionId, itemIndex);
         if (!transaction || !item || item.fileId !== fileId || !item.filePath) return;
 
@@ -93,9 +98,9 @@ export class PasteLifecycleCoordinator {
         item.readyTimer = this.scheduler.schedule(delay, () => {
             const current = this.transactions.get(transactionId);
             const currentItem = current?.items[itemIndex];
-            if (!current || current.cancelled || !currentItem || currentItem.completed) return;
+            if (!current || current.cancelled || !currentItem || currentItem.state !== 'pending') return;
             if (!currentItem.fileId || !currentItem.filePath || !currentItem.referenceId) return;
-            currentItem.completed = true;
+            currentItem.state = 'in-flight';
             this.onReady({
                 transactionId,
                 itemIndex,
@@ -104,13 +109,18 @@ export class PasteLifecycleCoordinator {
                 filePath: currentItem.filePath,
                 referenceId: currentItem.referenceId,
             });
-            this.finishIfComplete(current);
         });
     }
 
     invalidate(transactionId: string, itemIndex: number): void {
-        const item = this.getPendingItem(transactionId, itemIndex);
+        const transaction = this.transactions.get(transactionId);
+        const item = transaction?.items[itemIndex];
         if (!item) return;
+        if (item.state === 'in-flight') {
+            this.cancel(transactionId, 'ambiguous');
+            return;
+        }
+        if (item.state === 'completed') return;
         if (item.readyTimer !== undefined) this.scheduler.cancel(item.readyTimer);
         item.readyTimer = undefined;
         item.referenceId = undefined;
@@ -132,16 +142,29 @@ export class PasteLifecycleCoordinator {
         for (const id of Array.from(this.transactions.keys())) this.cancel(id, reason);
     }
 
+    isCurrent(transactionId: string, itemIndex: number, referenceId: string): boolean {
+        const item = this.transactions.get(transactionId)?.items[itemIndex];
+        return item?.state === 'in-flight' && item.referenceId === referenceId;
+    }
+
+    complete(transactionId: string, itemIndex: number): void {
+        const transaction = this.transactions.get(transactionId);
+        const item = transaction?.items[itemIndex];
+        if (!transaction || !item || item.state !== 'in-flight') return;
+        item.state = 'completed';
+        this.finishIfComplete(transaction);
+    }
+
     private getPendingItem(transactionId: string, itemIndex: number): LifecycleItem | undefined {
         const transaction = this.transactions.get(transactionId);
         if (!transaction || transaction.cancelled) return undefined;
         const item = transaction.items[itemIndex];
-        if (!item || item.completed) return undefined;
+        if (!item || item.state !== 'pending') return undefined;
         return item;
     }
 
     private finishIfComplete(transaction: LifecycleTransaction): void {
-        if (!transaction.items.every((item) => item.completed)) return;
+        if (!transaction.items.every((item) => item.state === 'completed')) return;
         this.scheduler.cancel(transaction.timeoutTimer);
         this.transactions.delete(transaction.id);
     }
