@@ -84,6 +84,7 @@ export class ObsidianDelegatedHandoff {
             transaction.items[index]!.file = file;
             this.coordinator.observeCandidate(id, index, file.path, file.path);
             void this.resolveReferences(id, transaction);
+            this.scheduleResolve(id, transaction);
             return;
         }
     }
@@ -95,6 +96,7 @@ export class ObsidianDelegatedHandoff {
             transaction.items[index]!.moved = true;
             this.coordinator.observeCandidate(id, index, file.path, file.path);
             void this.resolveReferences(id, transaction);
+            this.scheduleResolve(id, transaction);
         }
     }
 
@@ -137,6 +139,10 @@ export class ObsidianDelegatedHandoff {
                 item.moved
             );
         }
+    }
+
+    private scheduleResolve(id: string, transaction: DelegatedTransaction): void {
+        window.setTimeout(() => { void this.resolveReferences(id, transaction); }, 250);
     }
 
     private async handoff(ready: HandoffReadyItem): Promise<void> {
