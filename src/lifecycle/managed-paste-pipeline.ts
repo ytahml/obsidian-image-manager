@@ -2,6 +2,10 @@ import { Notice, type App, type Editor, TFile } from 'obsidian';
 import type { ImageHostingConfig, ImageManagerSettings } from '../types';
 import type { RefConverter } from '../utils/ref-converter';
 import type { UploadService } from '../uploaders/upload-service';
+import type {
+    PreparedUploadReference,
+    UploadReferenceManager,
+} from '../uploaders/upload-reference-manager';
 import { ImageNamePromptModal } from '../modals/image-name-prompt';
 import { generateImageFileName, sanitizeImageFileName } from '../utils/image-naming';
 import {
@@ -12,7 +16,6 @@ import {
 } from '../utils/path-utils';
 import { chooseManagedPasteUploadSource } from './managed-paste-upload-policy';
 import { findExactManagedPasteReference } from './managed-paste-reference';
-import type { ReferenceTemplateFileVars } from '../utils/reference-template';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
 import { removeEmptyDirectParent } from '../utils/empty-folder-cleanup';
 import { t } from '../i18n';
@@ -22,18 +25,7 @@ export interface ManagedPastePipelineOptions {
     getSettings: () => ImageManagerSettings;
     uploadService: UploadService;
     refConverter: RefConverter;
-    buildUploadedReference: (
-        url: string,
-        fileVars: ReferenceTemplateFileVars,
-        altText?: string
-    ) => string;
-    getReferenceTemplateFileVars: (file: TFile) => Promise<ReferenceTemplateFileVars>;
-    replaceReferenceInNotes: (
-        imageFile: TFile,
-        newUrl: string,
-        skipFile: TFile | undefined,
-        fileVars: ReferenceTemplateFileVars
-    ) => Promise<void>;
+    uploadReferences: Pick<UploadReferenceManager, 'prepare' | 'replaceVaultReferences'>;
     getDefaultHostingConfig: () => ImageHostingConfig | null;
     getIndeterminateImagePaths: () => Set<string>;
 }
@@ -265,22 +257,22 @@ export class ManagedPastePipeline {
                 return;
             }
 
-            const templateVars = await this.options.getReferenceTemplateFileVars(savedFile);
+            const preparedReference = await this.options.uploadReferences.prepare(savedFile);
             const replaced = this.replaceLocalReference(
                 editor,
                 currentFile,
                 savedFile,
                 localReference,
                 result.url,
-                templateVars
+                preparedReference
             );
             if (!replaced) throw new Error(t('notice.delegatedReferenceChanged'));
 
-            await this.options.replaceReferenceInNotes(
+            await this.options.uploadReferences.replaceVaultReferences(
                 savedFile,
                 result.url,
-                currentFile ?? undefined,
-                templateVars
+                preparedReference,
+                { ...(currentFile ? { skipFile: currentFile } : {}) }
             );
 
             if (!this.settings.managedKeepLocalCopy) {
@@ -319,7 +311,7 @@ export class ManagedPastePipeline {
         savedFile: TFile,
         localReference: string,
         url: string,
-        templateVars: ReferenceTemplateFileVars
+        preparedReference: PreparedUploadReference
     ): boolean {
         if (!currentFile) return false;
         const content = editor.getValue();
@@ -335,11 +327,7 @@ export class ManagedPastePipeline {
         );
         if (!match) return false;
 
-        const replacement = this.options.buildUploadedReference(
-            url,
-            templateVars,
-            match.altText || templateVars.fileBaseName
-        );
+        const replacement = preparedReference.render(url, match.altText);
         const start = this.offsetToEditorPosition(content, match.col);
         const end = this.offsetToEditorPosition(content, match.col + match.fullMatch.length);
         editor.replaceRange(replacement, start, end);

@@ -89,19 +89,19 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
     } as unknown as Editor;
     const uploadFile = vi.fn();
     const uploadData = vi.fn();
-    const replaceReferenceInNotes = vi.fn(async () => {});
+    const replaceReferenceInNotes = vi.fn(async () => 0);
+    const prepareReference = vi.fn(async () => ({
+        render: (url: string, alt = '') => `![${alt}](${url})`,
+    }));
     const pipeline = new ManagedPastePipeline({
         app,
         getSettings: () => settings,
         uploadService: { uploadFile, uploadData } as unknown as UploadService,
         refConverter: { parseReferences } as unknown as RefConverter,
-        buildUploadedReference: (url, _vars, alt = '') => `![${alt}](${url})`,
-        getReferenceTemplateFileVars: async () => ({
-            fileName: 'managed-image.png',
-            fileBaseName: 'managed-image',
-            fileExt: 'png',
-        }),
-        replaceReferenceInNotes,
+        uploadReferences: {
+            prepare: prepareReference,
+            replaceVaultReferences: replaceReferenceInNotes,
+        },
         getDefaultHostingConfig: () => settings.hostingConfigs[0] ?? null,
         getIndeterminateImagePaths: () => new Set(),
     });

@@ -4,6 +4,7 @@ import type { ImageReference } from '../types';
 import type { RefConverter } from '../utils/ref-converter';
 import { decodePathSegments } from '../utils/path-utils';
 import { readNoteContentForAction } from '../utils/note-content';
+import { isRemoteImageReference } from '../utils/upload-reference';
 
 export interface LocalNoteImageReference {
     reference: ImageReference;
@@ -66,7 +67,7 @@ export async function collectLocalNoteImages(
     const content = await readNoteContentForAction(app, noteFile);
     const references = refConverter
         .parseReferences(content)
-        .filter((reference) => !reference.path.startsWith('http://') && !reference.path.startsWith('https://'))
+        .filter((reference) => !isRemoteImageReference(reference.path))
         .map((reference) => ({
             reference,
             file: resolveLocalImageReference(app, noteFile, reference.path),

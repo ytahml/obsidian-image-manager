@@ -9,18 +9,10 @@ import { ImageOptimizer } from './utils/image-optimizer';
 import { ImageScanner } from './utils/image-scanner';
 import { BatchRename } from './utils/batch-rename';
 import { ImageReorganizer } from './utils/image-reorganizer';
-import { UploadQueue } from './uploaders/upload-queue';
 import { UploadService } from './uploaders/upload-service';
-import { summarizeUploadError } from './uploaders/upload-error';
-import { collectLocalNoteImages } from './uploaders/note-images';
+import { ExplicitUploadWorkflow } from './uploaders/explicit-upload-workflow';
+import { UploadReferenceManager } from './uploaders/upload-reference-manager';
 import { setLocale, t } from './i18n';
-import { makePublicUrlReadable } from './utils/public-url';
-import {
-    renderCustomReference,
-    resolveReferenceTemplateFileVars,
-    type ReferenceTemplateFileVars,
-} from './utils/reference-template';
-import { shouldReplaceLocalImageReference } from './utils/upload-reference';
 import { RemoteReferenceIndex } from './remote/reference-index';
 import type { RemoteDeleteAuditEntry } from './remote/types';
 import { normalizeRemoteDeleteHistory, RemoteDeleteAuditWriter } from './remote/delete-audit';
@@ -37,6 +29,8 @@ export default class ImageManagerPlugin extends Plugin {
     batchRename: BatchRename;
     remoteReferenceIndex: RemoteReferenceIndex;
     uploadService: UploadService;
+    private uploadReferences: UploadReferenceManager;
+    private explicitUploads: ExplicitUploadWorkflow;
     private delegatedHandoff: ObsidianDelegatedHandoff;
     private isReorganizing = false;
     private renameRepairCoordinator: ExternalRenameRepairCoordinator<TFile>;
@@ -49,7 +43,22 @@ export default class ImageManagerPlugin extends Plugin {
 
         this.refConverter = new RefConverter(this.app);
         this.imageOptimizer = new ImageOptimizer(this.app);
-        this.uploadService = new UploadService(this.app, this.settings);
+        this.uploadService = new UploadService(this.app, () => this.settings);
+        this.uploadReferences = new UploadReferenceManager({
+            app: this.app,
+            refConverter: this.refConverter,
+            getDefaultTemplate: () => this.settings.customReferenceTemplate,
+            getImageInfo: (file) => this.imageOptimizer.getImageInfo(file),
+            onImageInfoError: (file, error) => {
+                console.warn(`[ImageManager] Failed to read image dimensions for ${file.path}:`, error);
+            },
+        });
+        this.explicitUploads = new ExplicitUploadWorkflow(
+            this.app,
+            this.uploadService,
+            this.refConverter,
+            this.uploadReferences
+        );
         this.batchRename = new BatchRename(this.app, this.settings);
         this.indeterminateImages = new IndeterminateImageRegistry<TFile>({
             schedule: (delay, callback) => window.setTimeout(callback, delay),
@@ -78,8 +87,7 @@ export default class ImageManagerPlugin extends Plugin {
             uploadService: this.uploadService,
             refConverter: this.refConverter,
             isImageFile: (file) => this.isImageFile(file),
-            buildUploadedReference: (url, vars, alt, template) => this.buildUploadedReference(url, vars, alt, template),
-            getReferenceTemplateFileVars: (file, template) => this.getReferenceTemplateFileVars(file, template),
+            uploadReferences: this.uploadReferences,
             getDefaultHostingConfig: () => this.getDefaultHostingConfig(),
             notice: (message, timeout) => new Notice(message, timeout),
             beginIndeterminate: (file) => this.indeterminateImages.begin(file, file.path),
@@ -92,10 +100,7 @@ export default class ImageManagerPlugin extends Plugin {
             getSettings: () => this.settings,
             uploadService: this.uploadService,
             refConverter: this.refConverter,
-            buildUploadedReference: (url, vars, alt) => this.buildUploadedReference(url, vars, alt),
-            getReferenceTemplateFileVars: (file) => this.getReferenceTemplateFileVars(file),
-            replaceReferenceInNotes: (file, url, skipFile, vars) =>
-                this.replaceReferenceInNote(file, url, skipFile, vars),
+            uploadReferences: this.uploadReferences,
             getDefaultHostingConfig: () => this.getDefaultHostingConfig(),
             getIndeterminateImagePaths: () => this.getIndeterminateImagePaths(),
         });
@@ -445,11 +450,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         const doBatch = async (hostingConfig: ImageHostingConfig) => {
             new Notice(t('notice.batchUploadStart', { count: String(images.length) }));
-
-            const queue = new UploadQueue(this.uploadService);
-            queue.addFiles(images);
-
-            queue.onProgressChange((progress) => {
+            const result = await this.explicitUploads.uploadBatch(images, hostingConfig, (progress) => {
                 new Notice(
                     t('notice.batchUploadProgress', {
                         done: String(progress.completed),
@@ -459,13 +460,10 @@ export default class ImageManagerPlugin extends Plugin {
                     2000
                 );
             });
-
-            const history = await queue.start(hostingConfig);
-
             new Notice(
                 t('notice.batchUploadDone', {
-                    success: String(history.length),
-                    total: String(images.length),
+                    success: String(result.successfulImages),
+                    total: String(result.totalImages),
                 })
             );
         };
@@ -483,19 +481,20 @@ export default class ImageManagerPlugin extends Plugin {
         new Notice(t('notice.uploading'));
 
         try {
-            const result = await this.uploadService.uploadFile(file, hostingConfig);
+            const result = await this.explicitUploads.uploadImage(
+                file,
+                hostingConfig,
+                this.settings.autoReplaceAfterUpload
+            );
 
-            if (result.success && result.url) {
-                const templateVars = await this.getReferenceTemplateFileVars(file);
-                const ref = this.buildUploadedReference(result.url, templateVars);
-                new Notice(`${t('notice.uploadSuccess')}\n${result.url}`, 5000);
-                await navigator.clipboard.writeText(ref);
-
-                if (this.settings.autoReplaceAfterUpload) {
-                    await this.replaceReferenceInNote(file, result.url, undefined, templateVars);
+            if (result.operation.success && result.operation.url && result.reference) {
+                new Notice(`${t('notice.uploadSuccess')}\n${result.operation.url}`, 5000);
+                await navigator.clipboard.writeText(result.reference);
+                if (result.replacedReferences > 0) {
+                    new Notice(t('notice.replaceSuccess', { count: String(result.replacedReferences) }));
                 }
             } else {
-                new Notice(t('notice.uploadFailed', { error: result.error ?? 'Unknown error' }));
+                new Notice(t('notice.uploadFailed', { error: result.operation.error ?? 'Unknown error' }));
             }
         } catch (e) {
             new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
@@ -510,81 +509,42 @@ export default class ImageManagerPlugin extends Plugin {
         }
 
         const chooseAndUpload = async (hostingConfig: ImageHostingConfig) => {
-            const { content, references: localRefs } = await collectLocalNoteImages(
-                this.app,
-                file,
-                this.refConverter
+            const progress = new Notice(
+                t('notice.batchUploadProgress', { done: '0', total: '0', current: '' }),
+                0
             );
-            if (localRefs.length === 0) {
-                new Notice(t('notice.noteUploadNoImages'));
-                return;
-            }
-
-            let success = 0;
-            let newContent = content;
-            const failures: Array<{ fileName: string; error: string }> = [];
-            const progress = new Notice(t('notice.batchUploadProgress', { done: '0', total: String(localRefs.length), current: '' }), 0);
-
-            // Process from end to start to preserve positions
-            for (let i = localRefs.length - 1; i >= 0; i--) {
-                const { reference: ref, file: imgFile } = localRefs[i]!;
-                if (!imgFile) {
-                    failures.push({ fileName: ref.path, error: t('notice.noteUploadFileMissing') });
-                    continue;
+            try {
+                const result = await this.explicitUploads.uploadNote(file, hostingConfig, (state) => {
+                    progress.setMessage(t('notice.batchUploadProgress', {
+                        done: String(state.completedImages),
+                        total: String(state.totalImages),
+                        current: state.current,
+                    }));
+                });
+                if (result.totalReferences === 0) {
+                    new Notice(t('notice.noteUploadNoImages'));
+                    return;
                 }
-
-                progress.setMessage(t('notice.batchUploadProgress', {
-                    done: String(success),
-                    total: String(localRefs.length),
-                    current: imgFile.name,
-                }));
-
-                try {
-                    const result = await this.uploadService.uploadFile(imgFile, hostingConfig);
-
-                    if (result.success && result.url) {
-                        const templateVars = await this.getReferenceTemplateFileVars(imgFile);
-                        const newRef = this.buildUploadedReference(
-                            result.url,
-                            templateVars,
-                            ref.altText || imgFile.name.replace(/\.[^.]+$/, '')
-                        );
-                        newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
-                        success++;
-
-                        // Update references in other notes (skip current file, handled by newContent)
-                        await this.replaceReferenceInNote(imgFile, result.url, file, templateVars);
-                    } else {
-                        failures.push({
-                            fileName: imgFile.name,
-                            error: summarizeUploadError(result.error),
-                        });
-                        console.error(`[ImageManager] Upload failed for ${imgFile.name}: ${result.error}`);
-                    }
-                } catch (e) {
-                    failures.push({
-                        fileName: imgFile.name,
-                        error: summarizeUploadError(e instanceof Error ? e.message : undefined),
-                    });
-                    console.error(`[ImageManager] Failed to upload ${imgFile.path}:`, e);
+                if (result.failures.length > 0) {
+                    const firstFailure = result.failures[0]!;
+                    const error = firstFailure.kind === 'missing-file'
+                        ? t('notice.noteUploadFileMissing')
+                        : firstFailure.error ?? 'Unknown error';
+                    new Notice(t('notice.noteUploadPartial', {
+                        success: String(result.successfulReferences),
+                        total: String(result.totalReferences),
+                        failed: String(result.totalReferences - result.successfulReferences),
+                        file: firstFailure.fileName,
+                        error,
+                    }), 10_000);
+                } else {
+                    new Notice(t('notice.noteUploadDone', {
+                        success: String(result.successfulReferences),
+                        total: String(result.totalReferences),
+                    }));
                 }
-            }
-
-            progress.hide();
-            if (success > 0) {
-                await this.app.vault.process(file, () => newContent);
-            }
-            if (failures.length > 0) {
-                const firstFailure = failures[0]!;
-                new Notice(t('notice.noteUploadPartial', {
-                    success: String(success),
-                    total: String(localRefs.length),
-                    failed: String(failures.length),
-                    file: firstFailure.fileName,
-                    error: firstFailure.error,
-                }), 10_000);
-            } else {
-                new Notice(t('notice.noteUploadDone', { success: String(success), total: String(localRefs.length) }));
+            } finally {
+                progress.hide();
             }
         };
 
@@ -596,84 +556,6 @@ export default class ImageManagerPlugin extends Plugin {
                     new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown' }));
                 });
             }).open();
-        }
-    }
-
-    private buildUploadedReference(
-        url: string,
-        fileVars: ReferenceTemplateFileVars,
-        altText?: string,
-        template: string = this.settings.customReferenceTemplate
-    ): string {
-        const baseName = altText || fileVars.fileBaseName;
-        const readableUrl = makePublicUrlReadable(url);
-        const customReference = renderCustomReference(template, {
-            fileUrl: readableUrl,
-            fileAlt: baseName,
-            ...fileVars,
-        });
-        if (customReference !== null) return customReference;
-
-        return `![${baseName}](${readableUrl})`;
-    }
-
-    private async getReferenceTemplateFileVars(
-        file: TFile,
-        template: string = this.settings.customReferenceTemplate
-    ): Promise<ReferenceTemplateFileVars> {
-        return resolveReferenceTemplateFileVars(
-            template,
-            file,
-            () => this.imageOptimizer.getImageInfo(file),
-            (error) => {
-                console.warn(
-                    `[ImageManager] Failed to read image dimensions for ${file.path}:`,
-                    error
-                );
-            }
-        );
-    }
-
-    private async replaceReferenceInNote(
-        imageFile: TFile,
-        newUrl: string,
-        skipFile: TFile | undefined,
-        fileVars: ReferenceTemplateFileVars
-    ) {
-        const mdFiles = this.app.vault.getMarkdownFiles();
-        let totalReplaced = 0;
-
-        for (const mdFile of mdFiles) {
-            if (skipFile && mdFile.path === skipFile.path) continue;
-            const content = await this.app.vault.cachedRead(mdFile);
-            const refs = this.refConverter.parseReferences(content);
-
-            const imageName = imageFile.name;
-            const imagePath = imageFile.path;
-            let newContent = content;
-            let replaced = false;
-
-            for (let i = refs.length - 1; i >= 0; i--) {
-                const ref = refs[i]!;
-                if (shouldReplaceLocalImageReference(ref.path, imageName, imagePath)) {
-                    const newRef = this.buildUploadedReference(
-                        newUrl,
-                        fileVars,
-                        ref.altText || fileVars.fileBaseName
-                    );
-                    newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
-                    replaced = true;
-                    totalReplaced++;
-                }
-            }
-
-            if (replaced) {
-                await this.app.vault.process(mdFile, () => newContent);
-            }
-        }
-
-        if (totalReplaced > 0) {
-            new Notice(t('notice.replaceSuccess', { count: String(totalReplaced) }));
         }
     }
 

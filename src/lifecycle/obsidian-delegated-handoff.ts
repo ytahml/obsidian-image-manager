@@ -1,6 +1,6 @@
 import { MarkdownView, Notice, TFile, type App, type Editor } from 'obsidian';
 import type { ImageHostingConfig, ImageManagerSettings, ImageReference } from '../types';
-import type { ReferenceTemplateFileVars } from '../utils/reference-template';
+import type { UploadReferenceManager } from '../uploaders/upload-reference-manager';
 import { RefConverter } from '../utils/ref-converter';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
 import {
@@ -59,8 +59,7 @@ export interface DelegatedHandoffDependencies {
     uploadService: UploadService;
     refConverter: RefConverter;
     isImageFile: (file: TFile) => boolean;
-    buildUploadedReference: (url: string, vars: ReferenceTemplateFileVars, alt?: string, template?: string) => string;
-    getReferenceTemplateFileVars: (file: TFile, template?: string) => Promise<ReferenceTemplateFileVars>;
+    uploadReferences: Pick<UploadReferenceManager, 'prepare'>;
     getDefaultHostingConfig: () => ImageHostingConfig | null;
     notice: (message: string, timeout?: number) => Notice;
     beginIndeterminate: (file: TFile) => void;
@@ -351,8 +350,8 @@ export class ObsidianDelegatedHandoff {
             .filter((reference) => this.resolvesTo(reference, transaction.note, file));
         if (matches.length !== 1) return false;
         const match = matches[0]!;
-        const vars = await this.deps.getReferenceTemplateFileVars(file, transaction.customReferenceTemplate);
-        const replacement = this.deps.buildUploadedReference(result.url, vars, match.altText, transaction.customReferenceTemplate);
+        const prepared = await this.deps.uploadReferences.prepare(file, transaction.customReferenceTemplate);
+        const replacement = prepared.render(result.url, match.altText);
         if (!await this.validateReadyItem(ready, transaction, { ...transaction.items[ready.itemIndex]!, file })) return false;
         const sourceView = this.findSourceView(transaction);
         if (sourceView) {

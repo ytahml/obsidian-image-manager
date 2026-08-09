@@ -108,15 +108,16 @@ function harness(initialContent = '') {
     } as unknown as App;
     const uploadFile = vi.fn();
     const notice = vi.fn();
-    const getReferenceTemplateFileVars = vi.fn(async () => ({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' }));
+    const getReferenceTemplateFileVars = vi.fn(async () => ({
+        render: (url: string) => `![](${url})`,
+    }));
     const handoff = new ObsidianDelegatedHandoff({
         app,
         getSettings: () => settings,
         uploadService: { uploadFile } as unknown as UploadService,
         refConverter: { parseReferences } as unknown as RefConverter,
         isImageFile: (target) => target.extension === 'png',
-        buildUploadedReference: (url) => `![](${url})`,
-        getReferenceTemplateFileVars,
+        uploadReferences: { prepare: getReferenceTemplateFileVars },
         getDefaultHostingConfig: () => settings.hostingConfigs.find((config) => config.id === settings.defaultHostingId && config.enabled) ?? null,
         notice,
         beginIndeterminate,
@@ -284,7 +285,7 @@ describe('ObsidianDelegatedHandoff', () => {
     it('re-locates in the live source editor instead of writing behind it when content changes during upload', async () => {
         const target = harness();
         const image = file('a.png');
-        let finishTemplateVars!: (vars: { fileName: string; fileBaseName: string; fileExt: string }) => void;
+        let finishTemplateVars!: (prepared: { render: (url: string) => string }) => void;
         target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
         target.getReferenceTemplateFileVars.mockReturnValue(new Promise((resolve) => {
             finishTemplateVars = resolve;
@@ -299,7 +300,7 @@ describe('ObsidianDelegatedHandoff', () => {
         expect(target.getReferenceTemplateFileVars).toHaveBeenCalledTimes(1);
 
         target.setContent('prefix\n![](a.png)');
-        finishTemplateVars({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' });
+        finishTemplateVars({ render: (url) => `![](${url})` });
         await flushPromises();
 
         expect(target.process).not.toHaveBeenCalled();

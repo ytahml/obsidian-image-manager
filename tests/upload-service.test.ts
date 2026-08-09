@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
-import type { ImageHostingConfig, ImageManagerSettings, UploadResult } from '../src/types';
+import type { ImageHostingConfig, UploadResult } from '../src/types';
+import type { UploadDefaults } from '../src/uploaders/upload-service';
 
 const { createUploader } = vi.hoisted(() => ({ createUploader: vi.fn() }));
 
@@ -10,10 +11,10 @@ import { UploadService } from '../src/uploaders/upload-service';
 import { summarizeUploadError } from '../src/uploaders/upload-error';
 
 const settings = {
-    autoCompress: false,
+    compressBeforeUpload: false,
     compressQuality: 80,
     uploadPathTemplate: 'uploads/{filename}.{ext}',
-} as ImageManagerSettings;
+} satisfies UploadDefaults;
 
 function hostingConfig(type: ImageHostingConfig['type']): ImageHostingConfig {
     return {
@@ -38,6 +39,24 @@ function uploader(...results: UploadResult[]) {
 }
 
 describe('UploadService', () => {
+    it('reads the narrow upload defaults at operation time', async () => {
+        const defaults = { ...settings };
+        createUploader.mockReturnValue(uploader({
+            success: true,
+            url: 'https://custom.example/a.png',
+            originalPath: 'a.png',
+        }));
+        const service = new UploadService({} as App, () => defaults);
+        defaults.uploadPathTemplate = 'changed/{filename}.{ext}';
+
+        await service.uploadData(new ArrayBuffer(0), 'a.png', hostingConfig('custom'));
+
+        expect(createUploader).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'custom-hosting' }),
+            'changed/{filename}.{ext}'
+        );
+    });
+
     it('publishes a structured native result only after a URL and object key succeed', async () => {
         const target = uploader({
             success: true,
@@ -46,7 +65,7 @@ describe('UploadService', () => {
             originalPath: 'a.png',
         });
         createUploader.mockReturnValue(target);
-        const service = new UploadService({} as App, settings);
+        const service = new UploadService({} as App, () => settings);
         const listener = vi.fn();
         service.onSuccess(listener);
 
@@ -67,7 +86,7 @@ describe('UploadService', () => {
             { success: true, url: 'https://cdn.example.com/a.png', objectKey: 'a.png', originalPath: 'a.png' }
         );
         createUploader.mockReturnValue(target);
-        const service = new UploadService({} as App, settings);
+        const service = new UploadService({} as App, () => settings);
         const listener = vi.fn();
         service.onSuccess(listener);
 
@@ -84,7 +103,7 @@ describe('UploadService', () => {
             { success: true, url: 'https://cdn.example.com/a.png', objectKey: 'a.png', originalPath: 'a.png' }
         );
         createUploader.mockReturnValue(target);
-        const service = new UploadService({} as App, settings);
+        const service = new UploadService({} as App, () => settings);
         const beforeAttempt = vi.fn(async (attempt: number) => attempt === 1);
 
         await expect(service.uploadData(new ArrayBuffer(0), 'a.png', hostingConfig('qiniu'), undefined, {
@@ -100,7 +119,7 @@ describe('UploadService', () => {
             success: true, url: 'https://cdn.example.com/a.png', objectKey: 'a.png', originalPath: 'a.png',
         });
         createUploader.mockReturnValue(target);
-        const service = new UploadService({} as App, settings);
+        const service = new UploadService({} as App, () => settings);
 
         await expect(service.uploadData(new ArrayBuffer(0), 'a.png', hostingConfig('qiniu'), undefined, {
             beforeAttempt: async () => { throw new Error('source deleted'); },
@@ -109,7 +128,7 @@ describe('UploadService', () => {
     });
 
     it('keeps Custom URL-only and rejects a native success that lacks its object key', async () => {
-        const service = new UploadService({} as App, settings);
+        const service = new UploadService({} as App, () => settings);
         const listener = vi.fn();
         service.onSuccess(listener);
         createUploader.mockReturnValue(uploader({

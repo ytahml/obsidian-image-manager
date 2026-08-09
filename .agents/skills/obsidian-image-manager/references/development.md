@@ -23,7 +23,8 @@ Vitest 测试应覆盖可观察行为与高风险协议，而不是源码字符�
 - 路径编码、命名、模板、引用正则状态与反向替换。
 - 活动 Editor/非活动 Vault 内容读取。
 - 本地 orphan fresh 校验、skip/fail 和回收站边界。
-- UploadService 原生 objectKey/Custom URL-only、重试、失败摘要。
+- UploadService 窄默认值 getter、原生 objectKey/Custom URL-only、重试、失败摘要。
+- UploadReferenceManager 的尺寸按需读取、模板回退和普通 Vault 替换；ExplicitUploadWorkflow 的笔记去重、反向替换、当前笔记先写与结构化失败汇总。
 - OSS/Qiniu/S3 canonical signing、特殊字符、公开 URL 与连接测试。
 - Provider cursor、文件夹 scope、错误脱敏。
 - browse/preview/thumbnail session 的聚合、缓存、并发和 late response。

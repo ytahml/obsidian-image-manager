@@ -212,7 +212,12 @@ export class ImageBrowserModal extends Modal {
                 text: localReferenceLabel(referenceState),
             });
             card.createDiv({ cls: 'image-browser-card-meta', text: formatFileSize(file.stat.size) });
-            card.addEventListener('click', () => new ImagePreviewModal(this.app, this.plugin, file, this).open());
+            card.addEventListener('click', () => new ImagePreviewModal(this.app, {
+                getSupportedExtensions: () => this.plugin.settings.supportedExtensions,
+                getEnabledHostingConfigs: () => this.plugin.settings.hostingConfigs.filter((config) => config.enabled),
+                uploadImage: (target, hosting) => this.plugin.doUpload(target, hosting),
+                renameImage: (target, newName) => this.plugin.batchRename.renameImage(target, newName),
+            }, file, this).open());
         }
     }
 

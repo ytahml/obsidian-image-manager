@@ -112,6 +112,7 @@ ClipboardEvent/DragEvent
 - 按笔记分组并列出全部行号。
 - 点击行号关闭浏览器并定位笔记。
 - 操作包括复制引用、插入当前笔记、上传、重命名和关闭。
+- 本地预览只依赖窄的查询/上传/重命名 actions，不持有完整 Plugin 类型；Notice 和图床选择仍属于 Modal adapter。
 
 复制与插入统一使用安全路径编码。
 
@@ -166,6 +167,7 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 - 非活动笔记使用 Vault `read`。
 - Markdown 本地路径先完整容错解码并去除尖括号，再用 Obsidian linkpath 语义解析。
 - 聚合未解析引用、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要。
+- 排除所有 URL scheme、protocol-relative、data 与 blob 引用；同一 `TFile.path` 在显式笔记上传中只上传一次，每处引用仍独立保留 alt。
 
 上传后替换：
 
@@ -173,6 +175,7 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 - 跳过所有 URL scheme、protocol-relative、data 与 blob 引用。
 - 当前 Editor 已更新时，遍历其他笔记必须跳过当前文件。
 - 上传 URL 中 Unicode 可读化只发生在生成 Markdown 引用的边界。
+- 当前笔记的全部成功替换先一次写回，成功后再更新其他笔记；显式流程只返回结构化结果，Notice 和进度属于 `main.ts` UI adapter。
 
 ## 自动上传与本地清理
 
