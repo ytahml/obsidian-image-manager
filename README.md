@@ -264,10 +264,10 @@ Deletion requires selecting at most 20 eligible objects, typing the selected cou
 ### Auto Upload
 
 - **Local Image Management Mode** — Choose **Managed** (this plugin owns local paste/drop handling) or **Delegated** (Obsidian or an external attachment manager owns local handling)
-- **Auto Upload on Paste** — Automatically upload to default hosting on paste/drag & drop
-- **Keep Local Copy** — Whether to keep local file after upload
+- **Auto Upload on Paste** — Automatically upload to default hosting on paste/drag & drop; Managed and Delegated modes save this preference independently
+- **Keep Local Copy** — Whether to keep the local file after paste auto-upload; Managed and Delegated modes save this preference independently
 
-In **Delegated** mode, automatic upload waits until it can uniquely match the created attachment with this paste/drop's newly inserted reference. It replaces only that exact reference and keeps the local file when the transaction becomes ambiguous or changes while an upload is in flight. This is a best-effort handoff based on public Obsidian events; it does not guarantee that an external attachment manager has completed all later processing.
+Switching modes hides settings that do not apply to the selected paste/drop owner without resetting them. Shared path settings remain visible because explicit image reorganization uses them in both modes. In **Delegated** mode, automatic upload waits until it can uniquely match the created attachment with this paste/drop's newly inserted reference. It replaces only that exact reference and keeps the local file when the transaction becomes ambiguous or changes while an upload is in flight. This is a best-effort handoff based on public Obsidian events; it does not guarantee that an external attachment manager has completed all later processing.
 
 ---
 

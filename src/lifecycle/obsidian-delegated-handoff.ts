@@ -94,7 +94,7 @@ export class ObsidianDelegatedHandoff {
 
     start(editor: Editor, note: TFile | null, imageCount: number): void {
         const settings = this.deps.getSettings();
-        if (settings.localManagementMode !== 'delegated' || !settings.autoUploadOnPaste || !note) return;
+        if (settings.localManagementMode !== 'delegated' || !settings.delegatedAutoUploadOnPaste || !note) return;
         const hosting = this.deps.getDefaultHostingConfig();
         if (!hosting) return;
         const initialContent = this.readEditorContent(editor);
@@ -105,7 +105,7 @@ export class ObsidianDelegatedHandoff {
             editor,
             items: Array.from({ length: imageCount }, () => ({ moved: false })),
             hosting: this.cloneHosting(hosting),
-            keepLocalCopy: settings.keepLocalCopy,
+            keepLocalCopy: settings.delegatedKeepLocalCopy,
             compressBeforeUpload: settings.compressBeforeUpload,
             compressQuality: settings.compressQuality,
             uploadPathTemplate: settings.uploadPathTemplate,
@@ -277,7 +277,7 @@ export class ObsidianDelegatedHandoff {
         let remoteMayExist = false;
         try {
             if (this.deps.getSettings().localManagementMode !== 'delegated' ||
-                !this.deps.getSettings().autoUploadOnPaste ||
+                !this.deps.getSettings().delegatedAutoUploadOnPaste ||
                 !this.isSettingsSnapshotCurrent(transaction)) {
                 this.recordOutcome(ready, transaction, { status: 'cancelled' });
                 return;
@@ -557,10 +557,10 @@ export class ObsidianDelegatedHandoff {
     private settingsFingerprint(settings: ImageManagerSettings, hosting: ImageHostingConfig): string {
         return JSON.stringify({
             localManagementMode: settings.localManagementMode,
-            autoUploadOnPaste: settings.autoUploadOnPaste,
+            autoUploadOnPaste: settings.delegatedAutoUploadOnPaste,
             defaultHostingId: settings.defaultHostingId,
             hosting,
-            keepLocalCopy: settings.keepLocalCopy,
+            keepLocalCopy: settings.delegatedKeepLocalCopy,
             compressBeforeUpload: settings.compressBeforeUpload,
             compressQuality: settings.compressQuality,
             uploadPathTemplate: settings.uploadPathTemplate,

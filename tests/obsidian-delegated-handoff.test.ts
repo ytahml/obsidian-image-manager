@@ -51,8 +51,8 @@ function harness(initialContent = '') {
     const settings: ImageManagerSettings = {
         ...DEFAULT_SETTINGS,
         localManagementMode: 'delegated',
-        autoUploadOnPaste: true,
-        keepLocalCopy: true,
+        delegatedAutoUploadOnPaste: true,
+        delegatedKeepLocalCopy: true,
         defaultHostingId: 'host',
         hostingConfigs: [{
             id: 'host', name: 'host', type: 'custom', enabled: true,
@@ -163,6 +163,22 @@ describe('ObsidianDelegatedHandoff', () => {
         target.handoff.cancelAll('unload');
     });
 
+    it('does not start when only the managed auto-upload preference is enabled', async () => {
+        const target = harness();
+        const image = file('a.png');
+        target.settings.managedAutoUploadOnPaste = true;
+        target.settings.delegatedAutoUploadOnPaste = false;
+
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](a.png)');
+        target.handoff.onModify(target.note);
+        await vi.advanceTimersByTimeAsync(1_200);
+
+        expect(target.uploadFile).not.toHaveBeenCalled();
+    });
+
     it('resolves the URL-encoded Markdown path produced by the default Obsidian paste flow', async () => {
         const target = harness();
         const image = file('Pasted image.png');
@@ -212,12 +228,32 @@ describe('ObsidianDelegatedHandoff', () => {
         await vi.advanceTimersByTimeAsync(1_200);
         expect(target.uploadFile).toHaveBeenCalledTimes(1);
 
-        target.settings.keepLocalCopy = false;
+        target.settings.delegatedKeepLocalCopy = false;
         finishUpload({ success: true, url: 'https://cdn.test/a.png' });
         await flushPromises();
 
         expect(target.getContent()).toBe('![](a.png)');
         expect(target.notice).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not invalidate delegated work when managed preferences change', async () => {
+        const target = harness();
+        const image = file('a.png');
+        let finishUpload!: (result: { success: boolean; url: string }) => void;
+        target.uploadFile.mockReturnValue(new Promise((resolve) => { finishUpload = resolve; }));
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](a.png)');
+        target.handoff.onModify(target.note);
+        await vi.advanceTimersByTimeAsync(1_200);
+
+        target.settings.managedAutoUploadOnPaste = !target.settings.managedAutoUploadOnPaste;
+        target.settings.managedKeepLocalCopy = !target.settings.managedKeepLocalCopy;
+        finishUpload({ success: true, url: 'https://cdn.test/a.png' });
+        await flushPromises();
+
+        expect(target.getContent()).toBe('![](https://cdn.test/a.png)');
     });
 
     it('invalidates an in-flight result when the claimed attachment is renamed', async () => {
@@ -298,7 +334,7 @@ describe('ObsidianDelegatedHandoff', () => {
     it('waits for the per-image protection window before automatic local recovery', async () => {
         const target = harness();
         const image = file('a.png');
-        target.settings.keepLocalCopy = false;
+        target.settings.delegatedKeepLocalCopy = false;
         target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
         scanLocalOrphans.mockResolvedValue({ orphans: [image], indeterminate: [], total: 1, referenced: 0 });
         target.handoff.start(target.editor, target.note, 1);
@@ -322,7 +358,7 @@ describe('ObsidianDelegatedHandoff', () => {
     it('keeps the local file when another transaction still protects the candidate', async () => {
         const target = harness();
         const image = file('a.png');
-        target.settings.keepLocalCopy = false;
+        target.settings.delegatedKeepLocalCopy = false;
         target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
         scanLocalOrphans.mockResolvedValue({ orphans: [image], indeterminate: [], total: 1, referenced: 0 });
         target.handoff.start(target.editor, target.note, 1);

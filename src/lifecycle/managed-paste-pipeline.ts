@@ -158,7 +158,7 @@ export class ManagedPastePipeline {
         const savedFile = await this.createImageFile(filePath, directory, filename, extension, prepared.data);
         const localReference = this.insertLocalReference(editor, currentFile, savedFile);
 
-        if (this.settings.autoUploadOnPaste) {
+        if (this.settings.managedAutoUploadOnPaste) {
             void this.autoUpload(savedFile, localReference, prepared.data, prepared.compressed, editor, currentFile);
         }
     }
@@ -283,7 +283,7 @@ export class ManagedPastePipeline {
                 templateVars
             );
 
-            if (!this.settings.keepLocalCopy) {
+            if (!this.settings.managedKeepLocalCopy) {
                 const overrides = currentFile
                     ? new Map([[currentFile.path, editor.getValue()]])
                     : new Map<string, string>();

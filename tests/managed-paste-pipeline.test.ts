@@ -50,7 +50,7 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
         imageNamingTemplate: 'managed image',
         imagePathTemplate: 'attachments',
         compressManagedPasteLocal: false,
-        autoUploadOnPaste: false,
+        managedAutoUploadOnPaste: false,
         ...overrides,
     };
     const files = new Map<string, TFile>();
@@ -133,9 +133,23 @@ describe('ManagedPastePipeline', () => {
         expect(target.getContent()).toBe('![managed-image.png](attachments/managed-image.png)');
     });
 
+    it('does not read the delegated auto-upload preference in managed mode', async () => {
+        const target = harness({
+            managedAutoUploadOnPaste: false,
+            delegatedAutoUploadOnPaste: true,
+            hostingConfigs: [{ id: 'host', enabled: true }] as never,
+        });
+
+        target.pipeline.processFiles([target.image], target.editor, file('note.md'));
+
+        await vi.waitFor(() => expect(target.createBinary).toHaveBeenCalledOnce());
+        expect(target.uploadFile).not.toHaveBeenCalled();
+        expect(target.uploadData).not.toHaveBeenCalled();
+    });
+
     it('replaces only the inserted managed reference after auto upload', async () => {
         const target = harness({
-            autoUploadOnPaste: true,
+            managedAutoUploadOnPaste: true,
             compressBeforeUpload: false,
             hostingConfigs: [{
                 id: 'host',
@@ -175,7 +189,7 @@ describe('ManagedPastePipeline', () => {
     it('resolves an encoded Markdown path after naming a managed image with special characters', async () => {
         const target = harness({
             imageNamingTemplate: '这是图片？！1！#！#¥！#',
-            autoUploadOnPaste: true,
+            managedAutoUploadOnPaste: true,
             compressBeforeUpload: false,
             hostingConfigs: [{
                 id: 'host',
