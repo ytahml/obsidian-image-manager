@@ -59,30 +59,18 @@ For private questions, contact **orchidsword@163.com**. If you find the plugin u
 Image management is more than uploading a file. The plugin follows an image through its local creation, reference insertion, optional upload and exact-reference replacement, later rename or reorganization, and finally guarded orphan cleanup.
 
 - **Managed mode** is the default: this plugin creates the local attachment, applies its naming, path, and optional local-compression settings, then inserts the initial reference.
-- **Delegated mode** lets Obsidian or an external attachment manager own that local work. The plugin observes only public Vault events and current resolvable references, then hands the finished attachment to the optional automatic-upload flow without relying on a manager's ID or fixed delay.
-- For each delegated paste or drop, the plugin requires a unique attachment-to-reference match. It revalidates the transaction before retries, replacement, and any local cleanup; stale or ambiguous work leaves the local file and reference unchanged.
+- **Delegated mode** lets Obsidian or an external attachment manager own that local work. The plugin observes only public Vault events and current resolvable references, then uses a best-effort transaction handoff for optional automatic upload; it does not integrate with a manager's private lifecycle.
+- For each delegated paste or drop, the plugin requires a unique attachment-to-reference match. It revalidates the transaction before retries, replacement, and any local cleanup; stale or ambiguous work leaves the local file and reference unchanged. These checks cannot prove that an external manager has finished, so a later rename, move, or reference rewrite may occur after upload starts.
 - If **Keep Local Copy** is disabled, cleanup uses Obsidian's trash only after the attachment is no longer protected by recent lifecycle changes and fresh scans still show no local references. This protects the current vault; it cannot establish that an image is unused outside the vault.
 
 ```mermaid
 flowchart LR
-    A["Paste or drag and drop"] --> B{"Who owns local handling?"}
-    B -->|Managed| C["Create attachment\nname, path, optional local compression"]
-    B -->|Delegated| D["External manager\ncreates or updates attachment"]
-    C --> E["Insert or verify\nlocal reference"]
+    A["Paste or drag and drop"] --> B{"Local handling"}
+    B -->|Managed| C["Create attachment\nand insert reference"]
+    B -->|Delegated| D["Observe attachment and reference\nbest-effort handoff"]
+    C --> E["Optional upload\nand exact-reference replacement"]
     D --> E
-    E --> F{"Auto upload enabled?"}
-    F -->|No| G["Keep local image\nand reference"]
-    F -->|Yes| H["Uniquely match one attachment\nto one new reference"]
-    H -->|Ambiguous or changed| G
-    H -->|Unique| I["Upload hosting payload\nrevalidate before retries"]
-    I --> J["Replace the exact reference"]
-    J --> K["Browse, rename, or reorganize later"]
-    G --> K
-    K --> L{"Keep local copy?"}
-    L -->|Yes| M["Retain local attachment"]
-    L -->|No| N["Fresh scan and change-protection window"]
-    N -->|Referenced or changed| M
-    N -->|No local reference| O["Move attachment to Obsidian trash"]
+    E --> F["Continue local management\nor guarded trash cleanup"]
 ```
 
 ---
@@ -279,7 +267,7 @@ Deletion requires selecting at most 20 eligible objects, typing the selected cou
 - **Auto Upload on Paste** — Automatically upload to default hosting on paste/drag & drop
 - **Keep Local Copy** — Whether to keep local file after upload
 
-In **Delegated** mode, automatic upload waits until it can uniquely match the created attachment with this paste/drop's newly inserted reference. It replaces only that exact reference and keeps the local file when the transaction becomes ambiguous or changes while an upload is in flight.
+In **Delegated** mode, automatic upload waits until it can uniquely match the created attachment with this paste/drop's newly inserted reference. It replaces only that exact reference and keeps the local file when the transaction becomes ambiguous or changes while an upload is in flight. This is a best-effort handoff based on public Obsidian events; it does not guarantee that an external attachment manager has completed all later processing.
 
 ---
 
