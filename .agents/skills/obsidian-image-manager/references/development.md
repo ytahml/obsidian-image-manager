@@ -165,7 +165,7 @@ Obsidian 内置更新可能剥离 Markdown 目录。普通 rename 事件等待�
 
 - 插件不加载：检查插件目录中的 `main.js`、manifest id `md-image-manager` 和 build 结果。
 - 命令不出现：检查 active file 条件、Markdown gate、browser enable 和 reload。
-- 设置不生效：检查 default、两套 setting renderer、await save 与 refresh。
+- 设置不生效：检查 default、声明式 definition、await save 与 `update()` 刷新。
 - 上传失败：先测试连接，再核对 endpoint/region/bucket/public base；只输出安全摘要。
 - 远程扫描失败：按结构化 code 区分 config/auth/permission/not-found/rate-limit/network/parsing/server。
 - 预览不可用：核对图片扩展名、storage class、preview access、public base 与私有 get 权限。
@@ -173,15 +173,16 @@ Obsidian 内置更新可能剥离 Markdown 目录。普通 rename 事件等待�
 
 ## 文档维护
 
-- `SKILL.md` 负责入口、全局边界和路由，不堆阶段流水。
-- references 保存当前实现知识与开发注意事项。
-- `docs/design/` 保存需求、决策、安全契约、验收和历史证据。
-- `docs/agents/` 保存可选工程技能的 Issue tracker、triage label 与领域文档消费约定，不复制产品事实。
-- README 只描述用户可见能力、配置、风险和使用方式。
-- 行为、架构或工作流变化后同步相应层；不要让 README、skill、design 与代码互相矛盾。
+- `SKILL.md` 只保存入口、全局硬边界和按任务触发的指针。
+- references 保存当前实现知识、开发约束和难以从代码直接推导的陷阱。
+- `docs/design/` 只保存按产品能力命名的现行长期决策；不使用 Issue/PR/阶段编号，不保存实施流水。
+- 完成功能把持久决策合入现行契约并移除临时计划；历史证据从 Git 和 `docs/archive/README.md` 追溯。
+- README 描述用户可见能力；CHANGELOG 保存发布历史。行为变化时同步受影响层，但不复制同一事实。
 
 ## Issue 与 PR 分类
 
+- Issue 与 PR 用于协作和跟踪，不是产品事实来源；功能文档按能力命名，不按票号命名。
+- 标题和正文默认使用中文，除非用户、仓库约定或协作者需要其他语言。
 - Issue 提供中英双语的 bug、功能建议、使用问题和文档改进表单；`Other / 其他` 保留普通自由编辑入口。
 - 模板文件使用两位数字前缀固定展示顺序：Bug、Documentation、Feature、Question、Other；新增或重命名模板时保持该顺序。
 - 表单会自动添加对应的 `bug`、`enhancement`、`question` 或 `documentation` 标签。

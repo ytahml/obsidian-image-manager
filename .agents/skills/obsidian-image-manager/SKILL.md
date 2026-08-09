@@ -11,7 +11,7 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 
 1. Inspect `git status`, the current branch, and the task-relevant source before deciding what to change.
 2. Read the task-relevant reference from the index below. For cross-cutting work, read every affected reference.
-3. Treat current code and the linked design documents as product truth; historical examples in Git or issues are evidence, not an active contract.
+3. Treat current code, these references, and the linked current design contracts as product truth; tickets, archived plans, and Git history are evidence only.
 4. Keep `src/main.ts` focused on lifecycle, commands, events, and orchestration. Put reusable behavior and protocol logic in focused modules.
 5. After changing behavior, architecture, settings, UI workflows, provider support, tests, or release workflows, update the relevant reference.
 6. Before committing, run `npm test`, `npm run build`, and `git diff --check`.
@@ -61,7 +61,4 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 | [hosting-and-remote.md](references/hosting-and-remote.md) | Changing upload orchestration, provider signing, remote scan/preview/reference/delete behavior, or provider capabilities |
 | [settings-and-ui.md](references/settings-and-ui.md) | Changing defaults, settings, hosting configuration, modals, CSS, i18n, or mobile behavior |
 | [development.md](references/development.md) | Adding features/providers, fixing lint/test/build issues, releasing, troubleshooting, or updating documentation |
-| [docs/design/README.md](../../../docs/design/README.md) | Creating or locating durable product/design decisions |
-| [local-image-browser-reference-template.md](../../../docs/design/local-image-browser-reference-template.md) | Changing local reference states, orphan deletion, preview references, remote path display, or custom reference templates |
-| [issue-17-remote-image-management.md](../../../docs/design/issue-17-remote-image-management.md) | Changing remote object-management product or safety contracts |
-| [issue-36-local-image-workflow-ownership.md](../../../docs/design/issue-36-local-image-workflow-ownership.md) | Changing paste/drop ownership, delegated attachment handling, automatic hosting handoff, or third-party attachment-manager compatibility |
+| [docs/design/README.md](../../../docs/design/README.md) | Creating or retiring a durable product decision; completed designs are archived and not part of the default task route |
