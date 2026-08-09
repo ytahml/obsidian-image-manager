@@ -200,7 +200,9 @@ export class ImagePreviewModal extends Modal {
                     this.contentEl.empty();
                     await this.onOpen();
                 } catch (e) {
-                    new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+                    new Notice(t('notice.renameFailed', {
+                        error: e instanceof Error ? e.message : t('notice.unknownError'),
+                    }));
                 }
             })();
         }).open();

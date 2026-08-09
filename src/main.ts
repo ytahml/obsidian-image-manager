@@ -192,7 +192,7 @@ export default class ImageManagerPlugin extends Plugin {
             id: 'migrate-images',
             name: t('command.migrateImages'),
             callback: () => {
-                new Notice(`${t('command.migrateImages')} - ${t('notice.notImplemented')}`);
+                new Notice(t('notice.migrateNotImplemented'));
             },
         });
 
@@ -488,16 +488,16 @@ export default class ImageManagerPlugin extends Plugin {
             );
 
             if (result.operation.success && result.operation.url && result.reference) {
-                new Notice(`${t('notice.uploadSuccess')}\n${result.operation.url}`, 5000);
+                new Notice(t('notice.uploadSuccessWithUrl', { url: result.operation.url }), 5000);
                 await navigator.clipboard.writeText(result.reference);
                 if (result.replacedReferences > 0) {
                     new Notice(t('notice.replaceSuccess', { count: String(result.replacedReferences) }));
                 }
             } else {
-                new Notice(t('notice.uploadFailed', { error: result.operation.error ?? 'Unknown error' }));
+                new Notice(t('notice.uploadFailed', { error: result.operation.error ?? t('notice.unknownError') }));
             }
         } catch (e) {
-            new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+            new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : t('notice.unknownError') }));
         }
     }
 
@@ -529,7 +529,7 @@ export default class ImageManagerPlugin extends Plugin {
                     const firstFailure = result.failures[0]!;
                     const error = firstFailure.kind === 'missing-file'
                         ? t('notice.noteUploadFileMissing')
-                        : firstFailure.error ?? 'Unknown error';
+                        : firstFailure.error ?? t('notice.unknownError');
                     new Notice(t('notice.noteUploadPartial', {
                         success: String(result.successfulReferences),
                         total: String(result.totalReferences),
@@ -553,7 +553,9 @@ export default class ImageManagerPlugin extends Plugin {
         } else {
             new HostingSuggestModal(this.app, configs, (config) => {
                 chooseAndUpload(config).catch((e) => {
-                    new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown' }));
+                    new Notice(t('notice.uploadFailed', {
+                        error: e instanceof Error ? e.message : t('notice.unknownError'),
+                    }));
                 });
             }).open();
         }
@@ -577,7 +579,9 @@ export default class ImageManagerPlugin extends Plugin {
                         })
                     );
                 } catch (e) {
-                    new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+                    new Notice(t('notice.renameFailed', {
+                        error: e instanceof Error ? e.message : t('notice.unknownError'),
+                    }));
                 }
             })();
         }).open();
@@ -601,7 +605,9 @@ export default class ImageManagerPlugin extends Plugin {
                 })
             );
         } catch (e) {
-            new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+            new Notice(t('notice.reorganizeFailed', {
+                error: e instanceof Error ? e.message : t('notice.unknownError'),
+            }));
         } finally {
             this.isReorganizing = false;
         }
@@ -625,7 +631,9 @@ export default class ImageManagerPlugin extends Plugin {
                 })
             );
         } catch (e) {
-            new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+            new Notice(t('notice.reorganizeFailed', {
+                error: e instanceof Error ? e.message : t('notice.unknownError'),
+            }));
         } finally {
             this.isReorganizing = false;
         }

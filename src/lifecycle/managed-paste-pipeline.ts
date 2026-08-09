@@ -87,7 +87,9 @@ export class ManagedPastePipeline {
         void imageFile.arrayBuffer().then((buffer) => {
             return this.saveImage(new Uint8Array(buffer), imageFile.type, filename, editor, currentFile);
         }).catch((error: unknown) => {
-            new Notice(`Image save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            new Notice(t('notice.imageSaveFailed', {
+                error: error instanceof Error ? error.message : t('notice.unknownError'),
+            }));
         });
     }
 
@@ -253,7 +255,9 @@ export class ManagedPastePipeline {
 
             if (!result.success || !result.url) {
                 notice.hide();
-                new Notice(t('notice.autoUploadFailed', { error: result.error ?? 'Unknown' }), 5000);
+                new Notice(t('notice.autoUploadFailed', {
+                    error: result.error ?? t('notice.unknownError'),
+                }), 5000);
                 return;
             }
 
@@ -300,7 +304,7 @@ export class ManagedPastePipeline {
         } catch (error) {
             notice.hide();
             new Notice(t('notice.autoUploadFailed', {
-                error: error instanceof Error ? error.message : 'Unknown',
+                error: error instanceof Error ? error.message : t('notice.unknownError'),
             }), 5000);
         }
     }

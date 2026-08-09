@@ -152,7 +152,7 @@ export class RemoteImageBrowserView {
         const providerResult = createRemoteObjectProvider(config);
         const controls = this.containerEl.createDiv({ cls: 'remote-image-browser-controls' });
 
-        controls.createSpan({ text: `${t('modal.imageBrowser.remoteProvider')}:` });
+        controls.createSpan({ text: t('modal.imageBrowser.remoteProvider') });
         const configSelect = controls.createEl('select');
         for (const item of configs) {
             configSelect.createEl('option', { value: item.id, text: item.name || item.type.toUpperCase() });

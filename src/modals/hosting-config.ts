@@ -303,29 +303,29 @@ export class HostingConfigModal extends Modal {
     private renderAliyunFields(container: HTMLElement) {
         const cfg = this.config.config as AliyunOSSConfig;
         new Setting(container)
-            .setName('Region')
-            .setDesc('Example: oss-cn-hangzhou')
+            .setName(t('modal.hosting.region'))
+            .setDesc(t('modal.hosting.aliyunRegionDesc'))
             .addText((text) =>
                 text.setValue(cfg.region).onChange((v) => {
                     cfg.region = v;
                 })
             );
         new Setting(container)
-            .setName('Bucket')
+            .setName(t('modal.hosting.bucket'))
             .addText((text) =>
                 text.setValue(cfg.bucket).onChange((v) => {
                     cfg.bucket = v;
                 })
             );
         new Setting(container)
-            .setName('Access key ID')
+            .setName(t('modal.hosting.accessKeyId'))
             .addText((text) =>
                 text.setValue(cfg.accessKeyId).onChange((v) => {
                     cfg.accessKeyId = v;
                 })
             );
         new Setting(container)
-            .setName('Access key secret')
+            .setName(t('modal.hosting.accessKeySecret'))
             .addText((text) => {
                 text.inputEl.type = 'password';
                 text.setValue(cfg.accessKeySecret).onChange((v) => {
@@ -337,14 +337,14 @@ export class HostingConfigModal extends Modal {
     private renderQiniuFields(container: HTMLElement) {
         const cfg = this.config.config as QiniuConfig;
         new Setting(container)
-            .setName('Access key')
+            .setName(t('modal.hosting.accessKey'))
             .addText((text) =>
                 text.setValue(cfg.accessKey).onChange((v) => {
                     cfg.accessKey = v;
                 })
             );
         new Setting(container)
-            .setName('Secret key')
+            .setName(t('modal.hosting.secretKey'))
             .addText((text) => {
                 text.inputEl.type = 'password';
                 text.setValue(cfg.secretKey).onChange((v) => {
@@ -352,14 +352,14 @@ export class HostingConfigModal extends Modal {
                 });
             });
         new Setting(container)
-            .setName('Bucket')
+            .setName(t('modal.hosting.bucket'))
             .addText((text) =>
                 text.setValue(cfg.bucket).onChange((v) => {
                     cfg.bucket = v;
                 })
             );
         new Setting(container)
-            .setName('Region')
+            .setName(t('modal.hosting.region'))
             .setDesc(t('modal.hosting.qiniuRegionDesc'))
             .addDropdown((dropdown) =>
                 dropdown
@@ -378,8 +378,8 @@ export class HostingConfigModal extends Modal {
     private renderS3Fields(container: HTMLElement) {
         const cfg = this.config.config as S3Config;
         const endpoint = new Setting(container)
-            .setName('Endpoint')
-            .setDesc('e.g. https://s3.amazonaws.com')
+            .setName(t('modal.hosting.endpoint'))
+            .setDesc(t('modal.hosting.endpointDesc'))
             .addText((text) =>
                 text.setValue(cfg.endpoint).onChange((v) => {
                     cfg.endpoint = v;
@@ -387,7 +387,7 @@ export class HostingConfigModal extends Modal {
             );
         endpoint.settingEl.addClass('is-wide');
         new Setting(container)
-            .setName('Region')
+            .setName(t('modal.hosting.region'))
             .setDesc(t('modal.hosting.s3RegionDesc'))
             .addText((text) =>
                 text.setValue(cfg.region).onChange((v) => {
@@ -395,21 +395,21 @@ export class HostingConfigModal extends Modal {
                 })
             );
         new Setting(container)
-            .setName('Bucket')
+            .setName(t('modal.hosting.bucket'))
             .addText((text) =>
                 text.setValue(cfg.bucket).onChange((v) => {
                     cfg.bucket = v;
                 })
             );
         new Setting(container)
-            .setName('Access key ID')
+            .setName(t('modal.hosting.accessKeyId'))
             .addText((text) =>
                 text.setValue(cfg.accessKeyId).onChange((v) => {
                     cfg.accessKeyId = v;
                 })
             );
         new Setting(container)
-            .setName('Secret access key')
+            .setName(t('modal.hosting.secretAccessKey'))
             .addText((text) => {
                 text.inputEl.type = 'password';
                 text.setValue(cfg.secretAccessKey).onChange((v) => {
@@ -417,7 +417,7 @@ export class HostingConfigModal extends Modal {
                 });
             });
         new Setting(container)
-            .setName('Force path style')
+            .setName(t('modal.hosting.forcePathStyle'))
             .setDesc(t('modal.hosting.forcePathStyleDesc'))
             .addToggle((toggle) =>
                 toggle.setValue(cfg.forcePathStyle ?? false).onChange((v) => {
@@ -429,7 +429,7 @@ export class HostingConfigModal extends Modal {
     private renderCustomConnectionFields(container: HTMLElement) {
         const cfg = this.config.config as CustomConfig;
         const uploadUrl = new Setting(container)
-            .setName('Upload URL')
+            .setName(t('modal.hosting.uploadUrl'))
             .addText((text) =>
                 text.setValue(cfg.uploadUrl).onChange((v) => {
                     cfg.uploadUrl = v;
@@ -437,7 +437,7 @@ export class HostingConfigModal extends Modal {
             );
         uploadUrl.settingEl.addClass('is-wide');
         new Setting(container)
-            .setName('Method')
+            .setName(t('modal.hosting.method'))
             .addDropdown((dropdown) =>
                 dropdown
                     .addOption('POST', 'POST')
@@ -453,14 +453,14 @@ export class HostingConfigModal extends Modal {
         const cfg = this.config.config as CustomConfig;
         const fields = container.createDiv({ cls: 'hosting-config-field-grid' });
         new Setting(fields)
-            .setName('File field name')
+            .setName(t('modal.hosting.fileFieldName'))
             .addText((text) =>
                 text.setValue(cfg.fileFieldName).onChange((v) => {
                     cfg.fileFieldName = v;
                 })
             );
         new Setting(fields)
-            .setName('Response JSON path')
+            .setName(t('modal.hosting.responseJsonPath'))
             .setDesc(t('modal.hosting.jsonPathDesc'))
             .addText((text) =>
                 text
@@ -471,7 +471,7 @@ export class HostingConfigModal extends Modal {
                     })
             );
         const headers = new Setting(fields)
-            .setName('Headers (JSON)')
+            .setName(t('modal.hosting.headersJson'))
             .addText((text) => {
                 text.inputEl.classList.add('hosting-config-monospace');
                 text.setValue(JSON.stringify(cfg.headers ?? {}, null, 0)).onChange((v) => {

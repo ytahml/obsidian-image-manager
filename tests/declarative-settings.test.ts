@@ -81,6 +81,13 @@ function hasControl(tab: ImageManagerSettingTab, key: string): boolean {
     }
 }
 
+function hasSetting(tab: ImageManagerSettingTab, name: string): boolean {
+    return tab.getSettingDefinitions().some((item) => {
+        if ('name' in item && item.name === name) return true;
+        return 'items' in item && item.items?.some((child) => 'name' in child && child.name === name);
+    });
+}
+
 describe('Obsidian 1.13 declarative settings', () => {
     beforeEach(() => setLocale('en'));
 
@@ -107,6 +114,12 @@ describe('Obsidian 1.13 declarative settings', () => {
         }
         expect(hasControl(tab, 'imagePathTemplate')).toBe(true);
         expect(hasControl(tab, 'imagePathBase')).toBe(true);
+        expect(hasSetting(tab, t('settings.delegatedCompatibility'))).toBe(true);
+    });
+
+    it('shows the delegated compatibility notice only on the delegated line', () => {
+        expect(hasSetting(createTab('managed').tab, t('settings.delegatedCompatibility'))).toBe(false);
+        expect(hasSetting(createTab('delegated').tab, t('settings.delegatedCompatibility'))).toBe(true);
     });
 
     it('persists normalized values and refreshes settings with side effects', async () => {

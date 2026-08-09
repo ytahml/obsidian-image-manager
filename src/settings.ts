@@ -155,6 +155,10 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                             },
                         },
                     },
+                    ...(this.isDelegated() ? [{
+                        name: t('settings.delegatedCompatibility'),
+                        desc: t('settings.delegatedCompatibilityDesc'),
+                    }] : []),
                     {
                         name: t('settings.imagePathTemplate'),
                         desc: t('settings.imagePathTemplateDesc'),
