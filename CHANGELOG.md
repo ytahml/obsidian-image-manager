@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.0.0
+
+### 🇺🇸 English
+
+#### Breaking changes
+
+- Requires Obsidian 1.13.0 or later. The settings screen now uses Obsidian's declarative settings API.
+- Local image handling is now explicitly split into **managed** and **delegated** modes. Existing automatic-upload and local-copy preferences are migrated safely into both modes; review the selected mode after upgrading.
+
+#### New features
+
+- Added separate managed and delegated paste/drop pipelines, so the plugin's local file lifecycle is isolated from Obsidian or an external attachment manager's lifecycle ([PR #40](https://github.com/ytahml/obsidian-image-manager/pull/40))
+- Added a dedicated explicit-upload workflow and reusable upload-reference manager for direct, note, and vault upload commands
+
+#### Improvements
+
+- Clarified mode-specific settings and help text. Delegated mode hides managed-only local paste controls while preserving their values for a later switch back.
+- Strengthened delegated handoff validation and lifecycle protection around attachment creation, rename, move, reference replacement, and optional local cleanup.
+- Updated the English and Chinese documentation with the new ownership model and its compatibility boundaries.
+
+### 🇨🇳 中文
+
+#### 破坏性变更
+
+- 需要 Obsidian 1.13.0 或更高版本；设置页已迁移至 Obsidian 的声明式设置 API。
+- 本地图片处理现在明确分为 **托管（managed）** 和 **委托（delegated）** 两种模式。原有的自动上传与保留本地副本偏好会安全迁移到两种模式；升级后请检查当前选中的模式。
+
+#### 新功能
+
+- 新增独立的 managed/delegated 粘贴与拖放管线，将本插件的本地文件生命周期与 Obsidian 或外部附件管理器的生命周期隔离（[PR #40](https://github.com/ytahml/obsidian-image-manager/pull/40)）
+- 新增专用的显式上传工作流与可复用上传引用管理器，服务单图、笔记和全库上传命令
+
+#### 改进
+
+- 明确各模式对应的设置和说明：delegated 模式隐藏仅适用于 managed 的本地粘贴控件，但保留其值以便日后切换回来。
+- 加强委托接力在附件创建、重命名、移动、引用替换及可选本地清理过程中的事务校验和生命周期保护。
+- 更新中英文文档，说明新的管理权模型及其兼容性边界。
+
+---
+
 ## 1.1.2
 
 ### 🇺🇸 English
