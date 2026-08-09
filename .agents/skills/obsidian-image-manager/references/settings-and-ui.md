@@ -72,6 +72,7 @@ Modal 分为固定基础区和 capability 门控正文：
 
 - 顶部编辑名称和类型；宽屏并排，窄屏上下排列。
 - 非 Custom 的上传路径和公共访问 URL 位于页签上方。
+- 上传路径留空时使用全局模板，输入框 placeholder 直接复用 `DEFAULT_UPLOAD_PATH_TEMPLATE`，不能维护另一份默认字符串。
 - 页签为“图床配置 / 远程管理”；只有 production Provider 有 `list` 时显示远程页签。
 - Custom 不显示无效远程页签，也不显示原生图床的上传路径/public base。
 - 页签切换复用内存配置副本，不丢失未保存输入。
