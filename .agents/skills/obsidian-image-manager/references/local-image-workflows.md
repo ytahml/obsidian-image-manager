@@ -9,6 +9,8 @@
 ```text
 ClipboardEvent/DragEvent
   → 过滤 image/* 文件
+  → main.ts 按 localManagementMode 分流
+  → ManagedPastePipeline
   → generateImageFileName
   → 可选 ImageNamePromptModal
   → savePastedImage
@@ -132,7 +134,7 @@ ClipboardEvent/DragEvent
 
 委托自动接力在刚替换活动编辑器的事务引用后，复扫来源笔记必须使用 Editor 当前文本覆盖可能尚未刷新的 Vault 缓存；否则旧本地引用会导致错误保留本应回收的附件。
 
-managed 自动上传保存刚插入的完整本地引用，上传后在来源 Editor 全文中按“完整引用 + Obsidian 解析到该 `TFile`”唯一重定位；光标移动、重复引用或映射变化时失败关闭。只有精确替换成功且 fresh 全库扫描仍判定为孤立时才回收本地附件。
+managed 自动上传保存刚插入的完整本地引用，上传后在来源 Editor 全文中按“完整引用 + Obsidian 解析到该 `TFile`”唯一重定位；Markdown linkpath 在交给 Obsidian 解析前逐段容错解码，事务身份仍保留原始编码引用。光标移动、重复引用或映射变化时失败关闭。只有精确替换成功且 fresh 全库扫描仍判定为孤立时才回收本地附件。
 
 委托接力事务在创建时冻结图床、上传压缩与质量、上传路径模板、引用模板和本地副本策略，并保存粘贴前的来源笔记引用基线；当前引用只从基线后的新增差异中求解。在途相关设置变化使结果失效，不得继续替换或删除。
 
