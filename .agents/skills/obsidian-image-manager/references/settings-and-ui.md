@@ -36,22 +36,21 @@
 
 `localManagementMode` 只决定自动 paste/drop 的本地管理权；`autoUploadOnPaste` 独立决定是否接续图床上传。`managedPasteReferenceFormat` 只影响 managed 初始引用，`reorganizeConvertFormat` 只影响显式整理。手动上传与自动上传均不受这两个格式设置门控。
 
-Obsidian 1.12 fallback 在 delegated 下禁用并解释路径、命名、命名提示、managed 引用格式和本地粘贴压缩，同时保留其值；图床接力设置继续可编辑。1.13 声明式设置页的等价改造不属于 Issue 36 当前实施范围。
+Obsidian 1.13 声明式设置页在 delegated 下禁用并解释路径、命名、命名提示、managed 引用格式和本地粘贴压缩，同时保留其值；图床接力设置继续可编辑。
 
-## SettingTab 版本兼容
+## Obsidian 1.13 声明式设置
 
-`minAppVersion` 为 1.12.0：
+`minAppVersion` 为 1.13.0，不再兼容旧 imperative 设置 API：
 
-- Obsidian 1.13+ 使用 `getSettingDefinitions()` 提供声明式设置与搜索索引。
-- 1.12 使用 `display()` imperative fallback。
-- 语言、通用、命名、压缩、画廊、图床的顺序、默认值、保存副作用、门控必须一致。
-- `refresh()` 通过 `Reflect.get/Reflect.apply` 运行时检测 `update()`，不能直接调用 1.13 API。
-- 最低版本正式升级到 1.13 后才能删除 fallback。
+- `getSettingDefinitions()` 是唯一设置入口，提供渲染与搜索索引；不实现 `display()` fallback。
+- 普通单字段设置优先使用 `control` 自动绑定；需要副作用、即时草稿校验或动态复杂 UI 时使用 `setControlValue()` 或 `render`。
+- 语言、本地管理模式和图床列表变化后调用 `update()`，重新生成本地化文案、禁用状态或动态列表结构。
+- delegated 模式通过声明式 `disabled` 谓词禁用 managed 专属控件，图床接力设置保持可编辑。
 
 新增设置步骤：
 
 1. 更新 `ImageManagerSettings` 和 `DEFAULT_SETTINGS`。
-2. 更新声明式定义与 imperative renderer。
+2. 更新声明式定义；只有复杂 UI 才使用 `render`。
 3. 添加中英文名称、描述、placeholder/notice。
 4. 保存时规范化空值，必要时刷新设置页。
 5. 为业务默认值、门控和兼容迁移补测试。
@@ -73,6 +72,7 @@ Modal 分为固定基础区和 capability 门控正文：
 
 - 顶部编辑名称和类型；宽屏并排，窄屏上下排列。
 - 非 Custom 的上传路径和公共访问 URL 位于页签上方。
+- 上传路径留空时使用全局模板，输入框 placeholder 直接复用 `DEFAULT_UPLOAD_PATH_TEMPLATE`，不能维护另一份默认字符串。
 - 页签为“图床配置 / 远程管理”；只有 production Provider 有 `list` 时显示远程页签。
 - Custom 不显示无效远程页签，也不显示原生图床的上传路径/public base。
 - 页签切换复用内存配置副本，不丢失未保存输入。

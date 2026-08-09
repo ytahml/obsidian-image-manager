@@ -27,12 +27,4 @@ export default tseslint.config(
 			"obsidianmd/no-plugin-as-component": "off",
 		},
 	},
-	{
-		files: ["src/settings.ts"],
-		rules: {
-			// display() 已废弃但 getSettingDefinitions() 需要 Obsidian 1.13.0+
-			// 当前 minAppVersion=1.12.0，暂用 display() 命令式 API
-			"@typescript-eslint/no-deprecated": "off",
-		},
-	},
 );

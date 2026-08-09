@@ -1,5 +1,13 @@
 import { App, DropdownComponent, Modal, Setting, TextComponent } from 'obsidian';
-import type { ImageHostingConfig, HostingType, AliyunOSSConfig, QiniuConfig, S3Config, CustomConfig } from '../types';
+import {
+    DEFAULT_UPLOAD_PATH_TEMPLATE,
+    type ImageHostingConfig,
+    type HostingType,
+    type AliyunOSSConfig,
+    type QiniuConfig,
+    type S3Config,
+    type CustomConfig,
+} from '../types';
 import { t } from '../i18n';
 import {
     getRemoteManagementConfig,
@@ -139,7 +147,7 @@ export class HostingConfigModal extends Modal {
             .setDesc(t('modal.hosting.uploadPathDesc'))
             .addText((text) =>
                 text
-                    .setPlaceholder('images/{year}/{month}/{filename}.{ext}')
+                    .setPlaceholder(DEFAULT_UPLOAD_PATH_TEMPLATE)
                     .setValue(this.config.uploadPath)
                     .onChange((v) => {
                         this.config.uploadPath = v;

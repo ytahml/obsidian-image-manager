@@ -16,7 +16,7 @@ Custom HTTP 只有上传协议。图床迁移和恢复本地引用不属于当�
 
 ```text
 src/main.ts                 Plugin 生命周期、命令、事件、跨模块编排
-src/settings.ts             设置定义、Obsidian 1.12 fallback、图床列表
+src/settings.ts             Obsidian 1.13 声明式设置定义、图床自定义渲染
 src/types.ts                持久化设置与公共本地域类型
 src/modals/                 本地/远程浏览、预览、配置、命名与确认 UI
 src/utils/                  路径、引用、扫描、压缩、整理、重命名与本地清理
