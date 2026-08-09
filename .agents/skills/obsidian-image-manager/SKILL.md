@@ -22,7 +22,7 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 - **References**: Markdown and Wiki image parsing; user commands convert Wiki images to Markdown. Generated Markdown paths keep Unicode readable and encode syntax-sensitive ASCII.
 - **Uploads**: Aliyun OSS, Qiniu, S3-compatible storage, and Custom HTTP. `UploadService` owns direct, note, vault batch, and paste-auto-upload orchestration.
 - **Remote objects**: Aliyun OSS, Qiniu Kodo, and S3-compatible providers support explicit scan, virtual folders, card browsing, viewport thumbnails, preview, reference locations, and guarded deletion. Custom HTTP remains upload-only.
-- **Settings and UI**: Chinese/English, Obsidian 1.12.0 minimum, mobile-compatible where the host APIs permit.
+- **Settings and UI**: Chinese/English, Obsidian 1.13.0 minimum, declarative settings, mobile-compatible where the host APIs permit.
 
 ## Non-Negotiable Business Rules
 

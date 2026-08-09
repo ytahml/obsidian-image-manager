@@ -61,7 +61,7 @@ Vitest 测试应覆盖可观察行为与高风险协议，而不是源码字符�
 1. 确认需求属于本地文件、上传、远程管理、设置/UI 中哪个边界。
 2. 涉及删除、网络、持久化、数据模型或跨模块流程时先更新/新增 `docs/design/` 契约。
 3. 在公共逻辑模块实现并补行为测试，`main.ts` 只接线。
-4. 更新 settings types/defaults、声明式与 fallback UI。
+4. 更新 settings types/defaults 与 Obsidian 1.13 声明式 UI。
 5. 更新中英文 copy、README 用户能力、skill/reference。
 6. 验证桌面和移动布局、IME、异步 loading、session cleanup。
 7. 跑完整测试、build、diff check。
@@ -97,7 +97,7 @@ Modal：
 
 设置：
 
-- types/defaults、声明式 definitions、1.12 fallback、i18n、保存副作用同步。
+- types/defaults、声明式 definitions、i18n、保存副作用同步。
 - 旧 data 缺字段时有安全默认。
 - 影响其他设置可见性时刷新，并测试门控。
 
