@@ -51,8 +51,8 @@ function harness(initialContent = '') {
     const settings: ImageManagerSettings = {
         ...DEFAULT_SETTINGS,
         localManagementMode: 'delegated',
-        autoUploadOnPaste: true,
-        keepLocalCopy: true,
+        delegatedAutoUploadOnPaste: true,
+        delegatedKeepLocalCopy: true,
         defaultHostingId: 'host',
         hostingConfigs: [{
             id: 'host', name: 'host', type: 'custom', enabled: true,
@@ -108,15 +108,16 @@ function harness(initialContent = '') {
     } as unknown as App;
     const uploadFile = vi.fn();
     const notice = vi.fn();
-    const getReferenceTemplateFileVars = vi.fn(async () => ({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' }));
+    const getReferenceTemplateFileVars = vi.fn(async () => ({
+        render: (url: string) => `![](${url})`,
+    }));
     const handoff = new ObsidianDelegatedHandoff({
         app,
         getSettings: () => settings,
         uploadService: { uploadFile } as unknown as UploadService,
         refConverter: { parseReferences } as unknown as RefConverter,
         isImageFile: (target) => target.extension === 'png',
-        buildUploadedReference: (url) => `![](${url})`,
-        getReferenceTemplateFileVars,
+        uploadReferences: { prepare: getReferenceTemplateFileVars },
         getDefaultHostingConfig: () => settings.hostingConfigs.find((config) => config.id === settings.defaultHostingId && config.enabled) ?? null,
         notice,
         beginIndeterminate,
@@ -161,6 +162,22 @@ describe('ObsidianDelegatedHandoff', () => {
 
         expect(target.uploadFile).not.toHaveBeenCalled();
         target.handoff.cancelAll('unload');
+    });
+
+    it('does not start when only the managed auto-upload preference is enabled', async () => {
+        const target = harness();
+        const image = file('a.png');
+        target.settings.managedAutoUploadOnPaste = true;
+        target.settings.delegatedAutoUploadOnPaste = false;
+
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](a.png)');
+        target.handoff.onModify(target.note);
+        await vi.advanceTimersByTimeAsync(1_200);
+
+        expect(target.uploadFile).not.toHaveBeenCalled();
     });
 
     it('resolves the URL-encoded Markdown path produced by the default Obsidian paste flow', async () => {
@@ -212,12 +229,32 @@ describe('ObsidianDelegatedHandoff', () => {
         await vi.advanceTimersByTimeAsync(1_200);
         expect(target.uploadFile).toHaveBeenCalledTimes(1);
 
-        target.settings.keepLocalCopy = false;
+        target.settings.delegatedKeepLocalCopy = false;
         finishUpload({ success: true, url: 'https://cdn.test/a.png' });
         await flushPromises();
 
         expect(target.getContent()).toBe('![](a.png)');
         expect(target.notice).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not invalidate delegated work when managed preferences change', async () => {
+        const target = harness();
+        const image = file('a.png');
+        let finishUpload!: (result: { success: boolean; url: string }) => void;
+        target.uploadFile.mockReturnValue(new Promise((resolve) => { finishUpload = resolve; }));
+        target.handoff.start(target.editor, target.note, 1);
+        target.files.set(image.path, image);
+        target.handoff.onCreate(image);
+        target.setContent('![](a.png)');
+        target.handoff.onModify(target.note);
+        await vi.advanceTimersByTimeAsync(1_200);
+
+        target.settings.managedAutoUploadOnPaste = !target.settings.managedAutoUploadOnPaste;
+        target.settings.managedKeepLocalCopy = !target.settings.managedKeepLocalCopy;
+        finishUpload({ success: true, url: 'https://cdn.test/a.png' });
+        await flushPromises();
+
+        expect(target.getContent()).toBe('![](https://cdn.test/a.png)');
     });
 
     it('invalidates an in-flight result when the claimed attachment is renamed', async () => {
@@ -248,7 +285,7 @@ describe('ObsidianDelegatedHandoff', () => {
     it('re-locates in the live source editor instead of writing behind it when content changes during upload', async () => {
         const target = harness();
         const image = file('a.png');
-        let finishTemplateVars!: (vars: { fileName: string; fileBaseName: string; fileExt: string }) => void;
+        let finishTemplateVars!: (prepared: { render: (url: string) => string }) => void;
         target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
         target.getReferenceTemplateFileVars.mockReturnValue(new Promise((resolve) => {
             finishTemplateVars = resolve;
@@ -263,7 +300,7 @@ describe('ObsidianDelegatedHandoff', () => {
         expect(target.getReferenceTemplateFileVars).toHaveBeenCalledTimes(1);
 
         target.setContent('prefix\n![](a.png)');
-        finishTemplateVars({ fileName: 'a.png', fileBaseName: 'a', fileExt: 'png' });
+        finishTemplateVars({ render: (url) => `![](${url})` });
         await flushPromises();
 
         expect(target.process).not.toHaveBeenCalled();
@@ -298,7 +335,7 @@ describe('ObsidianDelegatedHandoff', () => {
     it('waits for the per-image protection window before automatic local recovery', async () => {
         const target = harness();
         const image = file('a.png');
-        target.settings.keepLocalCopy = false;
+        target.settings.delegatedKeepLocalCopy = false;
         target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
         scanLocalOrphans.mockResolvedValue({ orphans: [image], indeterminate: [], total: 1, referenced: 0 });
         target.handoff.start(target.editor, target.note, 1);
@@ -322,7 +359,7 @@ describe('ObsidianDelegatedHandoff', () => {
     it('keeps the local file when another transaction still protects the candidate', async () => {
         const target = harness();
         const image = file('a.png');
-        target.settings.keepLocalCopy = false;
+        target.settings.delegatedKeepLocalCopy = false;
         target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
         scanLocalOrphans.mockResolvedValue({ orphans: [image], indeterminate: [], total: 1, referenced: 0 });
         target.handoff.start(target.editor, target.note, 1);

@@ -9,8 +9,10 @@ UploaderBase
 ├── S3Uploader
 └── CustomUploader
 
-UploadService    统一四种业务入口、重试与结构化结果
+UploadService    文件/数据上传、重试与结构化结果
 UploadQueue      全库批量上传的 3 worker 与进度
+ExplicitUploadWorkflow  单图、笔记、全库显式上传及结构化汇总
+UploadReferenceManager  上传引用准备、渲染与普通 Vault 替换
 upload-path.ts   原生图床共享路径模板
 public-url.ts    公共 URL base 规范化与拼接
 ```
@@ -32,12 +34,12 @@ public-url.ts    公共 URL base 规范化与拼接
 - 只有显式使用 `{sourceDir}` 时才把 Vault 目录名发送给服务商。
 - Custom 不使用对象 key 模板，以响应 JSON path 提取 URL。
 
-`UploadService` 统一：
+`UploadService` 统一文件/数据上传、压缩载荷、重试和结构化结果；它只通过 getter 读取压缩、质量和上传路径三项默认值，不依赖完整插件设置。调用分工为：
 
-- 当前图片上传
-- 活动/指定笔记图片上传
-- 全库批量上传
-- 粘贴自动上传
+- `ExplicitUploadWorkflow`：当前图片、活动/指定笔记和全库批量上传。
+- managed/delegated 管线：粘贴自动上传，因为它们需要不同的事务身份与安全重验。
+
+笔记上传按解析出的 `TFile.path` 去重：同一图片只上传一次，但每处引用使用自己的 alt 生成替换文本。所有成功引用先一次写回当前笔记，写回成功后才替换其他笔记，降低当前笔记失败时的跨 Vault 部分更新范围。无法解析的引用和每张唯一图片的上传失败都进入结构化汇总。
 
 重试只在统一编排层发生。`UploadQueue` 启动 3 个 worker，并为每文件向 Service 配置最多 3 次重试。成功 listener 只在完整成功后发布；失败不发布远程会话失效。
 
@@ -71,6 +73,8 @@ public-url.ts    公共 URL base 规范化与拼接
 - replacement 中的 `$&` 等字符串不得被解释为正则替换指令。
 - 无效模板、尺寸无效或解码失败时回退标准 Markdown，不改变上传成功状态。
 - 只影响上传后的远程引用，不改变本地粘贴、转换、重命名或整理。
+
+`UploadReferenceManager.prepare()` 每张图片只解析一次所需尺寸，并返回可按不同 alt 重复渲染的 prepared reference；普通全 Vault 替换也集中在该模块。managed/delegated 的精确事务引用替换仍由各自管线执行。
 
 ## Provider 特有上传协议
 

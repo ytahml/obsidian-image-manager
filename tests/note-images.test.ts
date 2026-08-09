@@ -107,4 +107,39 @@ describe('note image upload references', () => {
 
         expect(resolveLocalImageReference(app, note, '<assets/my%20image.png>')).toBe(image);
     });
+
+    it('excludes every remote scheme, protocol-relative URL, data URL and blob URL', async () => {
+        const note = createFile('notes/current.md', 'notes');
+        const local = createFile('notes/local.png', 'notes');
+        const paths = [
+            'local.png',
+            'HTTPS://cdn.example/image.png',
+            '//cdn.example/image.png',
+            'data:image/png;base64,abc',
+            'blob:https://example.com/id',
+        ];
+        const app = {
+            workspace: { getActiveViewOfType: vi.fn(() => null) },
+            metadataCache: { getFirstLinkpathDest: vi.fn(() => local) },
+            vault: {
+                read: vi.fn(async () => 'content'),
+                getAbstractFileByPath: vi.fn(),
+                getFiles: vi.fn(() => [local]),
+            },
+        } as unknown as App;
+        const refConverter = {
+            parseReferences: vi.fn(() => paths.map((path, index) => ({
+                fullMatch: `![${index}](${path})`,
+                altText: String(index),
+                path,
+                format: 'markdown',
+                line: 0,
+                col: index,
+            }))),
+        } as unknown as RefConverter;
+
+        const result = await collectLocalNoteImages(app, note, refConverter);
+
+        expect(result.references.map((item) => item.reference.path)).toEqual(['local.png']);
+    });
 });

@@ -9,6 +9,8 @@
 ```text
 ClipboardEvent/DragEvent
   → 过滤 image/* 文件
+  → main.ts 按 localManagementMode 分流
+  → ManagedPastePipeline
   → generateImageFileName
   → 可选 ImageNamePromptModal
   → savePastedImage
@@ -110,6 +112,7 @@ ClipboardEvent/DragEvent
 - 按笔记分组并列出全部行号。
 - 点击行号关闭浏览器并定位笔记。
 - 操作包括复制引用、插入当前笔记、上传、重命名和关闭。
+- 本地预览只依赖窄的查询/上传/重命名 actions，不持有完整 Plugin 类型；Notice 和图床选择仍属于 Modal adapter。
 
 复制与插入统一使用安全路径编码。
 
@@ -132,15 +135,15 @@ ClipboardEvent/DragEvent
 
 委托自动接力在刚替换活动编辑器的事务引用后，复扫来源笔记必须使用 Editor 当前文本覆盖可能尚未刷新的 Vault 缓存；否则旧本地引用会导致错误保留本应回收的附件。
 
-managed 自动上传保存刚插入的完整本地引用，上传后在来源 Editor 全文中按“完整引用 + Obsidian 解析到该 `TFile`”唯一重定位；光标移动、重复引用或映射变化时失败关闭。只有精确替换成功且 fresh 全库扫描仍判定为孤立时才回收本地附件。
+managed 自动上传保存刚插入的完整本地引用，上传后在来源 Editor 全文中按“完整引用 + Obsidian 解析到该 `TFile`”唯一重定位；Markdown linkpath 在交给 Obsidian 解析前逐段容错解码，事务身份仍保留原始编码引用。光标移动、重复引用或映射变化时失败关闭。只有精确替换成功且 fresh 全库扫描仍判定为孤立时才回收本地附件。
 
-委托接力事务在创建时冻结图床、上传压缩与质量、上传路径模板、引用模板和本地副本策略，并保存粘贴前的来源笔记引用基线；当前引用只从基线后的新增差异中求解。在途相关设置变化使结果失效，不得继续替换或删除。
+委托接力事务在创建时冻结图床、delegated 自动上传偏好、上传压缩与质量、上传路径模板、引用模板和 delegated 本地副本策略，并保存粘贴前的来源笔记引用基线；当前引用只从基线后的新增差异中求解。在途相关设置变化使结果失效，不得继续替换或删除。managed 模式对应偏好的变化不影响 delegated 事务。
 
 委托模式在候选附件 create 或 rename 后会延迟再次解析来源笔记，覆盖附件管理器事件先于笔记缓存更新、或用户切换笔记的事件顺序。
 
 delegated 使用 Obsidian 链接语义解析候选时，Markdown 目标必须先按路径段解码（例如默认粘贴产生的 `%20`），Wiki 目标保持原样；事务身份仍使用原始完整引用，避免解码改变精确匹配。
 
-Attachment Management 0.12.1 的真实验收确认：其附件重命名流程会持续写回本地引用，即使关闭 Obsidian 自动更新内部链接，也可能覆盖 delegated 自动上传生成的远端引用。首版只声明 `delegated + Attachment Management + keepLocalCopy=false` 兼容；`keepLocalCopy=true` 不声明支持。
+delegated 接力只依据 Obsidian 公开事件、当前 Editor/Vault 内容和可解析引用作尽力协调，不接入外部附件管理者的私有生命周期，也不能证明其处理已经最终完成。外部管理者可能在上传开始后继续重命名、移动附件或改写引用；不得据此对任何特定插件、版本或配置作兼容性声明。
 
 候选归属不使用 create FIFO。每个事务只接受其观察差异中能够与新增引用形成一一映射的 `TFile`；重叠事务、重复引用或超过输入项数量的多余候选无法唯一归属时失败关闭，已能证明的独立项可继续。同来源笔记的引用重验、替换和回收通过按笔记串行执行器完成，其他笔记仍可并行。
 
@@ -148,7 +151,7 @@ Attachment Management 0.12.1 的真实验收确认：其附件重命名流程会
 
 上传服务在每次 delegated 网络尝试前调用事务重验；失效或验证异常后停止后续重试。网络成功后、串行写入前和本地回收前再次验证设置、附件身份及事务状态；在途成功但未采用的结果不替换引用或回收本地文件。来源笔记或附件删除会取消相应事务或图片项。多图结果按 paste/drop 事务最多汇总一次通知。
 
-Obsidian 1.13 声明式设置页在 delegated 模式禁用本地路径、命名、managed 粘贴引用格式和本地粘贴压缩；图床接力设置保持可编辑。
+Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘贴引用格式和本地粘贴压缩；本地路径规则因显式整理仍可用而保持显示。图床接力设置绑定 delegated 独立偏好，切回 managed 后恢复 managed 独立偏好。
 
 专用 `OrphanImagesModal` 与图片浏览器共享这套 fresh 边界。
 
@@ -164,6 +167,7 @@ Obsidian 1.13 声明式设置页在 delegated 模式禁用本地路径、命名�
 - 非活动笔记使用 Vault `read`。
 - Markdown 本地路径先完整容错解码并去除尖括号，再用 Obsidian linkpath 语义解析。
 - 聚合未解析引用、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要。
+- 排除所有 URL scheme、protocol-relative、data 与 blob 引用；同一 `TFile.path` 在显式笔记上传中只上传一次，每处引用仍独立保留 alt。
 
 上传后替换：
 
@@ -171,16 +175,17 @@ Obsidian 1.13 声明式设置页在 delegated 模式禁用本地路径、命名�
 - 跳过所有 URL scheme、protocol-relative、data 与 blob 引用。
 - 当前 Editor 已更新时，遍历其他笔记必须跳过当前文件。
 - 上传 URL 中 Unicode 可读化只发生在生成 Markdown 引用的边界。
+- 当前笔记的全部成功替换先一次写回，成功后再更新其他笔记；显式流程只返回结构化结果，Notice 和进度属于 `main.ts` UI adapter。
 
 ## 自动上传与本地清理
 
-`autoUploadOnPaste` 独立于 managed 引用格式：
+当前模式自己的自动上传偏好独立于 managed 引用格式：
 
 1. 保存本地文件并插入引用。
 2. 使用默认图床上传，传入 `savedFile.path` 支持 `{sourceDir}`。
 3. 替换当前 Editor 中刚插入的引用。
 4. 按设置替换其他笔记中的匹配本地引用。
-5. `keepLocalCopy=false` 时用 `fileManager.trashFile()` 回收本地文件。
+5. 当前模式自己的本地副本偏好为 false 时，用 `fileManager.trashFile()` 回收本地文件。
 6. 只有保存时捕获的同一直接父 `TFolder` 仍存在、不是 Vault 根且当前为空时，才永久非递归删除该空目录。
 
 空目录清理失败不能改变上传成功结果。

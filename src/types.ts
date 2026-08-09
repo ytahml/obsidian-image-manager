@@ -162,8 +162,14 @@ export interface ImageManagerSettings {
     reorganizeConvertFormat: boolean;
     skipWikiRefsOnReorganize: boolean;
     enableImageBrowser: boolean;
-    autoUploadOnPaste: boolean;
-    keepLocalCopy: boolean;
+    managedAutoUploadOnPaste: boolean;
+    delegatedAutoUploadOnPaste: boolean;
+    managedKeepLocalCopy: boolean;
+    delegatedKeepLocalCopy: boolean;
+    /** Legacy persisted value, read only during migration. */
+    autoUploadOnPaste?: boolean;
+    /** Legacy persisted value, read only during migration. */
+    keepLocalCopy?: boolean;
     remoteDeleteHistory: RemoteDeleteAuditEntry[];
 }
 
@@ -190,8 +196,10 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     reorganizeConvertFormat: true,
     skipWikiRefsOnReorganize: true,
     enableImageBrowser: true,
-    autoUploadOnPaste: false,
-    keepLocalCopy: false,
+    managedAutoUploadOnPaste: false,
+    delegatedAutoUploadOnPaste: false,
+    managedKeepLocalCopy: false,
+    delegatedKeepLocalCopy: false,
     remoteDeleteHistory: [],
 };
 
@@ -211,8 +219,23 @@ export function normalizeImageManagerSettings(loaded: Partial<ImageManagerSettin
     merged.compressBeforeUpload = typeof loaded?.compressBeforeUpload === 'boolean'
         ? loaded.compressBeforeUpload
         : legacyCompression ?? DEFAULT_SETTINGS.compressBeforeUpload;
-    merged.autoUploadOnPaste = loaded?.localManagementMode === 'managed' || loaded?.localManagementMode === 'delegated'
+    const legacyAutoUploadOnPaste = loaded?.localManagementMode === 'managed' || loaded?.localManagementMode === 'delegated'
         ? Boolean(loaded.autoUploadOnPaste)
         : Boolean(loaded?.autoUploadOnPaste && legacyMarkdown && canResolveEnabledHosting);
+    const legacyKeepLocalCopy = Boolean(loaded?.keepLocalCopy);
+    merged.managedAutoUploadOnPaste = typeof loaded?.managedAutoUploadOnPaste === 'boolean'
+        ? loaded.managedAutoUploadOnPaste
+        : legacyAutoUploadOnPaste;
+    merged.delegatedAutoUploadOnPaste = typeof loaded?.delegatedAutoUploadOnPaste === 'boolean'
+        ? loaded.delegatedAutoUploadOnPaste
+        : legacyAutoUploadOnPaste;
+    merged.managedKeepLocalCopy = typeof loaded?.managedKeepLocalCopy === 'boolean'
+        ? loaded.managedKeepLocalCopy
+        : legacyKeepLocalCopy;
+    merged.delegatedKeepLocalCopy = typeof loaded?.delegatedKeepLocalCopy === 'boolean'
+        ? loaded.delegatedKeepLocalCopy
+        : legacyKeepLocalCopy;
+    delete merged.autoUploadOnPaste;
+    delete merged.keepLocalCopy;
     return merged;
 }

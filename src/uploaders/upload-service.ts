@@ -1,5 +1,5 @@
 import type { App, TFile } from 'obsidian';
-import type { ImageHostingConfig, ImageManagerSettings, UploadContext, UploadResult } from '../types';
+import type { ImageHostingConfig, UploadContext, UploadResult } from '../types';
 import { ImageOptimizer } from '../utils/image-optimizer';
 import { createUploader } from './uploader-factory';
 
@@ -25,6 +25,12 @@ export interface UploadServiceOptions {
     beforeAttempt?: (attempt: number) => boolean | Promise<boolean>;
 }
 
+export interface UploadDefaults {
+    compressBeforeUpload: boolean;
+    compressQuality: number;
+    uploadPathTemplate: string;
+}
+
 /**
  * One in-memory upload orchestration boundary for every upload entry point.
  * It deliberately publishes no persistent upload history: remote existence is
@@ -36,7 +42,7 @@ export class UploadService {
 
     constructor(
         private readonly app: App,
-        private readonly settings: ImageManagerSettings
+        private readonly getDefaults: () => UploadDefaults
     ) {
         this.optimizer = new ImageOptimizer(app);
     }
@@ -53,8 +59,9 @@ export class UploadService {
     ): Promise<UploadOperationResult> {
         let data = await this.app.vault.readBinary(file);
         const originalSize = data.byteLength;
-        if (options.compressBeforeUpload ?? this.settings.compressBeforeUpload) {
-            const compressed = await this.optimizer.compressImage(file, options.compressQuality ?? this.settings.compressQuality);
+        const defaults = this.getDefaults();
+        if (options.compressBeforeUpload ?? defaults.compressBeforeUpload) {
+            const compressed = await this.optimizer.compressImage(file, options.compressQuality ?? defaults.compressQuality);
             data = compressed.data;
         }
         return this.uploadData(data, file.name, hostingConfig, {
@@ -71,7 +78,10 @@ export class UploadService {
         originalSize: number = data.byteLength
     ): Promise<UploadOperationResult> {
         const maxRetries = Math.max(0, Math.floor(options.maxRetries ?? 0));
-        const uploader = createUploader(hostingConfig, options.uploadPathTemplate ?? this.settings.uploadPathTemplate);
+        const uploader = createUploader(
+            hostingConfig,
+            options.uploadPathTemplate ?? this.getDefaults().uploadPathTemplate
+        );
         let attempts = 0;
         let lastResult: UploadResult | undefined;
         let lastError: unknown;

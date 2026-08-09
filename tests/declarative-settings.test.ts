@@ -33,7 +33,12 @@ vi.mock('obsidian', () => {
     };
 });
 
-import { ImageManagerSettingTab } from '../src/settings';
+import {
+    getActivePastePreference,
+    ImageManagerSettingTab,
+    setActivePastePreference,
+    shouldDisableKeepLocalCopy,
+} from '../src/settings';
 import { setLocale, t } from '../src/i18n';
 import { DEFAULT_SETTINGS, type ImageManagerSettings } from '../src/types';
 
@@ -67,6 +72,22 @@ function findControl(tab: ImageManagerSettingTab, key: string) {
     throw new Error(`Missing control: ${key}`);
 }
 
+function hasControl(tab: ImageManagerSettingTab, key: string): boolean {
+    try {
+        findControl(tab, key);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function hasSetting(tab: ImageManagerSettingTab, name: string): boolean {
+    return tab.getSettingDefinitions().some((item) => {
+        if ('name' in item && item.name === name) return true;
+        return 'items' in item && item.items?.some((child) => 'name' in child && child.name === name);
+    });
+}
+
 describe('Obsidian 1.13 declarative settings', () => {
     beforeEach(() => setLocale('en'));
 
@@ -79,11 +100,9 @@ describe('Obsidian 1.13 declarative settings', () => {
         expect(findControl(tab, 'enableImageBrowser').type).toBe('toggle');
     });
 
-    it('disables managed-only controls in delegated mode', () => {
+    it('hides managed-only controls but keeps shared path controls in delegated mode', () => {
         const { tab } = createTab('delegated');
         const managedOnlyKeys = [
-            'imagePathTemplate',
-            'imagePathBase',
             'managedPasteReferenceFormat',
             'imageNamingTemplate',
             'promptImageName',
@@ -91,9 +110,16 @@ describe('Obsidian 1.13 declarative settings', () => {
         ];
 
         for (const key of managedOnlyKeys) {
-            const disabled = findControl(tab, key).disabled;
-            expect(typeof disabled === 'function' ? disabled() : disabled).toBe(true);
+            expect(hasControl(tab, key)).toBe(false);
         }
+        expect(hasControl(tab, 'imagePathTemplate')).toBe(true);
+        expect(hasControl(tab, 'imagePathBase')).toBe(true);
+        expect(hasSetting(tab, t('settings.delegatedCompatibility'))).toBe(true);
+    });
+
+    it('shows the delegated compatibility notice only on the delegated line', () => {
+        expect(hasSetting(createTab('managed').tab, t('settings.delegatedCompatibility'))).toBe(false);
+        expect(hasSetting(createTab('delegated').tab, t('settings.delegatedCompatibility'))).toBe(true);
     });
 
     it('persists normalized values and refreshes settings with side effects', async () => {
@@ -110,5 +136,47 @@ describe('Obsidian 1.13 declarative settings', () => {
         expect(t('settings.language')).toBe('语言');
         expect(plugin.saveData).toHaveBeenCalledTimes(3);
         expect(update).toHaveBeenCalledTimes(2);
+    });
+
+    it('preserves independent paste preferences when switching modes', async () => {
+        const { plugin, tab } = createTab('managed');
+        plugin.settings.managedAutoUploadOnPaste = false;
+        plugin.settings.managedKeepLocalCopy = true;
+        plugin.settings.delegatedAutoUploadOnPaste = true;
+        plugin.settings.delegatedKeepLocalCopy = false;
+
+        await tab.setControlValue('localManagementMode', 'delegated');
+        await tab.setControlValue('localManagementMode', 'managed');
+
+        expect(plugin.settings.managedAutoUploadOnPaste).toBe(false);
+        expect(plugin.settings.managedKeepLocalCopy).toBe(true);
+        expect(plugin.settings.delegatedAutoUploadOnPaste).toBe(true);
+        expect(plugin.settings.delegatedKeepLocalCopy).toBe(false);
+    });
+
+    it('binds paste toggles to the active mode and derives the keep-local gate', () => {
+        const { plugin } = createTab('managed');
+        plugin.settings.managedAutoUploadOnPaste = true;
+        plugin.settings.managedKeepLocalCopy = false;
+        plugin.settings.delegatedAutoUploadOnPaste = false;
+        plugin.settings.delegatedKeepLocalCopy = false;
+
+        expect(getActivePastePreference(plugin.settings, 'autoUploadOnPaste')).toBe(true);
+        expect(getActivePastePreference(plugin.settings, 'keepLocalCopy')).toBe(false);
+        expect(shouldDisableKeepLocalCopy(plugin.settings)).toBe(false);
+        setActivePastePreference(plugin.settings, 'autoUploadOnPaste', false);
+        expect(plugin.settings.managedAutoUploadOnPaste).toBe(false);
+        expect(plugin.settings.delegatedAutoUploadOnPaste).toBe(false);
+
+        plugin.settings.localManagementMode = 'delegated';
+        expect(getActivePastePreference(plugin.settings, 'keepLocalCopy')).toBe(false);
+        expect(shouldDisableKeepLocalCopy(plugin.settings)).toBe(true);
+        setActivePastePreference(plugin.settings, 'autoUploadOnPaste', true);
+        expect(plugin.settings.delegatedAutoUploadOnPaste).toBe(true);
+        expect(plugin.settings.managedAutoUploadOnPaste).toBe(false);
+        expect(shouldDisableKeepLocalCopy(plugin.settings)).toBe(false);
+        setActivePastePreference(plugin.settings, 'keepLocalCopy', true);
+        expect(plugin.settings.delegatedKeepLocalCopy).toBe(true);
+        expect(plugin.settings.managedKeepLocalCopy).toBe(false);
     });
 });

@@ -12,7 +12,8 @@ describe('settings migration', () => {
 
         expect(settings.localManagementMode).toBe('managed');
         expect(settings.managedPasteReferenceFormat).toBe('wiki');
-        expect(settings.autoUploadOnPaste).toBe(false);
+        expect(settings.managedAutoUploadOnPaste).toBe(false);
+        expect(settings.delegatedAutoUploadOnPaste).toBe(false);
         expect(settings.compressManagedPasteLocal).toBe(true);
         expect(settings.compressBeforeUpload).toBe(true);
     });
@@ -24,7 +25,8 @@ describe('settings migration', () => {
             hostingConfigs: [],
         });
 
-        expect(settings.autoUploadOnPaste).toBe(false);
+        expect(settings.managedAutoUploadOnPaste).toBe(false);
+        expect(settings.delegatedAutoUploadOnPaste).toBe(false);
     });
 
     it('keeps explicit delegated and split compression settings', () => {
@@ -49,6 +51,34 @@ describe('settings migration', () => {
             hostingConfigs: [{ id: 'hosting', enabled: true }] as never,
         });
 
-        expect(settings.autoUploadOnPaste).toBe(true);
+        expect(settings.managedAutoUploadOnPaste).toBe(true);
+        expect(settings.delegatedAutoUploadOnPaste).toBe(true);
+    });
+
+    it('preserves independent managed and delegated paste preferences', () => {
+        const settings = normalizeImageManagerSettings({
+            managedAutoUploadOnPaste: false,
+            delegatedAutoUploadOnPaste: true,
+            managedKeepLocalCopy: true,
+            delegatedKeepLocalCopy: false,
+        });
+
+        expect(settings.managedAutoUploadOnPaste).toBe(false);
+        expect(settings.delegatedAutoUploadOnPaste).toBe(true);
+        expect(settings.managedKeepLocalCopy).toBe(true);
+        expect(settings.delegatedKeepLocalCopy).toBe(false);
+    });
+
+    it('copies the legacy keep-local preference to both modes and removes legacy keys', () => {
+        const settings = normalizeImageManagerSettings({
+            localManagementMode: 'delegated',
+            autoUploadOnPaste: false,
+            keepLocalCopy: true,
+        });
+
+        expect(settings.managedKeepLocalCopy).toBe(true);
+        expect(settings.delegatedKeepLocalCopy).toBe(true);
+        expect(settings.autoUploadOnPaste).toBeUndefined();
+        expect(settings.keepLocalCopy).toBeUndefined();
     });
 });

@@ -26,17 +26,23 @@
 | `reorganizeConvertFormat` | true | 显式整理时是否转换为 Markdown |
 | `skipWikiRefsOnReorganize` | true | 整理时是否跳过 Wiki |
 | `enableImageBrowser` | true | ribbon 与 browser command |
-| `autoUploadOnPaste` | false | 粘贴后自动上传 |
-| `keepLocalCopy` | false | 自动上传后是否保留本地文件 |
+| `managedAutoUploadOnPaste` | false | managed 粘贴后自动上传 |
+| `delegatedAutoUploadOnPaste` | false | delegated 粘贴后接力上传 |
+| `managedKeepLocalCopy` | false | managed 自动上传后是否保留本地文件 |
+| `delegatedKeepLocalCopy` | false | delegated 自动上传后是否保留本地文件 |
 | `remoteDeleteHistory` | `[]` | 最近 200 条脱敏诊断 |
 
 加载设置使用 `Object.assign({}, DEFAULT_SETTINGS, loaded)` 兼容旧 data，不能修改默认值对象；新增字段必须提供默认值和必要规范化。
 
 ## 本地管理与图床接力
 
-`localManagementMode` 只决定自动 paste/drop 的本地管理权；`autoUploadOnPaste` 独立决定是否接续图床上传。`managedPasteReferenceFormat` 只影响 managed 初始引用，`reorganizeConvertFormat` 只影响显式整理。手动上传与自动上传均不受这两个格式设置门控。
+`localManagementMode` 只决定自动 paste/drop 的本地管理权。managed/delegated 分别保存自动上传和本地副本偏好，切换线路只改变当前读取哪组偏好，不重置任一组值。旧 `autoUploadOnPaste` / `keepLocalCopy` 加载时分别复制到两条线路，然后不再持久化旧字段。
 
-Obsidian 1.13 声明式设置页在 delegated 下禁用并解释路径、命名、命名提示、managed 引用格式和本地粘贴压缩，同时保留其值；图床接力设置继续可编辑。
+`managedPasteReferenceFormat` 只影响 managed 初始引用，`reorganizeConvertFormat` 只影响显式整理。手动上传与自动上传均不受这两个格式设置门控。
+
+Obsidian 1.13 声明式设置页在 delegated 下隐藏命名、命名提示、managed 引用格式和本地粘贴压缩，同时保留其值。路径模板与路径基准始终显示，因为显式整理和外部重命名修复在两种模式下都会读取。图床接力设置继续可编辑，并绑定当前模式自己的自动上传与本地副本偏好。
+
+切换到 delegated 后，设置页在模式选择器下方显示兼容性提示：自动接力只面向 Markdown 编辑器，依赖 Obsidian 公开事件和可唯一解析的新增引用，属于尽力协调；不保证 Canvas 或特定第三方插件、版本、配置组合兼容，并保留显式上传命令作为替代路径。
 
 ## Obsidian 1.13 声明式设置
 
@@ -45,7 +51,8 @@ Obsidian 1.13 声明式设置页在 delegated 下禁用并解释路径、命名�
 - `getSettingDefinitions()` 是唯一设置入口，提供渲染与搜索索引；不实现 `display()` fallback。
 - 普通单字段设置优先使用 `control` 自动绑定；需要副作用、即时草稿校验或动态复杂 UI 时使用 `setControlValue()` 或 `render`。
 - 语言、本地管理模式和图床列表变化后调用 `update()`，重新生成本地化文案、禁用状态或动态列表结构。
-- delegated 模式通过声明式 `disabled` 谓词禁用 managed 专属控件，图床接力设置保持可编辑。
+- delegated 模式不生成 managed 专属控件；隐藏只影响设置页投影，不删除、重置或迁移其持久化值。
+- 自动上传关闭时禁用“保留本地副本”；切换线路后根据该线路保存的偏好重新渲染。
 
 新增设置步骤：
 

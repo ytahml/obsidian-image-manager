@@ -20,8 +20,8 @@ src/settings.ts             Obsidian 1.13 声明式设置定义、图床自定�
 src/types.ts                持久化设置与公共本地域类型
 src/modals/                 本地/远程浏览、预览、配置、命名与确认 UI
 src/utils/                  路径、引用、扫描、压缩、整理、重命名与本地清理
-src/lifecycle/              paste/drop 事务匹配、串行效果、rename 批处理与近期变化保护
-src/uploaders/              上传器、上传路径、结果摘要、UploadService/Queue
+src/lifecycle/              managed paste 管线、delegated 事务匹配、串行效果、rename 批处理与近期变化保护
+src/uploaders/              上传器、上传路径、引用生成、显式上传流程、UploadService/Queue
 src/remote/                 Provider、请求/错误、扫描/预览/删除会话、引用索引
 src/oss/ src/qiniu/ src/s3/ 服务商签名与共享请求目标
 src/i18n/                   中英文词条与插值
@@ -61,11 +61,13 @@ src/i18n/                   中英文词条与插值
 
 1. 加载并合并 `DEFAULT_SETTINGS`，规范化删除历史。
 2. 设置 locale。
-3. 创建 RefConverter、ImageOptimizer、UploadService、生命周期协调器、BatchRename、RemoteReferenceIndex 和审计 writer。
+3. 创建 RefConverter、ImageOptimizer、UploadService、UploadReferenceManager、ExplicitUploadWorkflow、managed paste 管线、delegated 生命周期协调器、BatchRename、RemoteReferenceIndex 和审计 writer。
 4. 按设置注册 ribbon、命令与设置页。
 5. 注册 paste/drop、Vault create/modify/delete/rename 和 file-menu 事件。
 
 Vault 中 Markdown 文件变化会使远程引用索引 stale。delegated paste/drop 先冻结来源笔记引用基线，再通过事务差异把新 `TFile` 与唯一新增引用配对，同来源笔记效果串行；图片 rename 链按最终路径合并为一个串行修复批次，并受 delegated 活跃/近期保护门禁约束。整理期间由 `isReorganizing` 阻止修复器与内部移动冲突。
+
+`ManagedPastePipeline` 封装 managed 模式从命名、路径、压缩、落盘、引用插入到可选上传及安全回收的完整事务。`UploadReferenceManager` 统一上传引用的准备、渲染和普通 Vault 替换，`ExplicitUploadWorkflow` 返回不含 Notice/剪贴板副作用的单图、笔记和全库结构化结果。`main.ts` 只过滤事件输入、在 managed/delegated 之间分流并把结果投影到 Obsidian UI；资源整理继续通过插件公开的 `resolveImagePath()` 复用同一条路径规则。
 
 ## 核心类型
 
@@ -113,13 +115,16 @@ paste/drop
 ```
 
 ```text
-单图 / 笔记 / 全库 / 粘贴上传
+单图 / 笔记 / 全库
+  → ExplicitUploadWorkflow
   → UploadService
   → createUploader
   → 结构化操作结果
   → 默认或自定义引用
   → 仅失效匹配 hostingId 的已打开远程会话
 ```
+
+粘贴自动上传不经过 `ExplicitUploadWorkflow`：managed/delegated 管线必须保留各自的事务重验、精确引用替换和本地回收门禁，但共享 `UploadService` 与 `UploadReferenceManager`。
 
 ```text
 显式远程扫描

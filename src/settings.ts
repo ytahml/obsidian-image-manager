@@ -1,10 +1,42 @@
-import { App, PluginSettingTab, Setting, type SettingDefinitionItem } from 'obsidian';
+import { App, PluginSettingTab, Setting, type SettingDefinitionItem, type SettingGroupItem } from 'obsidian';
 import type ImageManagerPlugin from './main';
 import { DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { t, setLocale } from './i18n';
 import { HostingConfigModal } from './modals/hosting-config';
 import { ConfirmDialog } from './modals/confirm-dialog';
 import { validateReferenceTemplate } from './utils/reference-template';
+
+type PastePreferenceKey = 'autoUploadOnPaste' | 'keepLocalCopy';
+
+const PASTE_PREFERENCE_FIELDS = {
+    managed: {
+        autoUploadOnPaste: 'managedAutoUploadOnPaste',
+        keepLocalCopy: 'managedKeepLocalCopy',
+    },
+    delegated: {
+        autoUploadOnPaste: 'delegatedAutoUploadOnPaste',
+        keepLocalCopy: 'delegatedKeepLocalCopy',
+    },
+} as const;
+
+export function getActivePastePreference(
+    settings: ImageManagerPlugin['settings'],
+    key: PastePreferenceKey
+): boolean {
+    return settings[PASTE_PREFERENCE_FIELDS[settings.localManagementMode][key]];
+}
+
+export function setActivePastePreference(
+    settings: ImageManagerPlugin['settings'],
+    key: PastePreferenceKey,
+    value: boolean
+): void {
+    settings[PASTE_PREFERENCE_FIELDS[settings.localManagementMode][key]] = value;
+}
+
+export function shouldDisableKeepLocalCopy(settings: ImageManagerPlugin['settings']): boolean {
+    return !getActivePastePreference(settings, 'autoUploadOnPaste');
+}
 
 export class ImageManagerSettingTab extends PluginSettingTab {
     plugin: ImageManagerPlugin;
@@ -32,18 +64,71 @@ export class ImageManagerSettingTab extends PluginSettingTab {
         }
     }
 
-    private managedSettingDesc(descKey: Parameters<typeof t>[0]): string {
-        const desc = t(descKey);
-        return this.plugin.settings.localManagementMode === 'delegated'
-            ? `${desc} ${t('settings.delegatedManagedControlDesc')}`
-            : desc;
-    }
-
     private isDelegated(): boolean {
         return this.plugin.settings.localManagementMode === 'delegated';
     }
 
+    private isAutoUploadOnPasteEnabled(): boolean {
+        return getActivePastePreference(this.plugin.settings, 'autoUploadOnPaste');
+    }
+
+    private setAutoUploadOnPaste(value: boolean): void {
+        setActivePastePreference(this.plugin.settings, 'autoUploadOnPaste', value);
+    }
+
+    private keepLocalCopy(): boolean {
+        return getActivePastePreference(this.plugin.settings, 'keepLocalCopy');
+    }
+
+    private setKeepLocalCopy(value: boolean): void {
+        setActivePastePreference(this.plugin.settings, 'keepLocalCopy', value);
+    }
+
     getSettingDefinitions(): SettingDefinitionItem[] {
+        const managedGeneralItems: SettingGroupItem[] = this.isDelegated() ? [] : [{
+            name: t('settings.managedPasteReferenceFormat'),
+            desc: t('settings.managedPasteReferenceFormatDesc'),
+            control: {
+                type: 'dropdown',
+                key: 'managedPasteReferenceFormat',
+                options: {
+                    markdown: t('settings.managedPasteReferenceFormat.markdown'),
+                    wiki: t('settings.managedPasteReferenceFormat.wiki'),
+                },
+            },
+        }];
+        const managedGroups: SettingDefinitionItem[] = this.isDelegated() ? [] : [{
+            type: 'group',
+            heading: t('settings.imageNaming'),
+            items: [
+                {
+                    name: t('settings.imageNamingTemplate'),
+                    desc: t('settings.imageNamingTemplateDesc'),
+                    control: {
+                        type: 'text',
+                        key: 'imageNamingTemplate',
+                        placeholder: DEFAULT_SETTINGS.imageNamingTemplate,
+                    },
+                },
+                {
+                    name: t('settings.promptImageName'),
+                    desc: t('settings.promptImageNameDesc'),
+                    control: {
+                        type: 'toggle',
+                        key: 'promptImageName',
+                    },
+                },
+            ],
+        }];
+        const managedCompressionItems: SettingGroupItem[] = this.isDelegated() ? [] : [{
+            name: t('settings.compressManagedPasteLocal'),
+            desc: t('settings.compressManagedPasteLocalDesc'),
+            control: {
+                type: 'toggle',
+                key: 'compressManagedPasteLocal',
+            },
+        }];
+
         return [
             {
                 name: t('settings.language'),
@@ -70,19 +155,22 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                             },
                         },
                     },
+                    ...(this.isDelegated() ? [{
+                        name: t('settings.delegatedCompatibility'),
+                        desc: t('settings.delegatedCompatibilityDesc'),
+                    }] : []),
                     {
                         name: t('settings.imagePathTemplate'),
-                        desc: this.managedSettingDesc('settings.imagePathTemplateDesc'),
+                        desc: t('settings.imagePathTemplateDesc'),
                         control: {
                             type: 'text',
                             key: 'imagePathTemplate',
                             placeholder: DEFAULT_SETTINGS.imagePathTemplate,
-                            disabled: () => this.isDelegated(),
                         },
                     },
                     {
                         name: t('settings.imagePathBase'),
-                        desc: this.managedSettingDesc('settings.imagePathBaseDesc'),
+                        desc: t('settings.imagePathBaseDesc'),
                         control: {
                             type: 'dropdown',
                             key: 'imagePathBase',
@@ -90,22 +178,9 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                                 vault: t('settings.imagePathBase.vault'),
                                 note: t('settings.imagePathBase.note'),
                             },
-                            disabled: () => this.isDelegated(),
                         },
                     },
-                    {
-                        name: t('settings.managedPasteReferenceFormat'),
-                        desc: this.managedSettingDesc('settings.managedPasteReferenceFormatDesc'),
-                        control: {
-                            type: 'dropdown',
-                            key: 'managedPasteReferenceFormat',
-                            options: {
-                                markdown: t('settings.managedPasteReferenceFormat.markdown'),
-                                wiki: t('settings.managedPasteReferenceFormat.wiki'),
-                            },
-                            disabled: () => this.isDelegated(),
-                        },
-                    },
+                    ...managedGeneralItems,
                     {
                         name: t('settings.reorganizeConvertFormat'),
                         desc: t('settings.reorganizeConvertFormatDesc'),
@@ -118,44 +193,12 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                     },
                 ],
             },
-            {
-                type: 'group',
-                heading: t('settings.imageNaming'),
-                items: [
-                    {
-                        name: t('settings.imageNamingTemplate'),
-                        desc: this.managedSettingDesc('settings.imageNamingTemplateDesc'),
-                        control: {
-                            type: 'text',
-                            key: 'imageNamingTemplate',
-                            placeholder: DEFAULT_SETTINGS.imageNamingTemplate,
-                            disabled: () => this.isDelegated(),
-                        },
-                    },
-                    {
-                        name: t('settings.promptImageName'),
-                        desc: this.managedSettingDesc('settings.promptImageNameDesc'),
-                        control: {
-                            type: 'toggle',
-                            key: 'promptImageName',
-                            disabled: () => this.isDelegated(),
-                        },
-                    },
-                ],
-            },
+            ...managedGroups,
             {
                 type: 'group',
                 heading: t('settings.compression'),
                 items: [
-                    {
-                        name: t('settings.compressManagedPasteLocal'),
-                        desc: this.managedSettingDesc('settings.compressManagedPasteLocalDesc'),
-                        control: {
-                            type: 'toggle',
-                            key: 'compressManagedPasteLocal',
-                            disabled: () => this.isDelegated(),
-                        },
-                    },
+                    ...managedCompressionItems,
                     {
                         name: t('settings.compressBeforeUpload'),
                         desc: t('settings.compressBeforeUploadDesc'),
@@ -313,13 +356,16 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.autoUploadOnPaste'))
-            .setDesc(t('settings.autoUploadOnPasteDesc'))
+            .setDesc(t(this.isDelegated()
+                ? 'settings.autoUploadOnPasteDesc.delegated'
+                : 'settings.autoUploadOnPasteDesc.managed'))
             .addToggle((toggle) =>
                 toggle.setDisabled(this.plugin.settings.hostingConfigs.every((config) => !config.enabled))
-                    .setValue(this.plugin.settings.autoUploadOnPaste).onChange(async (value) => {
-                    this.plugin.settings.autoUploadOnPaste = value;
+                    .setValue(this.isAutoUploadOnPasteEnabled()).onChange(async (value) => {
+                    this.setAutoUploadOnPaste(value);
                     if (!value) this.plugin.cancelDelegatedTransactions();
                     await this.plugin.saveSettings();
+                    this.update();
                 })
             );
 
@@ -327,8 +373,9 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             .setName(t('settings.keepLocalCopy'))
             .setDesc(t('settings.keepLocalCopyDesc'))
             .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.keepLocalCopy).onChange(async (value) => {
-                    this.plugin.settings.keepLocalCopy = value;
+                toggle.setDisabled(shouldDisableKeepLocalCopy(this.plugin.settings))
+                    .setValue(this.keepLocalCopy()).onChange(async (value) => {
+                    this.setKeepLocalCopy(value);
                     await this.plugin.saveSettings();
                 })
             );

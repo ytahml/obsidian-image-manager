@@ -4,37 +4,23 @@ import { ImageManagerSettingTab } from './settings';
 import { ImageBrowserModal } from './modals/image-browser';
 import { OrphanImagesModal } from './modals/orphan-images';
 import { RenameImageModal } from './modals/rename-image';
-import { ImageNamePromptModal } from './modals/image-name-prompt';
 import { RefConverter } from './utils/ref-converter';
 import { ImageOptimizer } from './utils/image-optimizer';
 import { ImageScanner } from './utils/image-scanner';
 import { BatchRename } from './utils/batch-rename';
 import { ImageReorganizer } from './utils/image-reorganizer';
-import { UploadQueue } from './uploaders/upload-queue';
 import { UploadService } from './uploaders/upload-service';
-import { summarizeUploadError } from './uploaders/upload-error';
-import { collectLocalNoteImages } from './uploaders/note-images';
+import { ExplicitUploadWorkflow } from './uploaders/explicit-upload-workflow';
+import { UploadReferenceManager } from './uploaders/upload-reference-manager';
 import { setLocale, t } from './i18n';
-import { getDateTemplateVars, getFileNameWithoutExt, encodePathSegments } from './utils/path-utils';
-import { makePublicUrlReadable } from './utils/public-url';
-import { generateImageFileName, sanitizeImageFileName } from './utils/image-naming';
-import {
-    renderCustomReference,
-    resolveReferenceTemplateFileVars,
-    type ReferenceTemplateFileVars,
-} from './utils/reference-template';
-import { removeEmptyDirectParent } from './utils/empty-folder-cleanup';
-import { shouldReplaceLocalImageReference } from './utils/upload-reference';
 import { RemoteReferenceIndex } from './remote/reference-index';
 import type { RemoteDeleteAuditEntry } from './remote/types';
 import { normalizeRemoteDeleteHistory, RemoteDeleteAuditWriter } from './remote/delete-audit';
 import { ObsidianDelegatedHandoff } from './lifecycle/obsidian-delegated-handoff';
-import { chooseManagedPasteUploadSource } from './lifecycle/managed-paste-upload-policy';
 import { ExternalRenameRepairCoordinator } from './lifecycle/external-rename-repair-coordinator';
 import { IndeterminateImageRegistry } from './lifecycle/indeterminate-image-registry';
-import { scanLocalOrphans } from './utils/local-orphan-management';
 import { ConfirmDialog } from './modals/confirm-dialog';
-import { findExactManagedPasteReference } from './lifecycle/managed-paste-reference';
+import { ManagedPastePipeline } from './lifecycle/managed-paste-pipeline';
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -43,18 +29,36 @@ export default class ImageManagerPlugin extends Plugin {
     batchRename: BatchRename;
     remoteReferenceIndex: RemoteReferenceIndex;
     uploadService: UploadService;
+    private uploadReferences: UploadReferenceManager;
+    private explicitUploads: ExplicitUploadWorkflow;
     private delegatedHandoff: ObsidianDelegatedHandoff;
     private isReorganizing = false;
     private renameRepairCoordinator: ExternalRenameRepairCoordinator<TFile>;
     private indeterminateImages: IndeterminateImageRegistry<TFile>;
     private remoteDeleteAuditWriter: RemoteDeleteAuditWriter;
+    private managedPastePipeline: ManagedPastePipeline;
     async onload() {
         await this.loadSettings();
         setLocale(this.settings.locale);
 
         this.refConverter = new RefConverter(this.app);
         this.imageOptimizer = new ImageOptimizer(this.app);
-        this.uploadService = new UploadService(this.app, this.settings);
+        this.uploadService = new UploadService(this.app, () => this.settings);
+        this.uploadReferences = new UploadReferenceManager({
+            app: this.app,
+            refConverter: this.refConverter,
+            getDefaultTemplate: () => this.settings.customReferenceTemplate,
+            getImageInfo: (file) => this.imageOptimizer.getImageInfo(file),
+            onImageInfoError: (file, error) => {
+                console.warn(`[ImageManager] Failed to read image dimensions for ${file.path}:`, error);
+            },
+        });
+        this.explicitUploads = new ExplicitUploadWorkflow(
+            this.app,
+            this.uploadService,
+            this.refConverter,
+            this.uploadReferences
+        );
         this.batchRename = new BatchRename(this.app, this.settings);
         this.indeterminateImages = new IndeterminateImageRegistry<TFile>({
             schedule: (delay, callback) => window.setTimeout(callback, delay),
@@ -83,14 +87,22 @@ export default class ImageManagerPlugin extends Plugin {
             uploadService: this.uploadService,
             refConverter: this.refConverter,
             isImageFile: (file) => this.isImageFile(file),
-            buildUploadedReference: (url, vars, alt, template) => this.buildUploadedReference(url, vars, alt, template),
-            getReferenceTemplateFileVars: (file, template) => this.getReferenceTemplateFileVars(file, template),
+            uploadReferences: this.uploadReferences,
             getDefaultHostingConfig: () => this.getDefaultHostingConfig(),
             notice: (message, timeout) => new Notice(message, timeout),
             beginIndeterminate: (file) => this.indeterminateImages.begin(file, file.path),
             touchIndeterminate: (file) => this.indeterminateImages.touch(file, file.path),
             endIndeterminate: (file) => this.indeterminateImages.end(file, file.path),
             isIndeterminate: (file) => this.indeterminateImages.paths().has(file.path),
+        });
+        this.managedPastePipeline = new ManagedPastePipeline({
+            app: this.app,
+            getSettings: () => this.settings,
+            uploadService: this.uploadService,
+            refConverter: this.refConverter,
+            uploadReferences: this.uploadReferences,
+            getDefaultHostingConfig: () => this.getDefaultHostingConfig(),
+            getIndeterminateImagePaths: () => this.getIndeterminateImagePaths(),
         });
 
         // Ribbon icon
@@ -180,7 +192,7 @@ export default class ImageManagerPlugin extends Plugin {
             id: 'migrate-images',
             name: t('command.migrateImages'),
             callback: () => {
-                new Notice(`${t('command.migrateImages')} - ${t('notice.notImplemented')}`);
+                new Notice(t('notice.migrateNotImplemented'));
             },
         });
 
@@ -438,11 +450,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         const doBatch = async (hostingConfig: ImageHostingConfig) => {
             new Notice(t('notice.batchUploadStart', { count: String(images.length) }));
-
-            const queue = new UploadQueue(this.uploadService);
-            queue.addFiles(images);
-
-            queue.onProgressChange((progress) => {
+            const result = await this.explicitUploads.uploadBatch(images, hostingConfig, (progress) => {
                 new Notice(
                     t('notice.batchUploadProgress', {
                         done: String(progress.completed),
@@ -452,13 +460,10 @@ export default class ImageManagerPlugin extends Plugin {
                     2000
                 );
             });
-
-            const history = await queue.start(hostingConfig);
-
             new Notice(
                 t('notice.batchUploadDone', {
-                    success: String(history.length),
-                    total: String(images.length),
+                    success: String(result.successfulImages),
+                    total: String(result.totalImages),
                 })
             );
         };
@@ -476,22 +481,23 @@ export default class ImageManagerPlugin extends Plugin {
         new Notice(t('notice.uploading'));
 
         try {
-            const result = await this.uploadService.uploadFile(file, hostingConfig);
+            const result = await this.explicitUploads.uploadImage(
+                file,
+                hostingConfig,
+                this.settings.autoReplaceAfterUpload
+            );
 
-            if (result.success && result.url) {
-                const templateVars = await this.getReferenceTemplateFileVars(file);
-                const ref = this.buildUploadedReference(result.url, templateVars);
-                new Notice(`${t('notice.uploadSuccess')}\n${result.url}`, 5000);
-                await navigator.clipboard.writeText(ref);
-
-                if (this.settings.autoReplaceAfterUpload) {
-                    await this.replaceReferenceInNote(file, result.url, undefined, templateVars);
+            if (result.operation.success && result.operation.url && result.reference) {
+                new Notice(t('notice.uploadSuccessWithUrl', { url: result.operation.url }), 5000);
+                await navigator.clipboard.writeText(result.reference);
+                if (result.replacedReferences > 0) {
+                    new Notice(t('notice.replaceSuccess', { count: String(result.replacedReferences) }));
                 }
             } else {
-                new Notice(t('notice.uploadFailed', { error: result.error ?? 'Unknown error' }));
+                new Notice(t('notice.uploadFailed', { error: result.operation.error ?? t('notice.unknownError') }));
             }
         } catch (e) {
-            new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+            new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : t('notice.unknownError') }));
         }
     }
 
@@ -503,81 +509,42 @@ export default class ImageManagerPlugin extends Plugin {
         }
 
         const chooseAndUpload = async (hostingConfig: ImageHostingConfig) => {
-            const { content, references: localRefs } = await collectLocalNoteImages(
-                this.app,
-                file,
-                this.refConverter
+            const progress = new Notice(
+                t('notice.batchUploadProgress', { done: '0', total: '0', current: '' }),
+                0
             );
-            if (localRefs.length === 0) {
-                new Notice(t('notice.noteUploadNoImages'));
-                return;
-            }
-
-            let success = 0;
-            let newContent = content;
-            const failures: Array<{ fileName: string; error: string }> = [];
-            const progress = new Notice(t('notice.batchUploadProgress', { done: '0', total: String(localRefs.length), current: '' }), 0);
-
-            // Process from end to start to preserve positions
-            for (let i = localRefs.length - 1; i >= 0; i--) {
-                const { reference: ref, file: imgFile } = localRefs[i]!;
-                if (!imgFile) {
-                    failures.push({ fileName: ref.path, error: t('notice.noteUploadFileMissing') });
-                    continue;
+            try {
+                const result = await this.explicitUploads.uploadNote(file, hostingConfig, (state) => {
+                    progress.setMessage(t('notice.batchUploadProgress', {
+                        done: String(state.completedImages),
+                        total: String(state.totalImages),
+                        current: state.current,
+                    }));
+                });
+                if (result.totalReferences === 0) {
+                    new Notice(t('notice.noteUploadNoImages'));
+                    return;
                 }
-
-                progress.setMessage(t('notice.batchUploadProgress', {
-                    done: String(success),
-                    total: String(localRefs.length),
-                    current: imgFile.name,
-                }));
-
-                try {
-                    const result = await this.uploadService.uploadFile(imgFile, hostingConfig);
-
-                    if (result.success && result.url) {
-                        const templateVars = await this.getReferenceTemplateFileVars(imgFile);
-                        const newRef = this.buildUploadedReference(
-                            result.url,
-                            templateVars,
-                            ref.altText || imgFile.name.replace(/\.[^.]+$/, '')
-                        );
-                        newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
-                        success++;
-
-                        // Update references in other notes (skip current file, handled by newContent)
-                        await this.replaceReferenceInNote(imgFile, result.url, file, templateVars);
-                    } else {
-                        failures.push({
-                            fileName: imgFile.name,
-                            error: summarizeUploadError(result.error),
-                        });
-                        console.error(`[ImageManager] Upload failed for ${imgFile.name}: ${result.error}`);
-                    }
-                } catch (e) {
-                    failures.push({
-                        fileName: imgFile.name,
-                        error: summarizeUploadError(e instanceof Error ? e.message : undefined),
-                    });
-                    console.error(`[ImageManager] Failed to upload ${imgFile.path}:`, e);
+                if (result.failures.length > 0) {
+                    const firstFailure = result.failures[0]!;
+                    const error = firstFailure.kind === 'missing-file'
+                        ? t('notice.noteUploadFileMissing')
+                        : firstFailure.error ?? t('notice.unknownError');
+                    new Notice(t('notice.noteUploadPartial', {
+                        success: String(result.successfulReferences),
+                        total: String(result.totalReferences),
+                        failed: String(result.totalReferences - result.successfulReferences),
+                        file: firstFailure.fileName,
+                        error,
+                    }), 10_000);
+                } else {
+                    new Notice(t('notice.noteUploadDone', {
+                        success: String(result.successfulReferences),
+                        total: String(result.totalReferences),
+                    }));
                 }
-            }
-
-            progress.hide();
-            if (success > 0) {
-                await this.app.vault.process(file, () => newContent);
-            }
-            if (failures.length > 0) {
-                const firstFailure = failures[0]!;
-                new Notice(t('notice.noteUploadPartial', {
-                    success: String(success),
-                    total: String(localRefs.length),
-                    failed: String(failures.length),
-                    file: firstFailure.fileName,
-                    error: firstFailure.error,
-                }), 10_000);
-            } else {
-                new Notice(t('notice.noteUploadDone', { success: String(success), total: String(localRefs.length) }));
+            } finally {
+                progress.hide();
             }
         };
 
@@ -586,87 +553,11 @@ export default class ImageManagerPlugin extends Plugin {
         } else {
             new HostingSuggestModal(this.app, configs, (config) => {
                 chooseAndUpload(config).catch((e) => {
-                    new Notice(t('notice.uploadFailed', { error: e instanceof Error ? e.message : 'Unknown' }));
+                    new Notice(t('notice.uploadFailed', {
+                        error: e instanceof Error ? e.message : t('notice.unknownError'),
+                    }));
                 });
             }).open();
-        }
-    }
-
-    private buildUploadedReference(
-        url: string,
-        fileVars: ReferenceTemplateFileVars,
-        altText?: string,
-        template: string = this.settings.customReferenceTemplate
-    ): string {
-        const baseName = altText || fileVars.fileBaseName;
-        const readableUrl = makePublicUrlReadable(url);
-        const customReference = renderCustomReference(template, {
-            fileUrl: readableUrl,
-            fileAlt: baseName,
-            ...fileVars,
-        });
-        if (customReference !== null) return customReference;
-
-        return `![${baseName}](${readableUrl})`;
-    }
-
-    private async getReferenceTemplateFileVars(
-        file: TFile,
-        template: string = this.settings.customReferenceTemplate
-    ): Promise<ReferenceTemplateFileVars> {
-        return resolveReferenceTemplateFileVars(
-            template,
-            file,
-            () => this.imageOptimizer.getImageInfo(file),
-            (error) => {
-                console.warn(
-                    `[ImageManager] Failed to read image dimensions for ${file.path}:`,
-                    error
-                );
-            }
-        );
-    }
-
-    private async replaceReferenceInNote(
-        imageFile: TFile,
-        newUrl: string,
-        skipFile: TFile | undefined,
-        fileVars: ReferenceTemplateFileVars
-    ) {
-        const mdFiles = this.app.vault.getMarkdownFiles();
-        let totalReplaced = 0;
-
-        for (const mdFile of mdFiles) {
-            if (skipFile && mdFile.path === skipFile.path) continue;
-            const content = await this.app.vault.cachedRead(mdFile);
-            const refs = this.refConverter.parseReferences(content);
-
-            const imageName = imageFile.name;
-            const imagePath = imageFile.path;
-            let newContent = content;
-            let replaced = false;
-
-            for (let i = refs.length - 1; i >= 0; i--) {
-                const ref = refs[i]!;
-                if (shouldReplaceLocalImageReference(ref.path, imageName, imagePath)) {
-                    const newRef = this.buildUploadedReference(
-                        newUrl,
-                        fileVars,
-                        ref.altText || fileVars.fileBaseName
-                    );
-                    newContent = newContent.substring(0, ref.col) + newRef + newContent.substring(ref.col + ref.fullMatch.length);
-                    replaced = true;
-                    totalReplaced++;
-                }
-            }
-
-            if (replaced) {
-                await this.app.vault.process(mdFile, () => newContent);
-            }
-        }
-
-        if (totalReplaced > 0) {
-            new Notice(t('notice.replaceSuccess', { count: String(totalReplaced) }));
         }
     }
 
@@ -688,7 +579,9 @@ export default class ImageManagerPlugin extends Plugin {
                         })
                     );
                 } catch (e) {
-                    new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+                    new Notice(t('notice.renameFailed', {
+                        error: e instanceof Error ? e.message : t('notice.unknownError'),
+                    }));
                 }
             })();
         }).open();
@@ -712,7 +605,9 @@ export default class ImageManagerPlugin extends Plugin {
                 })
             );
         } catch (e) {
-            new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+            new Notice(t('notice.reorganizeFailed', {
+                error: e instanceof Error ? e.message : t('notice.unknownError'),
+            }));
         } finally {
             this.isReorganizing = false;
         }
@@ -736,7 +631,9 @@ export default class ImageManagerPlugin extends Plugin {
                 })
             );
         } catch (e) {
-            new Notice(t('notice.reorganizeFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+            new Notice(t('notice.reorganizeFailed', {
+                error: e instanceof Error ? e.message : t('notice.unknownError'),
+            }));
         } finally {
             this.isReorganizing = false;
         }
@@ -788,7 +685,7 @@ export default class ImageManagerPlugin extends Plugin {
             return false;
         }
 
-        this.processImageFiles(imageFiles, editor, file);
+        this.managedPastePipeline.processFiles(imageFiles, editor, file);
         return true;
     }
 
@@ -804,293 +701,12 @@ export default class ImageManagerPlugin extends Plugin {
             return false;
         }
 
-        this.processImageFiles(imageFiles, editor, file);
+        this.managedPastePipeline.processFiles(imageFiles, editor, file);
         return true;
-    }
-
-    private processImageFiles(files: File[], editor: import('obsidian').Editor, currentFile: TFile | null) {
-        for (const imgFile of files) {
-            const ext = this.mimeToExt(imgFile.type);
-            const defaultName = this.generateFileName(ext, currentFile);
-
-            if (this.settings.promptImageName) {
-                new ImageNamePromptModal(this.app, defaultName, (userNamed) => {
-                    const safeName = sanitizeImageFileName(userNamed, ext);
-                    void imgFile.arrayBuffer().then((buffer) => {
-                        void this.savePastedImage(new Uint8Array(buffer), imgFile.type, safeName, editor, currentFile);
-                    }).catch((e) => {
-                        new Notice(`Image save failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
-                    });
-                }).open();
-            } else {
-                void imgFile.arrayBuffer().then((buffer) => {
-                    void this.savePastedImage(new Uint8Array(buffer), imgFile.type, defaultName, editor, currentFile);
-                }).catch((e) => {
-                    new Notice(`Image save failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
-                });
-            }
-        }
-    }
-
-    private generateFileName(ext: string, currentFile: TFile | null): string {
-        const noteName = currentFile ? getFileNameWithoutExt(currentFile.path) : '';
-        return generateImageFileName(
-            this.settings.imageNamingTemplate,
-            ext,
-            noteName,
-            new Date(),
-            this.pasteCounter++
-        );
-    }
-
-    private async ensureUniquePath(dir: string, filename: string): Promise<string> {
-        const ext = filename.split('.').pop() ?? '';
-        const baseName = filename.replace(new RegExp(`\\.${ext}$`), '');
-        let filePath = dir === '.' ? filename : `${dir}/${filename}`;
-        let counter = 1;
-
-        while (
-            this.app.vault.getAbstractFileByPath(filePath) ||
-            (await this.app.vault.adapter.exists(filePath))
-        ) {
-            const newName = `${baseName}-${counter}.${ext}`;
-            filePath = dir === '.' ? newName : `${dir}/${newName}`;
-            counter++;
-        }
-
-        return filePath;
     }
 
     resolveImagePath(template: string, currentFile: TFile | null, filename: string): string {
-        const noteName = currentFile ? getFileNameWithoutExt(currentFile.path) : '';
-        const notePath = currentFile ? (currentFile.parent?.path ?? '') : '';
-        const dateVars = getDateTemplateVars();
-
-        const vars: Record<string, string> = {
-            noteName,
-            notePath,
-            filename,
-            ...dateVars,
-        };
-
-        let result = template;
-        for (const [key, value] of Object.entries(vars)) {
-            result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
-        }
-
-        // Clean up empty segments and leading/trailing slashes
-        result = result
-            .replace(/\/+/g, '/')
-            .replace(/^\/|\/$/g, '')
-            .replace(/\/\//g, '/');
-
-        // Remove trailing slash that could result from empty {noteName}
-        if (result.endsWith('/')) result = result.slice(0, -1);
-
-        const resolved = result || 'attachments';
-
-        // If base is 'note', prepend the note's parent directory
-        if (this.settings.imagePathBase === 'note' && notePath) {
-            return `${notePath}/${resolved}`;
-        }
-
-        return resolved;
-    }
-
-    private async savePastedImage(
-        data: Uint8Array,
-        mimeType: string,
-        filename: string,
-        editor: import('obsidian').Editor,
-        currentFile: TFile | null
-    ) {
-        const ext = this.mimeToExt(mimeType);
-        const dir = this.resolveImagePath(this.settings.imagePathTemplate || 'attachments', currentFile, filename);
-
-        // Ensure directory exists (create intermediate folders)
-        if (dir) {
-            const parts = dir.split('/');
-            let current = '';
-            for (const part of parts) {
-                current = current ? `${current}/${part}` : part;
-                if (!this.app.vault.getAbstractFileByPath(current)) {
-                    await this.app.vault.createFolder(current).catch(() => {});
-                }
-            }
-        }
-
-        // Handle filename collision
-        const filePath = await this.ensureUniquePath(dir, filename);
-
-        // Compress if enabled
-        let outputData: ArrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-        let localDataCompressed = false;
-        if (this.settings.compressManagedPasteLocal && ext !== 'svg') {
-            try {
-                const blob = new Blob([data], { type: mimeType });
-                const img = await this.blobToImage(blob);
-                const canvas = createEl('canvas');
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                const ctx = canvas.getContext('2d')!;
-                ctx.drawImage(img, 0, 0);
-
-                const quality = this.settings.compressQuality / 100;
-                const outputMime = ext === 'png' ? 'image/webp' : mimeType;
-                const compressedBlob = await new Promise<Blob>((resolve, reject) => {
-                    canvas.toBlob(
-                        (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
-                        outputMime,
-                        quality
-                    );
-                });
-                outputData = await compressedBlob.arrayBuffer();
-                localDataCompressed = true;
-                URL.revokeObjectURL(img.src);
-            } catch {
-                outputData = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-            }
-        }
-
-        // Save to vault
-        let savedFile: TFile;
-        try {
-            console.debug(`[ImageManager] Saving image to: ${filePath}`);
-            savedFile = await this.app.vault.createBinary(filePath, outputData);
-        } catch {
-            // Race condition: ensureUniquePath checked in-memory map but createBinary
-            // checks filesystem. Retry with a guaranteed-unique timestamp name.
-            console.warn(`[ImageManager] File conflict at ${filePath}, retrying with unique name`);
-            const ts = Date.now();
-            const retryName = `${filename.replace(/\.[^.]+$/, '')}-${ts}.${ext}`;
-            const retryPath = await this.ensureUniquePath(dir, retryName);
-            console.debug(`[ImageManager] Retrying with: ${retryPath}`);
-            savedFile = await this.app.vault.createBinary(retryPath, outputData);
-        }
-
-        // Insert reference based on format setting
-        const noteDir = currentFile?.parent?.path ?? '';
-        let ref: string;
-        if (this.settings.managedPasteReferenceFormat === 'markdown') {
-            // Markdown standard format: ![alt](path)
-            const relativePath = noteDir ? this.computeRelativePath(noteDir, savedFile.path) : savedFile.path;
-            const encodedPath = encodePathSegments(relativePath);
-            ref = `![${savedFile.name}](${encodedPath})`;
-        } else {
-            // Wiki format: ![[filename]]
-            ref = `![[${savedFile.name}]]`;
-        }
-        editor.replaceSelection(ref);
-
-        // Auto-upload to hosting if enabled (requires Markdown format)
-        if (this.settings.autoUploadOnPaste) {
-            this.autoUploadAfterPaste(savedFile, ref, outputData, localDataCompressed, editor, currentFile).catch(() => {});
-        }
-    }
-
-    private async autoUploadAfterPaste(
-        savedFile: TFile,
-        localReference: string,
-        data: ArrayBuffer,
-        localDataCompressed: boolean,
-        editor: import('obsidian').Editor,
-        currentFile: TFile | null
-    ) {
-        const hostingConfig = this.getDefaultHostingConfig();
-        if (!hostingConfig) return;
-        const attachmentFolder = savedFile.parent;
-
-        const notice = new Notice(t('notice.autoUploading'), 0);
-
-        try {
-            const uploadSource = chooseManagedPasteUploadSource({
-                localCompressed: localDataCompressed,
-                uploadCompression: this.settings.compressBeforeUpload,
-            });
-            const result = uploadSource === 'saved-file'
-                ? await this.uploadService.uploadFile(savedFile, hostingConfig)
-                : await this.uploadService.uploadData(data, savedFile.name, hostingConfig, {
-                    sourcePath: savedFile.path,
-                });
-
-            if (result.success && result.url) {
-                const templateVars = await this.getReferenceTemplateFileVars(savedFile);
-                const replaced = this.replaceManagedPasteReference(
-                    editor,
-                    currentFile,
-                    savedFile,
-                    localReference,
-                    result.url,
-                    templateVars
-                );
-                if (!replaced) throw new Error(t('notice.delegatedReferenceChanged'));
-
-                // Replace references in other notes
-                await this.replaceReferenceInNote(
-                    savedFile,
-                    result.url,
-                    currentFile ?? undefined,
-                    templateVars
-                );
-
-                // Delete local file if user doesn't want to keep it
-                if (!this.settings.keepLocalCopy) {
-                    const overrides = currentFile
-                        ? new Map([[currentFile.path, editor.getValue()]])
-                        : new Map<string, string>();
-                    const localState = await scanLocalOrphans(
-                        this.app,
-                        this.settings.supportedExtensions,
-                        overrides,
-                        this.getIndeterminateImagePaths()
-                    );
-                    if (!localState.orphans.some((file) => file === savedFile)) {
-                        notice.hide();
-                        new Notice(t('notice.autoUploadSuccess'), 3000);
-                        return;
-                    }
-                    await this.app.fileManager.trashFile(savedFile);
-                    await removeEmptyDirectParent(this.app.vault, attachmentFolder);
-                }
-
-                notice.hide();
-                new Notice(t('notice.autoUploadSuccess'), 3000);
-            } else {
-                notice.hide();
-                new Notice(t('notice.autoUploadFailed', { error: result.error ?? 'Unknown' }), 5000);
-            }
-        } catch (e) {
-            notice.hide();
-            new Notice(t('notice.autoUploadFailed', { error: e instanceof Error ? e.message : 'Unknown' }), 5000);
-        }
-    }
-
-    private replaceManagedPasteReference(
-        editor: import('obsidian').Editor,
-        currentFile: TFile | null,
-        savedFile: TFile,
-        localReference: string,
-        url: string,
-        templateVars: ReferenceTemplateFileVars
-    ): boolean {
-        if (!currentFile) return false;
-        const content = editor.getValue();
-        const match = findExactManagedPasteReference(
-            this.refConverter.parseReferences(content),
-            localReference,
-            (reference) => this.app.metadataCache.getFirstLinkpathDest(reference.path, currentFile.path) === savedFile
-        );
-        if (!match) return false;
-        const replacement = this.buildUploadedReference(url, templateVars, match.altText || templateVars.fileBaseName);
-        const start = this.offsetToEditorPosition(content, match.col);
-        const end = this.offsetToEditorPosition(content, match.col + match.fullMatch.length);
-        editor.replaceRange(replacement, start, end);
-        return true;
-    }
-
-    private offsetToEditorPosition(content: string, offset: number): { line: number; ch: number } {
-        const lines = content.substring(0, offset).split('\n');
-        return { line: lines.length - 1, ch: lines[lines.length - 1]!.length };
+        return this.managedPastePipeline.resolveImagePath(template, currentFile, filename);
     }
 
     private getDefaultHostingConfig(): ImageHostingConfig | null {
@@ -1103,44 +719,6 @@ export default class ImageManagerPlugin extends Plugin {
         return configs[0] ?? null;
     }
 
-    private pasteCounter = 0;
-
-    private blobToImage(blob: Blob): Promise<HTMLImageElement> {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error('Failed to load image'));
-            img.src = URL.createObjectURL(blob);
-        });
-    }
-
-    private mimeToExt(mimeType: string): string {
-        const map: Record<string, string> = {
-            'image/png': 'png',
-            'image/jpeg': 'jpg',
-            'image/gif': 'gif',
-            'image/webp': 'webp',
-            'image/bmp': 'bmp',
-            'image/svg+xml': 'svg',
-            'image/tiff': 'tiff',
-            'image/avif': 'avif',
-        };
-        return map[mimeType] ?? 'png';
-    }
-
-    private computeRelativePath(fromDir: string, toPath: string): string {
-        const fromParts = fromDir.split('/').filter(Boolean);
-        const toParts = toPath.split('/').filter(Boolean);
-        let commonLen = 0;
-        while (commonLen < fromParts.length && commonLen < toParts.length && fromParts[commonLen] === toParts[commonLen]) {
-            commonLen++;
-        }
-        const upCount = fromParts.length - commonLen;
-        const ups: string[] = Array.from({ length: upCount }, () => '..');
-        const downs = toParts.slice(commonLen);
-        const result = [...ups, ...downs].join('/');
-        return result || toPath;
-    }
 }
 
 class HostingSuggestModal extends SuggestModal<ImageHostingConfig> {

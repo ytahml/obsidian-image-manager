@@ -1,6 +1,6 @@
 import { MarkdownView, Notice, TFile, type App, type Editor } from 'obsidian';
 import type { ImageHostingConfig, ImageManagerSettings, ImageReference } from '../types';
-import type { ReferenceTemplateFileVars } from '../utils/reference-template';
+import type { UploadReferenceManager } from '../uploaders/upload-reference-manager';
 import { RefConverter } from '../utils/ref-converter';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
 import {
@@ -59,8 +59,7 @@ export interface DelegatedHandoffDependencies {
     uploadService: UploadService;
     refConverter: RefConverter;
     isImageFile: (file: TFile) => boolean;
-    buildUploadedReference: (url: string, vars: ReferenceTemplateFileVars, alt?: string, template?: string) => string;
-    getReferenceTemplateFileVars: (file: TFile, template?: string) => Promise<ReferenceTemplateFileVars>;
+    uploadReferences: Pick<UploadReferenceManager, 'prepare'>;
     getDefaultHostingConfig: () => ImageHostingConfig | null;
     notice: (message: string, timeout?: number) => Notice;
     beginIndeterminate: (file: TFile) => void;
@@ -94,7 +93,7 @@ export class ObsidianDelegatedHandoff {
 
     start(editor: Editor, note: TFile | null, imageCount: number): void {
         const settings = this.deps.getSettings();
-        if (settings.localManagementMode !== 'delegated' || !settings.autoUploadOnPaste || !note) return;
+        if (settings.localManagementMode !== 'delegated' || !settings.delegatedAutoUploadOnPaste || !note) return;
         const hosting = this.deps.getDefaultHostingConfig();
         if (!hosting) return;
         const initialContent = this.readEditorContent(editor);
@@ -105,7 +104,7 @@ export class ObsidianDelegatedHandoff {
             editor,
             items: Array.from({ length: imageCount }, () => ({ moved: false })),
             hosting: this.cloneHosting(hosting),
-            keepLocalCopy: settings.keepLocalCopy,
+            keepLocalCopy: settings.delegatedKeepLocalCopy,
             compressBeforeUpload: settings.compressBeforeUpload,
             compressQuality: settings.compressQuality,
             uploadPathTemplate: settings.uploadPathTemplate,
@@ -277,7 +276,7 @@ export class ObsidianDelegatedHandoff {
         let remoteMayExist = false;
         try {
             if (this.deps.getSettings().localManagementMode !== 'delegated' ||
-                !this.deps.getSettings().autoUploadOnPaste ||
+                !this.deps.getSettings().delegatedAutoUploadOnPaste ||
                 !this.isSettingsSnapshotCurrent(transaction)) {
                 this.recordOutcome(ready, transaction, { status: 'cancelled' });
                 return;
@@ -351,8 +350,8 @@ export class ObsidianDelegatedHandoff {
             .filter((reference) => this.resolvesTo(reference, transaction.note, file));
         if (matches.length !== 1) return false;
         const match = matches[0]!;
-        const vars = await this.deps.getReferenceTemplateFileVars(file, transaction.customReferenceTemplate);
-        const replacement = this.deps.buildUploadedReference(result.url, vars, match.altText, transaction.customReferenceTemplate);
+        const prepared = await this.deps.uploadReferences.prepare(file, transaction.customReferenceTemplate);
+        const replacement = prepared.render(result.url, match.altText);
         if (!await this.validateReadyItem(ready, transaction, { ...transaction.items[ready.itemIndex]!, file })) return false;
         const sourceView = this.findSourceView(transaction);
         if (sourceView) {
@@ -557,10 +556,10 @@ export class ObsidianDelegatedHandoff {
     private settingsFingerprint(settings: ImageManagerSettings, hosting: ImageHostingConfig): string {
         return JSON.stringify({
             localManagementMode: settings.localManagementMode,
-            autoUploadOnPaste: settings.autoUploadOnPaste,
+            autoUploadOnPaste: settings.delegatedAutoUploadOnPaste,
             defaultHostingId: settings.defaultHostingId,
             hosting,
-            keepLocalCopy: settings.keepLocalCopy,
+            keepLocalCopy: settings.delegatedKeepLocalCopy,
             compressBeforeUpload: settings.compressBeforeUpload,
             compressQuality: settings.compressQuality,
             uploadPathTemplate: settings.uploadPathTemplate,

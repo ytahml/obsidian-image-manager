@@ -1,19 +1,29 @@
 import { App, Modal, Notice, TFile, SuggestModal, MarkdownView } from 'obsidian';
-import type ImageManagerPlugin from '../main';
 import type { ImageHostingConfig } from '../types';
+import type { RenameResult } from '../utils/batch-rename';
 import { OrphanFinder } from '../utils/orphan-finder';
 import { encodePathSegments, formatFileSize } from '../utils/path-utils';
 import { RenameImageModal } from './rename-image';
 import { t } from '../i18n';
 
+export interface ImagePreviewActions {
+    getSupportedExtensions(): string[];
+    getEnabledHostingConfigs(): ImageHostingConfig[];
+    uploadImage(file: TFile, hosting: ImageHostingConfig): Promise<void>;
+    renameImage(file: TFile, newName: string): Promise<RenameResult>;
+}
+
 export class ImagePreviewModal extends Modal {
     private file: TFile;
-    private plugin: ImageManagerPlugin;
     private browserModal?: Modal;
 
-    constructor(app: App, plugin: ImageManagerPlugin, file: TFile, browserModal?: Modal) {
+    constructor(
+        app: App,
+        private readonly actions: ImagePreviewActions,
+        file: TFile,
+        browserModal?: Modal
+    ) {
         super(app);
-        this.plugin = plugin;
         this.file = file;
         this.browserModal = browserModal;
     }
@@ -48,7 +58,7 @@ export class ImagePreviewModal extends Modal {
         }
 
         // Referencing notes
-        const finder = new OrphanFinder(this.app, this.plugin.settings.supportedExtensions);
+        const finder = new OrphanFinder(this.app, this.actions.getSupportedExtensions());
         const notes = await finder.getReferencingNotes(this.file);
         const totalRefs = notes.reduce((sum, n) => sum + n.lines.length, 0);
 
@@ -117,7 +127,7 @@ export class ImagePreviewModal extends Modal {
         insertBtn.addEventListener('click', () => this.insertImage());
 
         // Upload to hosting
-        const configs = this.plugin.settings.hostingConfigs.filter((c) => c.enabled);
+        const configs = this.actions.getEnabledHostingConfigs();
         if (configs.length > 0) {
             const uploadBtn = btnsEl.createEl('button', { text: t('modal.preview.upload') });
             uploadBtn.addEventListener('click', () => void this.uploadImage(configs));
@@ -162,7 +172,7 @@ export class ImagePreviewModal extends Modal {
         const doUpload = async (config: ImageHostingConfig) => {
             this.close();
             this.browserModal?.close();
-            await this.plugin.doUpload(this.file, config);
+            await this.actions.uploadImage(this.file, config);
         };
 
         if (configs.length === 1) {
@@ -178,7 +188,7 @@ export class ImagePreviewModal extends Modal {
         new RenameImageModal(this.app, this.file, (newName) => {
             void (async () => {
                 try {
-                    const result = await this.plugin.batchRename.renameImage(this.file, newName);
+                    const result = await this.actions.renameImage(this.file, newName);
                     this.file = result.file;
                     new Notice(
                         t('notice.renameSuccess', {
@@ -190,7 +200,9 @@ export class ImagePreviewModal extends Modal {
                     this.contentEl.empty();
                     await this.onOpen();
                 } catch (e) {
-                    new Notice(t('notice.renameFailed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+                    new Notice(t('notice.renameFailed', {
+                        error: e instanceof Error ? e.message : t('notice.unknownError'),
+                    }));
                 }
             })();
         }).open();
