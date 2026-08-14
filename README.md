@@ -1,6 +1,3 @@
-
-</think>
-
 # Obsidian Markdown Image Manager
 
 [![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22md-image-manager%22%5D.downloads&label=downloads&color=blue)](https://obsidian.md/plugins?id=md-image-manager)
@@ -10,9 +7,9 @@ English | [中文](README_ZH.md)
 
 Obsidian image management plugin — manage an image from paste or drag-and-drop through naming, compression, hosting upload, reference updates, browsing, reorganization, and guarded cleanup.
 
-> **Note**: This plugin is primarily designed for vaults that use standard Markdown format (`![alt](image.png)`) for image references.
+> **Note**: The plugin supports both standard Markdown (`![alt](image.png)`) and Obsidian Wiki (`![[image.png]]`) image references.
 >
-> When "Use Markdown standard format" is enabled, features like paste image, organize resources, and image hosting upload all work based on standard Markdown format. The plugin supports batch converting Wiki format (`![[image.png]]`) to standard Markdown format, but does not support reverse conversion.
+> The managed-paste format and reorganization conversion settings are independent of image hosting. Upload results use standard Markdown or a valid custom reference template.
 
 ---
 
@@ -200,19 +197,25 @@ src/
   - `{year}`, `{month}`, `{day}` — Date
   - `{filename}` — Image filename
 - **Path Base** — Resolve path template relative to "vault root" or "current note's directory"
-- **Use Markdown Standard Format** — Enable to use `![alt](path)` format, disable to use `![[path]]` Wiki format. (Note: image hosting upload and reference generation do not depend on this setting; upload results always use standard Markdown or a valid custom template.)
-- **Skip Wiki References** — Skip Wiki format references when organizing images (when disabled, converts Wiki references to MD format)
+- **Managed Paste Reference Format** — Choose whether attachments managed during paste or drop are inserted as standard Markdown (`![alt](path)`) or Wiki references (`![[path]]`)
+- **Convert References When Reorganizing** — Convert reorganized references to standard Markdown; when disabled, preserve the original reference format
+- **Skip Wiki References** — Leave Wiki-format references out of image reorganization
+- **Image Hosting** — Upload and generated references are independent of the two format settings and use standard Markdown or a valid custom reference template
 
 ![设置-通用-en.png](images/设置-通用-en.png)
 
 **Settings Combination Behavior:**
 
-| Use MD Standard | Skip Wiki Refs | Paste Format | Organize Behavior |
-| --- | --- | --- | --- |
-| ✅ Enabled | ✅ Enabled | `![alt](path)` | Skip Wiki refs, only organize MD format images |
-| ✅ Enabled | ❌ Disabled | `![alt](path)` | Convert Wiki refs to MD format and organize (one-way) |
-| ❌ Disabled | ✅ Enabled | `![[path]]` | Skip Wiki refs, only organize MD format images |
-| ❌ Disabled | ❌ Disabled | `![[path]]` | Organize all format images (preserve original format) |
+| Managed Paste Format | Convert When Reorganizing | Skip Wiki Refs | Paste Format | Organize Behavior |
+| --- | --- | --- | --- | --- |
+| Markdown | ✅ Enabled | ✅ Enabled | `![alt](path)` | Skip Wiki refs; organize Markdown images |
+| Markdown | ✅ Enabled | ❌ Disabled | `![alt](path)` | Convert Wiki refs to Markdown and organize (one-way) |
+| Markdown | ❌ Disabled | ✅ Enabled | `![alt](path)` | Skip Wiki refs; preserve the format of organized Markdown images |
+| Markdown | ❌ Disabled | ❌ Disabled | `![alt](path)` | Organize all supported references and preserve their original formats |
+| Wiki | ✅ Enabled | ✅ Enabled | `![[path]]` | Skip Wiki refs; organize Markdown images |
+| Wiki | ✅ Enabled | ❌ Disabled | `![[path]]` | Convert Wiki refs to Markdown and organize (one-way) |
+| Wiki | ❌ Disabled | ✅ Enabled | `![[path]]` | Skip Wiki refs; preserve the format of organized Markdown images |
+| Wiki | ❌ Disabled | ❌ Disabled | `![[path]]` | Organize all supported references and preserve their original formats |
 
 > **Note**: Wiki → Markdown conversion is one-way and cannot be automatically reversed.
 
