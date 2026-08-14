@@ -1,3 +1,6 @@
+
+</think>
+
 # Obsidian Markdown Image Manager
 
 [![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22md-image-manager%22%5D.downloads&label=downloads&color=blue)](https://obsidian.md/plugins?id=md-image-manager)
@@ -197,7 +200,7 @@ src/
   - `{year}`, `{month}`, `{day}` — Date
   - `{filename}` — Image filename
 - **Path Base** — Resolve path template relative to "vault root" or "current note's directory"
-- **Use Markdown Standard Format** — Enable to use `![alt](path)` format, disable to use `![[path]]` Wiki format (image hosting requires this to be enabled)
+- **Use Markdown Standard Format** — Enable to use `![alt](path)` format, disable to use `![[path]]` Wiki format. (Note: image hosting upload and reference generation do not depend on this setting; upload results always use standard Markdown or a valid custom template.)
 - **Skip Wiki References** — Skip Wiki format references when organizing images (when disabled, converts Wiki references to MD format)
 
 ![设置-通用-en.png](images/设置-通用-en.png)
