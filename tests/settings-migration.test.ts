@@ -69,6 +69,26 @@ describe('settings migration', () => {
         expect(settings.delegatedKeepLocalCopy).toBe(false);
     });
 
+    it('preserves valid independent image browser sort preferences', () => {
+        const settings = normalizeImageManagerSettings({
+            localImageBrowserSort: { field: 'created', order: 'desc' },
+            remoteImageBrowserSort: { field: 'modified', order: 'desc' },
+        });
+
+        expect(settings.localImageBrowserSort).toEqual({ field: 'created', order: 'desc' });
+        expect(settings.remoteImageBrowserSort).toEqual({ field: 'modified', order: 'desc' });
+    });
+
+    it('falls back safely for missing or invalid image browser sort preferences', () => {
+        const settings = normalizeImageManagerSettings({
+            localImageBrowserSort: { field: 'reference-count', order: 'desc' } as never,
+            remoteImageBrowserSort: { field: 'unknown', order: 'sideways' } as never,
+        });
+
+        expect(settings.localImageBrowserSort).toEqual({ field: 'name', order: 'asc' });
+        expect(settings.remoteImageBrowserSort).toEqual({ field: 'key', order: 'asc' });
+    });
+
     it('copies the legacy keep-local preference to both modes and removes legacy keys', () => {
         const settings = normalizeImageManagerSettings({
             localManagementMode: 'delegated',

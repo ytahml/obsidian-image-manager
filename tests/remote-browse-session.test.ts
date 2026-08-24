@@ -37,6 +37,28 @@ describe('remote browse session', () => {
         expect(results.map((item) => item.key)).toEqual(['images/b.png', 'images/a.png']);
     });
 
+    it('sorts every field in both directions with deterministic ties', () => {
+        const objects = [
+            { hostingId: 's3-test', key: 'c.png', size: 10, lastModified: 20 },
+            { hostingId: 's3-test', key: 'a.png', size: 10, lastModified: 10 },
+            { hostingId: 's3-test', key: 'b.png', size: 20, lastModified: 20 },
+            { hostingId: 's3-test', key: 'missing.png', size: 30 },
+        ];
+
+        expect(getRemoteResults(objects, '', 'key', 'asc').map((item) => item.key))
+            .toEqual(['a.png', 'b.png', 'c.png', 'missing.png']);
+        expect(getRemoteResults(objects, '', 'key', 'desc').map((item) => item.key))
+            .toEqual(['missing.png', 'c.png', 'b.png', 'a.png']);
+        expect(getRemoteResults(objects, '', 'size', 'asc').map((item) => item.key))
+            .toEqual(['a.png', 'c.png', 'b.png', 'missing.png']);
+        expect(getRemoteResults(objects, '', 'size', 'desc').map((item) => item.key))
+            .toEqual(['missing.png', 'b.png', 'a.png', 'c.png']);
+        expect(getRemoteResults(objects, '', 'modified', 'asc').map((item) => item.key))
+            .toEqual(['a.png', 'b.png', 'c.png', 'missing.png']);
+        expect(getRemoteResults(objects, '', 'modified', 'desc').map((item) => item.key))
+            .toEqual(['b.png', 'c.png', 'a.png', 'missing.png']);
+    });
+
     it('accepts a complete first page without a continuation cursor', async () => {
         const provider: RemoteObjectProvider = {
             capabilities: new Set(['list']),

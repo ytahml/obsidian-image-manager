@@ -5,7 +5,7 @@
 `ImageManagerSettings` 的持久化字段：
 
 | 字段 | 默认值 | 业务作用 |
-|---|---|---|
+| --- | --- | --- |
 | `locale` | `en` | `en` / `zh` |
 | `imagePathTemplate` | `attachments` | 粘贴图片目标路径 |
 | `imagePathBase` | `note` | `vault` / `note` 路径基准 |
@@ -16,6 +16,8 @@
 | `compressBeforeUpload` | false | 只压缩上传载荷 |
 | `compressQuality` | 80 | 1–100 |
 | `thumbnailSize` | 200 | 本地卡片 80–400 |
+| `localImageBrowserSort` | 名称/升序 | 本地浏览器的字段与方向偏好 |
+| `remoteImageBrowserSort` | 名称（key）/升序 | 所有图床共享的远程浏览器字段与方向偏好 |
 | `imageNamingTemplate` | `image-{timestamp}` | 粘贴命名 |
 | `promptImageName` | false | 粘贴/拖放命名 Modal |
 | `hostingConfigs` | `[]` | 图床列表 |
@@ -32,7 +34,7 @@
 | `delegatedKeepLocalCopy` | false | delegated 自动上传后是否保留本地文件 |
 | `remoteDeleteHistory` | `[]` | 最近 200 条脱敏诊断 |
 
-加载设置使用 `Object.assign({}, DEFAULT_SETTINGS, loaded)` 兼容旧 data，不能修改默认值对象；新增字段必须提供默认值和必要规范化。
+加载设置使用 `Object.assign({}, DEFAULT_SETTINGS, loaded)` 兼容旧 data，不能修改默认值对象；新增字段必须提供默认值和必要规范化。浏览器排序偏好只接受支持的字段与 `asc`/`desc`，缺失或无效值回退为名称/升序。
 
 ## 本地管理与图床接力
 
@@ -88,7 +90,7 @@ Modal 分为固定基础区和 capability 门控正文：
 服务商字段：
 
 | 类型 | 字段 |
-|---|---|
+| --- | --- |
 | Aliyun OSS | region、accessKeyId、accessKeySecret、bucket |
 | Qiniu | accessKey、secretKey、bucket、region |
 | S3 | endpoint、region、accessKeyId、secretAccessKey、bucket、forcePathStyle |
@@ -114,6 +116,8 @@ Modal 分为固定基础区和 capability 门控正文：
 
 状态语义保持一致：
 
+- 本地与远程浏览器分别记忆最后的排序字段与方向；远程偏好不按图床隔离。
+- 方向按钮显示当前升序或降序，并提供同样本地化的 `aria-label`；排序只重排当前内存结果，不触发扫描或远程 list 请求。
 - 绿色：已引用
 - 橙色：孤立图片
 - 灰色：无法判断

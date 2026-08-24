@@ -39,6 +39,7 @@ export class ImageBrowserModal extends Modal {
     private localViewVersion = 0;
     private deleting = false;
     private debounceTimer: number | null = null;
+    private sortPreferenceSaveTimer: number | null = null;
     private protectionRefreshTimer: number | null = null;
 
     constructor(app: App, private plugin: ImageManagerPlugin) {
@@ -70,6 +71,7 @@ export class ImageBrowserModal extends Modal {
 
     onClose() {
         if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+        this.flushSortPreferenceSave();
         if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
         this.localViewVersion++;
         this.remoteView?.close();
@@ -99,7 +101,30 @@ export class ImageBrowserModal extends Modal {
             { value: 'size', labelKey: 'modal.imageBrowser.sortSize' },
             { value: 'created', labelKey: 'modal.imageBrowser.sortCreated' },
         ]) this.sortSelect.createEl('option', { value: option.value, text: t(option.labelKey) });
-        this.sortSelect.addEventListener('change', () => this.applyFilterAndSort());
+        this.sortSelect.value = this.plugin.settings.localImageBrowserSort.field;
+        this.sortSelect.addEventListener('change', () => {
+            this.plugin.settings.localImageBrowserSort.field = this.sortSelect?.value as typeof this.plugin.settings.localImageBrowserSort.field;
+            this.scheduleSortPreferenceSave();
+            this.applyFilterAndSort();
+        });
+        const sortDirection = controls.createEl('button', { cls: 'image-browser-sort-direction', attr: { type: 'button' } });
+        const updateSortDirection = () => {
+            const key = this.plugin.settings.localImageBrowserSort.order === 'asc'
+                ? 'modal.imageBrowser.sortAscending'
+                : 'modal.imageBrowser.sortDescending';
+            const label = t(key);
+            sortDirection.textContent = label;
+            sortDirection.setAttribute('aria-label', label);
+        };
+        updateSortDirection();
+        sortDirection.addEventListener('click', () => {
+            this.plugin.settings.localImageBrowserSort.order = this.plugin.settings.localImageBrowserSort.order === 'asc'
+                ? 'desc'
+                : 'asc';
+            updateSortDirection();
+            this.scheduleSortPreferenceSave();
+            this.applyFilterAndSort();
+        });
         this.referenceFilterSelect = controls.createEl('select', {
             cls: 'image-browser-reference-filter',
             attr: { 'aria-label': t('modal.imageBrowser.localReferenceFilter') },
@@ -151,6 +176,21 @@ export class ImageBrowserModal extends Modal {
         this.debounceTimer = window.setTimeout(() => this.applyFilterAndSort(), 300);
     }
 
+    private scheduleSortPreferenceSave() {
+        if (this.sortPreferenceSaveTimer !== null) window.clearTimeout(this.sortPreferenceSaveTimer);
+        this.sortPreferenceSaveTimer = window.setTimeout(() => {
+            this.sortPreferenceSaveTimer = null;
+            void this.plugin.saveSettings();
+        }, 300);
+    }
+
+    private flushSortPreferenceSave() {
+        if (this.sortPreferenceSaveTimer === null) return;
+        window.clearTimeout(this.sortPreferenceSaveTimer);
+        this.sortPreferenceSaveTimer = null;
+        void this.plugin.saveSettings();
+    }
+
     private applyFilterAndSort() {
         const keyword = this.searchInput?.value ?? '';
         let images = this.scanner.filterImages(this.allImages, { keyword });
@@ -162,8 +202,8 @@ export class ImageBrowserModal extends Modal {
                 this.indeterminatePaths
             );
         }
-        const sortBy = (this.sortSelect?.value ?? 'name') as 'name' | 'size' | 'modified' | 'created';
-        this.filteredImages = this.scanner.sortImages(images, sortBy, 'asc');
+        const { field, order } = this.plugin.settings.localImageBrowserSort;
+        this.filteredImages = this.scanner.sortImages(images, field, order);
         this.renderGrid();
     }
 
