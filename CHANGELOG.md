@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.0.1
+
+### 🇺🇸 English
+
+#### New features
+
+- Added ascending/descending toggles for every local and remote image-browser sort field, with separate remembered preferences for local and remote views ([PR #44](https://github.com/ytahml/obsidian-image-manager/pull/44))
+
+#### Improvements
+
+- Remote sort preferences are shared across hostings; objects without a modified time remain last, and equal primary values use a stable object-key order.
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 本地与远程图片浏览器的全部排序字段新增升序/降序切换，并分别记忆各自的排序偏好（[PR #44](https://github.com/ytahml/obsidian-image-manager/pull/44)）
+
+#### 改进
+
+- 远程排序偏好在不同图床之间共享；缺失修改时间的对象始终排在最后，主排序值相同时按对象 key 稳定排序。
+
+---
+
 ## 2.0.0
 
 ### 🇺🇸 English
