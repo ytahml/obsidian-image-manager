@@ -45,25 +45,30 @@ export class ImageScanner {
 
     /** 排序图片 */
     sortImages(files: TFile[], sortBy: SortBy, order: SortOrder): TFile[] {
-        const sorted = [...files].sort((a, b) => {
-            switch (sortBy) {
-                case 'name':
-                    return a.name.localeCompare(b.name);
-                case 'size':
-                    return a.stat.size - b.stat.size;
-                case 'modified':
-                    return a.stat.mtime - b.stat.mtime;
-                case 'created':
-                    return a.stat.ctime - b.stat.ctime;
-                default:
-                    return 0;
-            }
+        return [...files].sort((left, right) => {
+            const comparison = getSortComparison(left, right, sortBy);
+            if (comparison !== 0) return order === 'asc' ? comparison : -comparison;
+            return left.path.localeCompare(right.path);
         });
-        return order === 'desc' ? sorted.reverse() : sorted;
     }
 
     /** 获取图片 MIME 类型 */
     getMimeType(file: TFile): string {
         return IMAGE_MIME_TYPES[file.extension.toLowerCase()] ?? 'application/octet-stream';
+    }
+}
+
+function getSortComparison(left: TFile, right: TFile, sortBy: SortBy): number {
+    switch (sortBy) {
+        case 'name':
+            return left.name.localeCompare(right.name);
+        case 'size':
+            return left.stat.size - right.stat.size;
+        case 'modified':
+            return left.stat.mtime - right.stat.mtime;
+        case 'created':
+            return left.stat.ctime - right.stat.ctime;
+        default:
+            return 0;
     }
 }

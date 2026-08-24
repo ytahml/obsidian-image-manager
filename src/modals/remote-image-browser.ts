@@ -14,7 +14,7 @@ import type {
     RemoteUrlMapping,
 } from '../remote/types';
 import type { RemoteBrowseFailure } from '../remote/browse-session';
-import { getRemoteResults, type RemoteResultSort } from '../remote/result-page';
+import { getRemoteResults } from '../remote/result-page';
 import { RemotePreviewSession } from '../remote/preview-session';
 import { RemoteThumbnailSession } from '../remote/thumbnail-session';
 import type { RemoteObjectProvider } from '../remote/provider';
@@ -51,7 +51,6 @@ export class RemoteImageBrowserView {
     private searchDebounceTimer: number | null = null;
     private settingsSaveTimer: number | null = null;
     private keyword = '';
-    private sortBy: RemoteResultSort = 'key';
     private referenceFilter: RemoteReferenceFilter = 'all';
     private pageResultsEl: HTMLElement | null = null;
     private resultCountEl: HTMLElement | null = null;
@@ -392,9 +391,29 @@ export class RemoteImageBrowserView {
         for (const [value, label] of [['key', t('modal.imageBrowser.sortName')], ['size', t('modal.imageBrowser.sortSize')], ['modified', t('modal.imageBrowser.sortModified')]] as const) {
             sort.createEl('option', { value, text: label });
         }
-        sort.value = this.sortBy;
+        sort.value = this.plugin.settings.remoteImageBrowserSort.field;
         sort.addEventListener('change', () => {
-            this.sortBy = sort.value as typeof this.sortBy;
+            this.plugin.settings.remoteImageBrowserSort.field = sort.value as typeof this.plugin.settings.remoteImageBrowserSort.field;
+            this.scheduleSettingsSave();
+            this.clearSearchDebounce();
+            this.renderPageResults(config, results);
+        });
+        const sortDirection = tools.createEl('button', { attr: { type: 'button' } });
+        const updateSortDirection = () => {
+            const key = this.plugin.settings.remoteImageBrowserSort.order === 'asc'
+                ? 'modal.imageBrowser.sortAscending'
+                : 'modal.imageBrowser.sortDescending';
+            const label = t(key);
+            sortDirection.textContent = label;
+            sortDirection.setAttribute('aria-label', label);
+        };
+        updateSortDirection();
+        sortDirection.addEventListener('click', () => {
+            this.plugin.settings.remoteImageBrowserSort.order = this.plugin.settings.remoteImageBrowserSort.order === 'asc'
+                ? 'desc'
+                : 'asc';
+            updateSortDirection();
+            this.scheduleSettingsSave();
             this.clearSearchDebounce();
             this.renderPageResults(config, results);
         });
@@ -427,7 +446,8 @@ export class RemoteImageBrowserView {
         const mapping = provider?.referenceMapping ?? toUrlMapping(config);
         const lookup = this.plugin.remoteReferenceIndex.createLookup(mapping);
         const allObjects = this.session.getAllObjects();
-        const sorted = getRemoteResults(allObjects, this.keyword, this.sortBy);
+        const { field, order } = this.plugin.settings.remoteImageBrowserSort;
+        const sorted = getRemoteResults(allObjects, this.keyword, field, order);
         const objects = this.referenceFilter === 'all'
             ? sorted
             : sorted.filter((object) => lookup.classify(object) === this.referenceFilter);

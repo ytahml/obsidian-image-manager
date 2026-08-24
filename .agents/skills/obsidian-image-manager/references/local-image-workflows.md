@@ -27,7 +27,7 @@ ClipboardEvent/DragEvent
 `imageNamingTemplate` 支持：
 
 | 变量 | 语义 |
-|---|---|
+| --- | --- |
 | `{noteName}` | 当前笔记 basename；没有笔记或清理后为空时回退 |
 | `{date}` | `YYYY-MM-DD` |
 | `{time}` | `HHmmss` |
@@ -49,7 +49,7 @@ ClipboardEvent/DragEvent
 
 ## Markdown 路径编码
 
-`encodePathSegments` 逐段编码会改变 Markdown 或 URL 解析的 ASCII：空白、控制字符、`% # ? ( ) [ ] " < > \ ^ ` { | }`。
+`encodePathSegments` 逐段编码会改变 Markdown 或 URL 解析的 ASCII：空白、控制字符、`% # ? ( ) [ ] " < > \ ^` { | }`。
 
 保留：
 
@@ -96,7 +96,8 @@ ClipboardEvent/DragEvent
 `ImageBrowserModal` 是本地/图床共同外壳。本地页：
 
 - 300ms 搜索防抖。
-- 名称、大小、修改时间、创建时间排序。
+- 名称、大小、修改时间、创建时间均支持升序和降序，并记忆本地浏览器自己的最后偏好。
+- 主排序值相同时按完整 Vault 路径升序稳定排序；降序只翻转主排序方向。
 - 全部/已引用/孤立引用状态筛选；扫描完成前禁用。
 - 缩略图大小来自设置，点击打开 `ImagePreviewModal`。
 - green/amber/gray 分别表达已引用、孤立、无法判断。

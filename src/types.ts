@@ -127,6 +127,13 @@ export interface MigrationChange {
 /** 排序方式 */
 export type SortBy = 'name' | 'size' | 'modified' | 'created' | 'reference-count';
 export type SortOrder = 'asc' | 'desc';
+export type LocalImageBrowserSort = 'name' | 'size' | 'modified' | 'created';
+export type RemoteImageBrowserSort = 'key' | 'size' | 'modified';
+
+export interface ImageBrowserSortPreference<T extends string> {
+    field: T;
+    order: SortOrder;
+}
 
 /** 图片筛选条件 */
 export interface ImageFilter {
@@ -152,6 +159,8 @@ export interface ImageManagerSettings {
     compressBeforeUpload: boolean;
     compressQuality: number;
     thumbnailSize: number;
+    localImageBrowserSort: ImageBrowserSortPreference<LocalImageBrowserSort>;
+    remoteImageBrowserSort: ImageBrowserSortPreference<RemoteImageBrowserSort>;
     imageNamingTemplate: string;
     promptImageName: boolean;
     hostingConfigs: ImageHostingConfig[];
@@ -186,6 +195,8 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     compressBeforeUpload: false,
     compressQuality: 80,
     thumbnailSize: 200,
+    localImageBrowserSort: { field: 'name', order: 'asc' },
+    remoteImageBrowserSort: { field: 'key', order: 'asc' },
     imageNamingTemplate: 'image-{timestamp}',
     promptImageName: false,
     hostingConfigs: [],
@@ -235,7 +246,35 @@ export function normalizeImageManagerSettings(loaded: Partial<ImageManagerSettin
     merged.delegatedKeepLocalCopy = typeof loaded?.delegatedKeepLocalCopy === 'boolean'
         ? loaded.delegatedKeepLocalCopy
         : legacyKeepLocalCopy;
+    merged.localImageBrowserSort = normalizeImageBrowserSortPreference(
+        loaded?.localImageBrowserSort,
+        ['name', 'size', 'modified', 'created'],
+        DEFAULT_SETTINGS.localImageBrowserSort
+    );
+    merged.remoteImageBrowserSort = normalizeImageBrowserSortPreference(
+        loaded?.remoteImageBrowserSort,
+        ['key', 'size', 'modified'],
+        DEFAULT_SETTINGS.remoteImageBrowserSort
+    );
     delete merged.autoUploadOnPaste;
     delete merged.keepLocalCopy;
     return merged;
+}
+
+function normalizeImageBrowserSortPreference<T extends string>(
+    value: unknown,
+    fields: readonly T[],
+    fallback: ImageBrowserSortPreference<T>
+): ImageBrowserSortPreference<T> {
+    if (!isRecord(value) || typeof value.field !== 'string' || typeof value.order !== 'string') {
+        return { ...fallback };
+    }
+    if (fields.indexOf(value.field as T) === -1 || (value.order !== 'asc' && value.order !== 'desc')) {
+        return { ...fallback };
+    }
+    return { field: value.field as T, order: value.order };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
 }

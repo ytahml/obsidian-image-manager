@@ -128,6 +128,8 @@ export const zh: Record<string, string> = {
     'modal.imageBrowser.sortSize': '大小',
     'modal.imageBrowser.sortModified': '修改时间',
     'modal.imageBrowser.sortCreated': '创建时间',
+    'modal.imageBrowser.sortAscending': '升序',
+    'modal.imageBrowser.sortDescending': '降序',
     'modal.imageBrowser.showing': '显示 {count} / {total} 张图片',
     'modal.imageBrowser.noImages': '仓库中未找到图片',
     'modal.imageBrowser.insertTooltip': '点击预览',

@@ -129,6 +129,8 @@ export const en: Record<string, string> = {
     'modal.imageBrowser.sortSize': 'Size',
     'modal.imageBrowser.sortModified': 'Modified',
     'modal.imageBrowser.sortCreated': 'Created',
+    'modal.imageBrowser.sortAscending': 'Ascending',
+    'modal.imageBrowser.sortDescending': 'Descending',
     'modal.imageBrowser.showing': 'Showing {count} of {total} images',
     'modal.imageBrowser.noImages': 'No images found in vault',
     'modal.imageBrowser.insertTooltip': 'Click to preview',
