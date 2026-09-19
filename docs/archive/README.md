@@ -1,6 +1,10 @@
 # 文档归档登记
 
-2026-08-09 完成知识库收敛。当前契约只保留在 `docs/design/` 和 canonical skill references 中；以下完成过程不再留在工作树全文，必要时从 Git 历史恢复。
+2026-08-09 完成知识库收敛。当前契约只保留在 `docs/design/` 和 canonical skill references 中；归档内容仅作为历史证据，不得覆盖当前代码与契约。除下方明确保留的归档计划外，完成过程不再留在工作树全文，必要时从 Git 历史恢复。
+
+## 工作树内归档
+
+- [图片浏览器批量选择实现计划](image-browser-batch-selection-plan.md) — Issue #45 / PR #46 / v2.0.2。
 
 ## 已归档范围
 
