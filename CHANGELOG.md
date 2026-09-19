@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.0.2
+
+### 🇺🇸 English
+
+#### New features
+
+- Added **Select current results** and **Clear selection** actions to the local and remote image browsers, including Shift-click range selection across the complete filtered and sorted result set ([PR #46](https://github.com/ytahml/obsidian-image-manager/pull/46)).
+
+#### Improvements
+
+- Removed the 20-object remote deletion selection limit while retaining per-object eligibility checks, exact-count confirmation, a maximum of two concurrent requests, and no automatic retries.
+- Closing a confirmation dialog with Cancel, Escape, or the close button now reports cancellation exactly once and restores local deletion controls.
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 本地与远程图片浏览器新增“选择当前结果”和“清空选择”，并支持按完整筛选、排序结果进行 Shift 区间选择（[PR #46](https://github.com/ytahml/obsidian-image-manager/pull/46)）。
+
+#### 改进
+
+- 取消远程删除的 20 项选择上限，同时保留逐对象资格校验、精确数量确认、最多两个并发请求和不自动重试等安全边界。
+- 通过取消按钮、Escape 或关闭按钮退出确认弹窗时，取消回调只触发一次，并正确恢复本地删除控件状态。
+
+---
+
 ## 2.0.1
 
 ### 🇺🇸 English
