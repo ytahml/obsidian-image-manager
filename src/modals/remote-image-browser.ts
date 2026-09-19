@@ -1073,9 +1073,9 @@ export class RemoteImageBrowserView {
                         hostingId: object.hostingId,
                         key: object.key,
                         success: result.success,
-                        ...(result.status !== undefined
-                            ? { status: result.status }
-                            : {}),
+                        ...(result.status === undefined
+                            ? {}
+                            : { status: result.status }),
                         ...(result.deletionKind
                             ? { deletionKind: result.deletionKind }
                             : {}),
