@@ -55,7 +55,7 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 ## Reference Index
 
 | Topic | Read when |
-|---|---|
+| --- | --- |
 | [architecture.md](references/architecture.md) | Orienting in the repository, changing commands, types, lifecycle, module boundaries, or feature scope |
 | [local-image-workflows.md](references/local-image-workflows.md) | Changing paste/drop, paths, references, compression, local browser, orphan cleanup, rename, or reorganization |
 | [hosting-and-remote.md](references/hosting-and-remote.md) | Changing upload orchestration, provider signing, remote scan/preview/reference/delete behavior, or provider capabilities |

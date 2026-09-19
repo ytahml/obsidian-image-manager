@@ -1,44 +1,50 @@
-import { App, Notice } from 'obsidian';
-import type ImageManagerPlugin from '../main';
-import type { ImageHostingConfig } from '../types';
-import { t } from '../i18n';
-import { formatFileSize } from '../utils/path-utils';
-import { applySelectionGesture } from '../utils/selection-range';
-import { ConfirmDialog } from './confirm-dialog';
-import { RemoteBrowseSession } from '../remote/browse-session';
-import { getRemoteManagementConfig, normalizeRemotePrefix } from '../remote/management-settings';
-import { createRemoteObjectProvider, supportsRemoteObjectManagement } from '../remote/provider-factory';
+import { App, Notice } from "obsidian";
+import type ImageManagerPlugin from "../main";
+import type { ImageHostingConfig } from "../types";
+import { t } from "../i18n";
+import { formatFileSize } from "../utils/path-utils";
+import { applySelectionGesture } from "../utils/selection-range";
+import { ConfirmDialog } from "./confirm-dialog";
+import { RemoteBrowseSession } from "../remote/browse-session";
+import {
+    getRemoteManagementConfig,
+    normalizeRemotePrefix,
+} from "../remote/management-settings";
+import {
+    createRemoteObjectProvider,
+    supportsRemoteObjectManagement,
+} from "../remote/provider-factory";
 import type {
     RemoteObject,
     RemoteReferenceLocation,
     RemoteReferenceState,
     RemoteUrlMapping,
-} from '../remote/types';
-import type { RemoteBrowseFailure } from '../remote/browse-session';
-import { getRemoteResults } from '../remote/result-page';
-import { RemotePreviewSession } from '../remote/preview-session';
-import { RemoteThumbnailSession } from '../remote/thumbnail-session';
-import type { RemoteObjectProvider } from '../remote/provider';
-import { RemoteImagePreviewModal } from './remote-image-preview';
+} from "../remote/types";
+import type { RemoteBrowseFailure } from "../remote/browse-session";
+import { getRemoteResults } from "../remote/result-page";
+import { RemotePreviewSession } from "../remote/preview-session";
+import { RemoteThumbnailSession } from "../remote/thumbnail-session";
+import type { RemoteObjectProvider } from "../remote/provider";
+import { RemoteImagePreviewModal } from "./remote-image-preview";
 import {
     getRemotePreviewUnavailableReason,
     type RemotePreviewUnavailableReason,
-} from '../remote/preview-policy';
-import { RemoteDeleteSession } from '../remote/delete-session';
-import type { RemoteDeleteBatchSnapshot } from '../remote/delete-session';
+} from "../remote/preview-policy";
+import { RemoteDeleteSession } from "../remote/delete-session";
+import type { RemoteDeleteBatchSnapshot } from "../remote/delete-session";
 import type {
     RemoteDeleteEligibilityContext,
     RemoteDeleteUnavailableReason,
-} from '../remote/delete-policy';
-import { getRemoteDeleteUnavailableReason } from '../remote/delete-policy';
-import { RemoteDeleteConfirmModal } from './remote-delete-confirm';
-import { RemoteDeleteResultsModal } from './remote-delete-results';
-import { RemoteImageGrid } from './remote-image-grid';
-import { RemoteFolderPickerModal } from './remote-folder-picker';
+} from "../remote/delete-policy";
+import { getRemoteDeleteUnavailableReason } from "../remote/delete-policy";
+import { RemoteDeleteConfirmModal } from "./remote-delete-confirm";
+import { RemoteDeleteResultsModal } from "./remote-delete-results";
+import { RemoteImageGrid } from "./remote-image-grid";
+import { RemoteFolderPickerModal } from "./remote-folder-picker";
 
 const REMOTE_SCAN_REQUESTS_PER_BATCH = 10;
 
-type RemoteReferenceFilter = 'all' | RemoteReferenceState;
+type RemoteReferenceFilter = "all" | RemoteReferenceState;
 
 /** S3-first card browser with explicit scanning and viewport thumbnail loading. */
 export class RemoteImageBrowserView {
@@ -46,13 +52,13 @@ export class RemoteImageBrowserView {
     private previewSession = new RemotePreviewSession();
     private thumbnailSession = new RemoteThumbnailSession(this.previewSession);
     private deleteSession = new RemoteDeleteSession();
-    private selectedHostingId = '';
+    private selectedHostingId = "";
     private emptyPrefixConfirmed = new Set<string>();
     private scanAbortController: AbortController | null = null;
     private searchDebounceTimer: number | null = null;
     private settingsSaveTimer: number | null = null;
-    private keyword = '';
-    private referenceFilter: RemoteReferenceFilter = 'all';
+    private keyword = "";
+    private referenceFilter: RemoteReferenceFilter = "all";
     private pageResultsEl: HTMLElement | null = null;
     private resultCountEl: HTMLElement | null = null;
     private imageGrid: RemoteImageGrid | null = null;
@@ -74,26 +80,28 @@ export class RemoteImageBrowserView {
         private app: App,
         private plugin: ImageManagerPlugin,
         private containerEl: HTMLElement,
-        private closeBrowser: () => void = () => {}
+        private closeBrowser: () => void = () => {},
     ) {}
 
     open() {
-        this.removeIndexInvalidationListener ??= this.plugin.remoteReferenceIndex.onInvalidate(() => {
-            this.clearRemoteSelection();
-            this.invalidatePreview();
-            this.render();
-        });
-        this.removeUploadSuccessListener ??= this.plugin.uploadService.onSuccess((result) => {
-            if (result.hostingId !== this.selectedHostingId) return;
-            this.invalidatePreview();
-            this.deleteViewGeneration++;
-            this.clearRemoteSelection();
-            this.session.invalidate();
-            this.render();
-        });
+        this.removeIndexInvalidationListener ??=
+            this.plugin.remoteReferenceIndex.onInvalidate(() => {
+                this.clearRemoteSelection();
+                this.invalidatePreview();
+                this.render();
+            });
+        this.removeUploadSuccessListener ??=
+            this.plugin.uploadService.onSuccess((result) => {
+                if (result.hostingId !== this.selectedHostingId) return;
+                this.invalidatePreview();
+                this.deleteViewGeneration++;
+                this.clearRemoteSelection();
+                this.session.invalidate();
+                this.render();
+            });
         const configs = this.getConfigs();
         if (!configs.some((config) => config.id === this.selectedHostingId)) {
-            this.selectedHostingId = configs[0]?.id ?? '';
+            this.selectedHostingId = configs[0]?.id ?? "";
         }
         this.render();
     }
@@ -128,14 +136,17 @@ export class RemoteImageBrowserView {
 
     private getConfigs(): ImageHostingConfig[] {
         return this.plugin.settings.hostingConfigs.filter(
-            (config) => config.enabled &&
+            (config) =>
+                config.enabled &&
                 getRemoteManagementConfig(config).enabled &&
-                supportsRemoteObjectManagement(config)
+                supportsRemoteObjectManagement(config),
         );
     }
 
     private getSelectedConfig(): ImageHostingConfig | undefined {
-        return this.getConfigs().find((config) => config.id === this.selectedHostingId);
+        return this.getConfigs().find(
+            (config) => config.id === this.selectedHostingId,
+        );
     }
 
     private render() {
@@ -150,30 +161,38 @@ export class RemoteImageBrowserView {
         this.deleteButton = null;
         this.currentEligibleObjects = [];
         this.containerEl.empty();
-        this.containerEl.addClass('remote-image-browser');
+        this.containerEl.addClass("remote-image-browser");
         const configs = this.getConfigs();
         if (configs.length === 0) {
-            this.containerEl.createDiv({ cls: 'image-browser-empty', text: t('modal.imageBrowser.remoteNoConfig') });
+            this.containerEl.createDiv({
+                cls: "image-browser-empty",
+                text: t("modal.imageBrowser.remoteNoConfig"),
+            });
             return;
         }
 
         const config = this.getSelectedConfig()!;
         const settings = getRemoteManagementConfig(config);
         const providerResult = createRemoteObjectProvider(config);
-        const controls = this.containerEl.createDiv({ cls: 'remote-image-browser-controls' });
+        const controls = this.containerEl.createDiv({
+            cls: "remote-image-browser-controls",
+        });
 
-        controls.createSpan({ text: t('modal.imageBrowser.remoteProvider') });
-        const configSelect = controls.createEl('select');
+        controls.createSpan({ text: t("modal.imageBrowser.remoteProvider") });
+        const configSelect = controls.createEl("select");
         for (const item of configs) {
-            configSelect.createEl('option', { value: item.id, text: item.name || item.type.toUpperCase() });
+            configSelect.createEl("option", {
+                value: item.id,
+                text: item.name || item.type.toUpperCase(),
+            });
         }
         configSelect.value = config.id;
-        configSelect.addEventListener('change', () => {
+        configSelect.addEventListener("change", () => {
             this.activeFolderPicker?.close();
             this.activeFolderPicker = null;
             this.selectedHostingId = configSelect.value;
-            this.keyword = '';
-            this.referenceFilter = 'all';
+            this.keyword = "";
+            this.referenceFilter = "all";
             this.emptyPrefixConfirmed.clear();
             this.invalidatePreview();
             this.deleteViewGeneration++;
@@ -182,37 +201,48 @@ export class RemoteImageBrowserView {
             this.render();
         });
 
-        const chooseFolder = providerResult.status === 'ready' &&
-            providerResult.provider.capabilities.has('folders') &&
+        const chooseFolder =
+            providerResult.status === "ready" &&
+            providerResult.provider.capabilities.has("folders") &&
             providerResult.provider.listFolders
-            ? controls.createEl('button', {
-                text: t('modal.imageBrowser.remoteChooseFolder'),
-                attr: { title: t('modal.imageBrowser.remoteChooseFolderHint') },
-            })
-            : undefined;
-        const prefixInput = controls.createEl('input', {
+                ? controls.createEl("button", {
+                      text: t("modal.imageBrowser.remoteChooseFolder"),
+                      attr: {
+                          title: t("modal.imageBrowser.remoteChooseFolderHint"),
+                      },
+                  })
+                : undefined;
+        const prefixInput = controls.createEl("input", {
             attr: {
-                type: 'text',
-                placeholder: t('modal.imageBrowser.remotePrefix'),
-                'aria-label': t('modal.imageBrowser.remotePrefix'),
-                title: t('modal.imageBrowser.remotePrefixManualHint'),
+                type: "text",
+                placeholder: t("modal.imageBrowser.remotePrefix"),
+                "aria-label": t("modal.imageBrowser.remotePrefix"),
+                title: t("modal.imageBrowser.remotePrefixManualHint"),
             },
             value: settings.prefix,
         });
 
         const range = this.containerEl.createDiv({
-            cls: 'remote-image-browser-range',
-            text: t('modal.imageBrowser.remoteRange', { scope: getScope(config, settings.prefix) }),
+            cls: "remote-image-browser-range",
+            text: t("modal.imageBrowser.remoteRange", {
+                scope: getScope(config, settings.prefix),
+            }),
         });
-        prefixInput.addEventListener('input', () => {
+        prefixInput.addEventListener("input", () => {
             this.applyPrefix(config, prefixInput.value, prefixInput, range);
         });
-        if (providerResult.status === 'unsupported' || !providerResult.provider.capabilities.has('list')) {
-            this.containerEl.createDiv({ cls: 'remote-image-browser-message', text: t('modal.imageBrowser.remoteUnsupported') });
+        if (
+            providerResult.status === "unsupported" ||
+            !providerResult.provider.capabilities.has("list")
+        ) {
+            this.containerEl.createDiv({
+                cls: "remote-image-browser-message",
+                text: t("modal.imageBrowser.remoteUnsupported"),
+            });
             return;
         }
         if (chooseFolder) {
-            chooseFolder.addEventListener('click', () => {
+            chooseFolder.addEventListener("click", () => {
                 this.activeFolderPicker?.close();
                 let picker: RemoteFolderPickerModal;
                 picker = new RemoteFolderPickerModal(
@@ -220,62 +250,93 @@ export class RemoteImageBrowserView {
                     providerResult.provider,
                     getRemoteManagementConfig(config).prefix,
                     getBucket(config) || config.name || config.type,
-                    (prefix) => this.applyPrefix(config, prefix, prefixInput, range, true),
+                    (prefix) =>
+                        this.applyPrefix(
+                            config,
+                            prefix,
+                            prefixInput,
+                            range,
+                            true,
+                        ),
                     () => {
-                        if (this.activeFolderPicker === picker) this.activeFolderPicker = null;
-                    }
+                        if (this.activeFolderPicker === picker)
+                            this.activeFolderPicker = null;
+                    },
                 );
                 this.activeFolderPicker = picker;
                 picker.open();
             });
         }
 
-        const actions = this.containerEl.createDiv({ cls: 'remote-image-browser-actions' });
-        const snapshot = this.session.getSnapshot();
-        const scanButton = actions.createEl('button', {
-            text: t(snapshot.status === 'scanning'
-                ? 'modal.imageBrowser.remoteScanning'
-                : 'modal.imageBrowser.remoteScan'),
-            cls: 'mod-cta',
+        const actions = this.containerEl.createDiv({
+            cls: "remote-image-browser-actions",
         });
-        scanButton.disabled = snapshot.status === 'scanning';
-        scanButton.addEventListener('click', () => void this.startScan(config));
+        const snapshot = this.session.getSnapshot();
+        const scanButton = actions.createEl("button", {
+            text: t(
+                snapshot.status === "scanning"
+                    ? "modal.imageBrowser.remoteScanning"
+                    : "modal.imageBrowser.remoteScan",
+            ),
+            cls: "mod-cta",
+        });
+        scanButton.disabled = snapshot.status === "scanning";
+        scanButton.addEventListener("click", () => void this.startScan(config));
 
-        const refreshButton = actions.createEl('button', { text: t('modal.imageBrowser.remoteRefresh') });
-        refreshButton.disabled = snapshot.status === 'scanning' || snapshot.pages.length === 0;
-        refreshButton.addEventListener('click', () => void this.refresh(config));
+        const refreshButton = actions.createEl("button", {
+            text: t("modal.imageBrowser.remoteRefresh"),
+        });
+        refreshButton.disabled =
+            snapshot.status === "scanning" || snapshot.pages.length === 0;
+        refreshButton.addEventListener(
+            "click",
+            () => void this.refresh(config),
+        );
 
-        const continueButton = actions.createEl('button', { text: t('modal.imageBrowser.remoteContinueScan') });
-        continueButton.disabled = snapshot.status === 'scanning' || !this.session.hasMore();
-        continueButton.addEventListener('click', () => void this.continueScan(config));
+        const continueButton = actions.createEl("button", {
+            text: t("modal.imageBrowser.remoteContinueScan"),
+        });
+        continueButton.disabled =
+            snapshot.status === "scanning" || !this.session.hasMore();
+        continueButton.addEventListener(
+            "click",
+            () => void this.continueScan(config),
+        );
 
-        const stopButton = actions.createEl('button', { text: t('modal.imageBrowser.remoteStop') });
-        stopButton.disabled = snapshot.status !== 'scanning';
-        stopButton.addEventListener('click', () => {
+        const stopButton = actions.createEl("button", {
+            text: t("modal.imageBrowser.remoteStop"),
+        });
+        stopButton.disabled = snapshot.status !== "scanning";
+        stopButton.addEventListener("click", () => {
             this.scanAbortController?.abort();
             this.scanAbortController = null;
             this.session.stop();
             this.render();
         });
         actions.createSpan({
-            cls: 'remote-image-browser-page-note',
-            text: t('modal.imageBrowser.remoteScanProgress', {
+            cls: "remote-image-browser-page-note",
+            text: t("modal.imageBrowser.remoteScanProgress", {
                 count: String(this.session.getAllObjects().length),
                 requests: String(snapshot.pages.length),
             }),
         });
         this.previewCountEl = actions.createSpan({
-            cls: 'remote-image-browser-page-note',
+            cls: "remote-image-browser-page-note",
             text: this.getPreviewCountText(),
         });
-        this.containerEl.setAttribute('aria-busy', String(snapshot.status === 'scanning'));
-        if (snapshot.status === 'scanning') {
+        this.containerEl.setAttribute(
+            "aria-busy",
+            String(snapshot.status === "scanning"),
+        );
+        if (snapshot.status === "scanning") {
             const loading = this.containerEl.createDiv({
-                cls: 'remote-image-browser-loading',
-                attr: { role: 'status', 'aria-live': 'polite' },
+                cls: "remote-image-browser-loading",
+                attr: { role: "status", "aria-live": "polite" },
             });
-            loading.createDiv({ cls: 'remote-image-browser-spinner' });
-            loading.createSpan({ text: t('modal.imageBrowser.remoteScanLoading') });
+            loading.createDiv({ cls: "remote-image-browser-spinner" });
+            loading.createSpan({
+                text: t("modal.imageBrowser.remoteScanLoading"),
+            });
         }
 
         this.renderReferenceStatus();
@@ -287,10 +348,10 @@ export class RemoteImageBrowserView {
         const settings = getRemoteManagementConfig(config);
         if (!settings.prefix && !this.emptyPrefixConfirmed.has(config.id)) {
             new ConfirmDialog(this.app, {
-                title: t('modal.imageBrowser.remoteConfirmTitle'),
-                message: t('modal.imageBrowser.remoteConfirmMessage'),
-                confirmText: t('modal.imageBrowser.remoteConfirmContinue'),
-                pendingText: t('modal.imageBrowser.remoteScanning'),
+                title: t("modal.imageBrowser.remoteConfirmTitle"),
+                message: t("modal.imageBrowser.remoteConfirmMessage"),
+                confirmText: t("modal.imageBrowser.remoteConfirmContinue"),
+                pendingText: t("modal.imageBrowser.remoteScanning"),
                 onConfirm: async () => {
                     this.emptyPrefixConfirmed.add(config.id);
                     await this.runScan(config);
@@ -307,33 +368,51 @@ export class RemoteImageBrowserView {
 
     private async runScan(config: ImageHostingConfig) {
         const result = createRemoteObjectProvider(config);
-        if (result.status !== 'ready' || !result.provider.capabilities.has('list')) return;
+        if (
+            result.status !== "ready" ||
+            !result.provider.capabilities.has("list")
+        )
+            return;
         this.invalidatePreview();
         this.deleteViewGeneration++;
         this.clearRemoteSelection();
         this.scanAbortController?.abort();
         const controller = new AbortController();
         this.scanAbortController = controller;
-        this.session.invalidate('scanning');
+        this.session.invalidate("scanning");
         this.render();
 
         try {
-            await this.plugin.remoteReferenceIndex.scan({ signal: controller.signal });
+            await this.plugin.remoteReferenceIndex.scan({
+                signal: controller.signal,
+            });
         } catch (error) {
             if (controller.signal.aborted) return;
-            console.warn('Remote reference scan failed:', error);
+            console.warn("Remote reference scan failed:", error);
         }
         if (controller.signal.aborted) return;
 
-        const firstPageLoaded = await this.session.scan(result.provider, config);
-        const completed = firstPageLoaded && await this.session.loadNextBatch(
+        const firstPageLoaded = await this.session.scan(
             result.provider,
             config,
-            REMOTE_SCAN_REQUESTS_PER_BATCH - 1
         );
-        if (controller.signal.aborted || this.scanAbortController !== controller) return;
+        const completed =
+            firstPageLoaded &&
+            (await this.session.loadNextBatch(
+                result.provider,
+                config,
+                REMOTE_SCAN_REQUESTS_PER_BATCH - 1,
+            ));
+        if (
+            controller.signal.aborted ||
+            this.scanAbortController !== controller
+        )
+            return;
         this.scanAbortController = null;
-        if (!completed && this.session.getSnapshot().error?.code === 'invalid-cursor') {
+        if (
+            !completed &&
+            this.session.getSnapshot().error?.code === "invalid-cursor"
+        ) {
             this.session.stop();
         }
         this.render();
@@ -341,20 +420,27 @@ export class RemoteImageBrowserView {
 
     private async continueScan(config: ImageHostingConfig) {
         const result = createRemoteObjectProvider(config);
-        if (result.status !== 'ready' || !this.session.hasMore()) return;
+        if (result.status !== "ready" || !this.session.hasMore()) return;
         this.scanAbortController?.abort();
         const controller = new AbortController();
         this.scanAbortController = controller;
         const pending = this.session.loadNextBatch(
             result.provider,
             config,
-            REMOTE_SCAN_REQUESTS_PER_BATCH
+            REMOTE_SCAN_REQUESTS_PER_BATCH,
         );
         this.render();
         const completed = await pending;
-        if (controller.signal.aborted || this.scanAbortController !== controller) return;
+        if (
+            controller.signal.aborted ||
+            this.scanAbortController !== controller
+        )
+            return;
         this.scanAbortController = null;
-        if (!completed && this.session.getSnapshot().error?.code === 'invalid-cursor') {
+        if (
+            !completed &&
+            this.session.getSnapshot().error?.code === "invalid-cursor"
+        ) {
             this.session.stop();
         }
         this.render();
@@ -363,34 +449,47 @@ export class RemoteImageBrowserView {
     private renderReferenceStatus() {
         const state = this.plugin.remoteReferenceIndex.getState();
         let status: string;
-        if (state.status === 'empty') {
-            status = t('modal.imageBrowser.remoteStatusEmpty');
-        } else if (state.status === 'stale') {
-            status = t('modal.imageBrowser.remoteStatusStale');
+        if (state.status === "empty") {
+            status = t("modal.imageBrowser.remoteStatusEmpty");
+        } else if (state.status === "stale") {
+            status = t("modal.imageBrowser.remoteStatusStale");
         } else {
-            status = t('modal.imageBrowser.remoteStatusFresh', {
+            status = t("modal.imageBrowser.remoteStatusFresh", {
                 time: new Date(state.summary.scannedAt).toLocaleString(),
                 count: String(state.summary.markdownFileCount),
             });
         }
         this.containerEl.createDiv({
-            cls: 'remote-image-browser-reference-status',
-            text: t('modal.imageBrowser.remoteStatus', { status }),
+            cls: "remote-image-browser-reference-status",
+            text: t("modal.imageBrowser.remoteStatus", { status }),
         });
     }
 
     private renderPage(config: ImageHostingConfig) {
         const snapshot = this.session.getSnapshot();
-        if (snapshot.status === 'error') {
+        if (snapshot.status === "error") {
             const message = getRemoteFailureMessage(snapshot.error);
-            this.containerEl.createDiv({ cls: 'remote-image-browser-message mod-warning', text: message });
+            this.containerEl.createDiv({
+                cls: "remote-image-browser-message mod-warning",
+                text: message,
+            });
         }
 
-        const tools = this.containerEl.createDiv({ cls: 'remote-image-browser-page-tools' });
-        const results = this.containerEl.createDiv({ cls: 'remote-image-browser-page-results' });
+        const tools = this.containerEl.createDiv({
+            cls: "remote-image-browser-page-tools",
+        });
+        const results = this.containerEl.createDiv({
+            cls: "remote-image-browser-page-results",
+        });
         this.pageResultsEl = results;
-        const search = tools.createEl('input', { attr: { type: 'text', placeholder: t('modal.imageBrowser.searchPlaceholder') }, value: this.keyword });
-        search.addEventListener('input', () => {
+        const search = tools.createEl("input", {
+            attr: {
+                type: "text",
+                placeholder: t("modal.imageBrowser.searchPlaceholder"),
+            },
+            value: this.keyword,
+        });
+        search.addEventListener("input", () => {
             this.keyword = search.value;
             this.clearSearchDebounce();
             this.searchDebounceTimer = window.setTimeout(() => {
@@ -398,56 +497,77 @@ export class RemoteImageBrowserView {
                 this.renderPageResults(config, results);
             }, 300);
         });
-        const sort = tools.createEl('select');
-        for (const [value, label] of [['key', t('modal.imageBrowser.sortName')], ['size', t('modal.imageBrowser.sortSize')], ['modified', t('modal.imageBrowser.sortModified')]] as const) {
-            sort.createEl('option', { value, text: label });
+        const sort = tools.createEl("select");
+        for (const [value, label] of [
+            ["key", t("modal.imageBrowser.sortName")],
+            ["size", t("modal.imageBrowser.sortSize")],
+            ["modified", t("modal.imageBrowser.sortModified")],
+        ] as const) {
+            sort.createEl("option", { value, text: label });
         }
         sort.value = this.plugin.settings.remoteImageBrowserSort.field;
-        sort.addEventListener('change', () => {
-            this.plugin.settings.remoteImageBrowserSort.field = sort.value as typeof this.plugin.settings.remoteImageBrowserSort.field;
+        sort.addEventListener("change", () => {
+            this.plugin.settings.remoteImageBrowserSort.field =
+                sort.value as typeof this.plugin.settings.remoteImageBrowserSort.field;
             this.scheduleSettingsSave();
             this.clearSearchDebounce();
             this.renderPageResults(config, results);
         });
-        const sortDirection = tools.createEl('button', { attr: { type: 'button' } });
+        const sortDirection = tools.createEl("button", {
+            attr: { type: "button" },
+        });
         const updateSortDirection = () => {
-            const key = this.plugin.settings.remoteImageBrowserSort.order === 'asc'
-                ? 'modal.imageBrowser.sortAscending'
-                : 'modal.imageBrowser.sortDescending';
+            const key =
+                this.plugin.settings.remoteImageBrowserSort.order === "asc"
+                    ? "modal.imageBrowser.sortAscending"
+                    : "modal.imageBrowser.sortDescending";
             const label = t(key);
             sortDirection.textContent = label;
-            sortDirection.setAttribute('aria-label', label);
+            sortDirection.setAttribute("aria-label", label);
         };
         updateSortDirection();
-        sortDirection.addEventListener('click', () => {
-            this.plugin.settings.remoteImageBrowserSort.order = this.plugin.settings.remoteImageBrowserSort.order === 'asc'
-                ? 'desc'
-                : 'asc';
+        sortDirection.addEventListener("click", () => {
+            this.plugin.settings.remoteImageBrowserSort.order =
+                this.plugin.settings.remoteImageBrowserSort.order === "asc"
+                    ? "desc"
+                    : "asc";
             updateSortDirection();
             this.scheduleSettingsSave();
             this.clearSearchDebounce();
             this.renderPageResults(config, results);
         });
-        const referenceFilter = tools.createEl('select', {
-            attr: { 'aria-label': t('modal.imageBrowser.remoteReferenceFilter') },
+        const referenceFilter = tools.createEl("select", {
+            attr: {
+                "aria-label": t("modal.imageBrowser.remoteReferenceFilter"),
+            },
         });
         for (const [value, label] of [
-            ['all', t('modal.imageBrowser.remoteReferenceAll')],
-            ['not-referenced-in-current-vault', t('modal.imageBrowser.remoteNotReferenced')],
-            ['referenced', t('modal.imageBrowser.remoteReferenced')],
-            ['unmappable', t('modal.imageBrowser.remoteUnmappable')],
-        ] as const) referenceFilter.createEl('option', { value, text: label });
+            ["all", t("modal.imageBrowser.remoteReferenceAll")],
+            [
+                "not-referenced-in-current-vault",
+                t("modal.imageBrowser.remoteNotReferenced"),
+            ],
+            ["referenced", t("modal.imageBrowser.remoteReferenced")],
+            ["unmappable", t("modal.imageBrowser.remoteUnmappable")],
+        ] as const)
+            referenceFilter.createEl("option", { value, text: label });
         referenceFilter.value = this.referenceFilter;
-        referenceFilter.addEventListener('change', () => {
-            this.referenceFilter = referenceFilter.value as RemoteReferenceFilter;
+        referenceFilter.addEventListener("change", () => {
+            this.referenceFilter =
+                referenceFilter.value as RemoteReferenceFilter;
             this.renderPageResults(config, results);
         });
-        this.resultCountEl = tools.createSpan({ cls: 'remote-image-browser-page-note' });
+        this.resultCountEl = tools.createSpan({
+            cls: "remote-image-browser-page-note",
+        });
 
         this.renderPageResults(config, results);
     }
 
-    private renderPageResults(config: ImageHostingConfig, container: HTMLElement) {
+    private renderPageResults(
+        config: ImageHostingConfig,
+        container: HTMLElement,
+    ) {
         this.destroyGrid();
         this.thumbnailSession.resetView();
         container.empty();
@@ -456,51 +576,65 @@ export class RemoteImageBrowserView {
         this.updateDeleteToolbar();
         const snapshot = this.session.getSnapshot();
         const providerResult = createRemoteObjectProvider(config);
-        const provider = providerResult.status === 'ready' ? providerResult.provider : undefined;
+        const provider =
+            providerResult.status === "ready"
+                ? providerResult.provider
+                : undefined;
         const mapping = provider?.referenceMapping ?? toUrlMapping(config);
         const lookup = this.plugin.remoteReferenceIndex.createLookup(mapping);
         const allObjects = this.session.getAllObjects();
         const { field, order } = this.plugin.settings.remoteImageBrowserSort;
         const sorted = getRemoteResults(allObjects, this.keyword, field, order);
-        const objects = this.referenceFilter === 'all'
-            ? sorted
-            : sorted.filter((object) => lookup.classify(object) === this.referenceFilter);
+        const objects =
+            this.referenceFilter === "all"
+                ? sorted
+                : sorted.filter(
+                      (object) =>
+                          lookup.classify(object) === this.referenceFilter,
+                  );
         if (this.resultCountEl) {
-            this.resultCountEl.textContent = t('modal.imageBrowser.remoteResultCount', {
-                count: String(objects.length),
-                total: String(allObjects.length),
-            });
+            this.resultCountEl.textContent = t(
+                "modal.imageBrowser.remoteResultCount",
+                {
+                    count: String(objects.length),
+                    total: String(allObjects.length),
+                },
+            );
         }
         if (
             snapshot.pages.length === 0 &&
             objects.length === 0 &&
-            snapshot.status !== 'error' &&
-            snapshot.status !== 'scanning'
+            snapshot.status !== "error" &&
+            snapshot.status !== "scanning"
         ) {
             container.createDiv({
-                cls: 'image-browser-empty',
-                text: t('modal.imageBrowser.remoteScanPrompt'),
+                cls: "image-browser-empty",
+                text: t("modal.imageBrowser.remoteScanPrompt"),
             });
         } else if (snapshot.pages.length > 0 && objects.length === 0) {
             container.createDiv({
-                cls: 'image-browser-empty',
-                text: t(this.keyword || this.referenceFilter !== 'all'
-                    ? 'modal.imageBrowser.remoteNoMatches'
-                    : 'modal.imageBrowser.remoteNoObjects'),
+                cls: "image-browser-empty",
+                text: t(
+                    this.keyword || this.referenceFilter !== "all"
+                        ? "modal.imageBrowser.remoteNoMatches"
+                        : "modal.imageBrowser.remoteNoObjects",
+                ),
             });
         } else if (objects.length > 0) {
             const deleteVisible = Boolean(
-                provider?.capabilities.has('delete') && provider.deleteObject
+                provider?.capabilities.has("delete") && provider.deleteObject,
             );
-            const deleteContext: RemoteDeleteEligibilityContext | undefined = deleteVisible
-                ? {
-                    config,
-                    provider,
-                    indexState: this.plugin.remoteReferenceIndex.getState(),
-                    scannedObjects: this.session.getAllObjects(),
-                    classify: (object) => lookup.classify(object),
-                }
-                : undefined;
+            const deleteContext: RemoteDeleteEligibilityContext | undefined =
+                deleteVisible
+                    ? {
+                          config,
+                          provider,
+                          indexState:
+                              this.plugin.remoteReferenceIndex.getState(),
+                          scannedObjects: this.session.getAllObjects(),
+                          classify: (object) => lookup.classify(object),
+                      }
+                    : undefined;
             const items = objects.map((object) => ({
                 object,
                 referenceState: lookup.classify(object),
@@ -508,7 +642,7 @@ export class RemoteImageBrowserView {
                     config,
                     provider,
                     object,
-                    this.plugin.settings.supportedExtensions
+                    this.plugin.settings.supportedExtensions,
                 ),
                 deleteUnavailable: deleteContext
                     ? getRemoteDeleteUnavailableReason(object, deleteContext)
@@ -517,8 +651,8 @@ export class RemoteImageBrowserView {
             }));
             this.currentEligibleObjects = deleteContext
                 ? items
-                    .filter((item) => item.deleteUnavailable === undefined)
-                    .map((item) => item.object)
+                      .filter((item) => item.deleteUnavailable === undefined)
+                      .map((item) => item.object)
                 : [];
             this.updateDeleteToolbar();
             this.imageGrid = new RemoteImageGrid({
@@ -536,7 +670,7 @@ export class RemoteImageBrowserView {
                         this.currentEligibleObjects,
                         object,
                         selected,
-                        shiftKey
+                        shiftKey,
                     );
                 },
                 onPreview: (readyProvider, object, references) => {
@@ -544,7 +678,9 @@ export class RemoteImageBrowserView {
                 },
                 onImageRequest: () => {
                     this.previewSession.recordImageRequest();
-                    if (this.previewCountEl) this.previewCountEl.textContent = this.getPreviewCountText();
+                    if (this.previewCountEl)
+                        this.previewCountEl.textContent =
+                            this.getPreviewCountText();
                 },
                 previewUnavailableMessage: getPreviewUnavailableMessage,
                 deleteUnavailableMessage: getDeleteUnavailableMessage,
@@ -568,30 +704,32 @@ export class RemoteImageBrowserView {
         value: string,
         input: HTMLInputElement,
         range: HTMLElement,
-        updateInput = false
+        updateInput = false,
     ): void {
         const remote = getRemoteManagementConfig(config);
         const prefix = normalizeRemotePrefix(value);
         if (updateInput) input.value = prefix;
-        range.textContent = t('modal.imageBrowser.remoteRange', {
+        range.textContent = t("modal.imageBrowser.remoteRange", {
             scope: getScope(config, prefix),
         });
         if (prefix === remote.prefix) return;
         remote.prefix = prefix;
         config.remoteManagement = remote;
-        this.keyword = '';
-        this.referenceFilter = 'all';
+        this.keyword = "";
+        this.referenceFilter = "all";
         this.emptyPrefixConfirmed.clear();
         this.invalidatePreview();
         this.deleteViewGeneration++;
         this.clearRemoteSelection();
         this.session.invalidate();
-        if (this.pageResultsEl) this.renderPageResults(config, this.pageResultsEl);
+        if (this.pageResultsEl)
+            this.renderPageResults(config, this.pageResultsEl);
         this.scheduleSettingsSave();
     }
 
     private scheduleSettingsSave() {
-        if (this.settingsSaveTimer !== null) window.clearTimeout(this.settingsSaveTimer);
+        if (this.settingsSaveTimer !== null)
+            window.clearTimeout(this.settingsSaveTimer);
         this.settingsSaveTimer = window.setTimeout(() => {
             this.settingsSaveTimer = null;
             void this.plugin.saveSettings();
@@ -608,17 +746,20 @@ export class RemoteImageBrowserView {
     private openPreview(
         provider: RemoteObjectProvider,
         object: RemoteObject,
-        references: readonly RemoteReferenceLocation[]
+        references: readonly RemoteReferenceLocation[],
     ): void {
         this.activePreviewModal?.close();
         let modal: RemoteImagePreviewModal;
         modal = new RemoteImagePreviewModal(
             this.app,
             object,
-            (force) => this.previewSession.resolveUrl(provider, object, { force }),
+            (force) =>
+                this.previewSession.resolveUrl(provider, object, { force }),
             () => {
                 this.previewSession.recordImageRequest();
-                if (this.previewCountEl) this.previewCountEl.textContent = this.getPreviewCountText();
+                if (this.previewCountEl)
+                    this.previewCountEl.textContent =
+                        this.getPreviewCountText();
             },
             () => {
                 if (this.activePreviewModal === modal) {
@@ -626,7 +767,7 @@ export class RemoteImageBrowserView {
                 }
             },
             references,
-            this.closeBrowser
+            this.closeBrowser,
         );
         this.activePreviewModal = modal;
         modal.open();
@@ -641,46 +782,63 @@ export class RemoteImageBrowserView {
     }
 
     private getPreviewCountText(): string {
-        return t('modal.imageBrowser.remotePreviewCount', {
+        return t("modal.imageBrowser.remotePreviewCount", {
             count: String(this.previewSession.getRequestCount()),
         });
     }
 
-    private renderDeleteToolbar(config: ImageHostingConfig, provider: RemoteObjectProvider): void {
-        if (!provider.capabilities.has('delete') || !provider.deleteObject) return;
-        const toolbar = this.containerEl.createDiv({ cls: 'remote-delete-toolbar' });
-        this.deleteSummaryEl = toolbar.createSpan();
-        this.selectCurrentButton = toolbar.createEl('button', {
-            text: t('modal.imageBrowser.selectCurrentResults'),
-            attr: { type: 'button' },
+    private renderDeleteToolbar(
+        config: ImageHostingConfig,
+        provider: RemoteObjectProvider,
+    ): void {
+        if (!provider.capabilities.has("delete") || !provider.deleteObject)
+            return;
+        const toolbar = this.containerEl.createDiv({
+            cls: "remote-delete-toolbar",
         });
-        this.selectCurrentButton.addEventListener('click', () => {
+        this.deleteSummaryEl = toolbar.createSpan();
+        this.selectCurrentButton = toolbar.createEl("button", {
+            text: t("modal.imageBrowser.selectCurrentResults"),
+            attr: { type: "button" },
+        });
+        this.selectCurrentButton.addEventListener("click", () => {
             this.selectCurrentRemoteResults(config, provider);
         });
-        this.clearSelectionButton = toolbar.createEl('button', {
-            text: t('modal.imageBrowser.clearSelection'),
-            attr: { type: 'button' },
+        this.clearSelectionButton = toolbar.createEl("button", {
+            text: t("modal.imageBrowser.clearSelection"),
+            attr: { type: "button" },
         });
-        this.clearSelectionButton.addEventListener('click', () => this.clearRemoteSelection());
-        this.deleteButton = toolbar.createEl('button', {
-            text: t('modal.imageBrowser.remoteDeleteSelected'),
-            cls: 'mod-warning',
-            attr: { type: 'button' },
+        this.clearSelectionButton.addEventListener("click", () =>
+            this.clearRemoteSelection(),
+        );
+        this.deleteButton = toolbar.createEl("button", {
+            text: t("modal.imageBrowser.remoteDeleteSelected"),
+            cls: "mod-warning",
+            attr: { type: "button" },
         });
-        this.deleteButton.addEventListener('click', () => this.openDeleteConfirmation(config, provider));
+        this.deleteButton.addEventListener("click", () =>
+            this.openDeleteConfirmation(config, provider),
+        );
         this.updateDeleteToolbar();
     }
 
     private updateDeleteToolbar(): void {
         const selected = this.deleteSession.getSelectedObjects();
-        const totalSize = selected.reduce((total, object) => total + object.size, 0);
-        const hasUnselectedCurrentResult = this.currentEligibleObjects
-            .some((object) => !this.deleteSession.isSelected(object));
+        const totalSize = selected.reduce(
+            (total, object) => total + object.size,
+            0,
+        );
+        const hasUnselectedCurrentResult = this.currentEligibleObjects.some(
+            (object) => !this.deleteSession.isSelected(object),
+        );
         if (this.deleteSummaryEl) {
-            this.deleteSummaryEl.textContent = t('modal.imageBrowser.remoteDeleteSelection', {
-                count: String(selected.length),
-                size: formatFileSize(totalSize),
-            });
+            this.deleteSummaryEl.textContent = t(
+                "modal.imageBrowser.remoteDeleteSelection",
+                {
+                    count: String(selected.length),
+                    size: formatFileSize(totalSize),
+                },
+            );
         }
         if (this.selectCurrentButton) {
             this.selectCurrentButton.disabled = !hasUnselectedCurrentResult;
@@ -688,20 +846,24 @@ export class RemoteImageBrowserView {
         if (this.clearSelectionButton) {
             this.clearSelectionButton.disabled = selected.length === 0;
         }
-        if (this.deleteButton) this.deleteButton.disabled = selected.length === 0;
+        if (this.deleteButton)
+            this.deleteButton.disabled = selected.length === 0;
     }
 
     private selectCurrentRemoteResults(
         config: ImageHostingConfig,
-        provider: RemoteObjectProvider
+        provider: RemoteObjectProvider,
     ): void {
         const objectsByKey = new Map(
-            this.deleteSession.getSelectedObjects().map((object) => [object.key, object])
+            this.deleteSession
+                .getSelectedObjects()
+                .map((object) => [object.key, object]),
         );
-        for (const object of this.currentEligibleObjects) objectsByKey.set(object.key, object);
+        for (const object of this.currentEligibleObjects)
+            objectsByKey.set(object.key, object);
         const result = this.deleteSession.replaceSelection(
             [...objectsByKey.values()],
-            this.getDeleteContext(config, provider)
+            this.getDeleteContext(config, provider),
         );
         if (result.reason) this.showRemoteSelectionFailure(result.reason);
         else this.remoteSelectionAnchorKey = null;
@@ -723,13 +885,15 @@ export class RemoteImageBrowserView {
         eligibleObjects: readonly RemoteObject[],
         target: RemoteObject,
         checked: boolean,
-        shiftKey: boolean
+        shiftKey: boolean,
     ): void {
         const gesture = applySelectionGesture({
             orderedIds: orderedObjects.map((object) => object.key),
             eligibleIds: new Set(eligibleObjects.map((object) => object.key)),
             selectedIds: new Set(
-                this.deleteSession.getSelectedObjects().map((object) => object.key)
+                this.deleteSession
+                    .getSelectedObjects()
+                    .map((object) => object.key),
             ),
             anchorId: this.remoteSelectionAnchorKey,
             targetId: target.key,
@@ -737,14 +901,14 @@ export class RemoteImageBrowserView {
             shiftKey,
         });
         const objectsByKey = new Map(
-            this.session.getAllObjects().map((object) => [object.key, object])
+            this.session.getAllObjects().map((object) => [object.key, object]),
         );
         const nextObjects = [...gesture.selectedIds]
             .map((key) => objectsByKey.get(key))
             .filter((object): object is RemoteObject => object !== undefined);
         const result = this.deleteSession.replaceSelection(
             nextObjects,
-            this.getDeleteContext(config, provider)
+            this.getDeleteContext(config, provider),
         );
         if (result.reason) {
             this.showRemoteSelectionFailure(result.reason);
@@ -755,13 +919,15 @@ export class RemoteImageBrowserView {
         this.updateDeleteToolbar();
     }
 
-    private showRemoteSelectionFailure(reason: RemoteDeleteUnavailableReason): void {
+    private showRemoteSelectionFailure(
+        reason: RemoteDeleteUnavailableReason,
+    ): void {
         new Notice(getDeleteUnavailableMessage(reason));
     }
 
     private getDeleteContext(
         config: ImageHostingConfig,
-        provider: RemoteObjectProvider | undefined
+        provider: RemoteObjectProvider | undefined,
     ): RemoteDeleteEligibilityContext {
         const mapping = provider?.referenceMapping ?? toUrlMapping(config);
         const lookup = this.plugin.remoteReferenceIndex.createLookup(mapping);
@@ -777,7 +943,7 @@ export class RemoteImageBrowserView {
     private openDeleteConfirmation(
         config: ImageHostingConfig,
         provider: RemoteObjectProvider,
-        retryScanObjects?: readonly RemoteObject[]
+        retryScanObjects?: readonly RemoteObject[],
     ): void {
         const context = {
             ...this.getDeleteContext(config, provider),
@@ -786,80 +952,117 @@ export class RemoteImageBrowserView {
         const batch = this.deleteSession.createBatch(context);
         if (!batch) {
             this.clearRemoteSelection();
-            new Notice(t('modal.imageBrowser.remoteDeleteRefreshRequired'));
+            new Notice(t("modal.imageBrowser.remoteDeleteRefreshRequired"));
             return;
         }
-        new RemoteDeleteConfirmModal({
-            hostingName: config.name || config.type.toUpperCase(),
-            bucket: getBucket(config),
-            prefix: getRemoteManagementConfig(config).prefix,
-            batch,
-            validate: () => {
-                const currentConfig = this.getSelectedConfig();
-                if (!currentConfig || currentConfig.id !== config.id) return false;
-                const currentProvider = createRemoteObjectProvider(currentConfig);
-                if (currentProvider.status !== 'ready') return false;
-                const validationContext = {
-                    ...this.getDeleteContext(currentConfig, currentProvider.provider),
-                    ...(retryScanObjects ? { scannedObjects: retryScanObjects } : {}),
-                };
-                return this.deleteSession.validateBatch(batch, validationContext);
+        new RemoteDeleteConfirmModal(
+            {
+                hostingName: config.name || config.type.toUpperCase(),
+                bucket: getBucket(config),
+                prefix: getRemoteManagementConfig(config).prefix,
+                batch,
+                validate: () => {
+                    const currentConfig = this.getSelectedConfig();
+                    if (!currentConfig || currentConfig.id !== config.id)
+                        return false;
+                    const currentProvider =
+                        createRemoteObjectProvider(currentConfig);
+                    if (currentProvider.status !== "ready") return false;
+                    const validationContext = {
+                        ...this.getDeleteContext(
+                            currentConfig,
+                            currentProvider.provider,
+                        ),
+                        ...(retryScanObjects
+                            ? { scannedObjects: retryScanObjects }
+                            : {}),
+                    };
+                    return this.deleteSession.validateBatch(
+                        batch,
+                        validationContext,
+                    );
+                },
+                onInvalid: () => {
+                    this.clearRemoteSelection();
+                    new Notice(
+                        t("modal.imageBrowser.remoteDeleteRefreshRequired"),
+                    );
+                },
+                onConfirm: () =>
+                    void this.executeDeleteBatch(config, provider, batch),
             },
-            onInvalid: () => {
-                this.clearRemoteSelection();
-                new Notice(t('modal.imageBrowser.remoteDeleteRefreshRequired'));
-            },
-            onConfirm: () => void this.executeDeleteBatch(config, provider, batch),
-        }, this.app).open();
+            this.app,
+        ).open();
     }
 
     private async executeDeleteBatch(
         config: ImageHostingConfig,
         provider: RemoteObjectProvider,
-        batch: RemoteDeleteBatchSnapshot
+        batch: RemoteDeleteBatchSnapshot,
     ): Promise<void> {
         this.activeDeleteResultsModal?.close();
         const runGeneration = ++this.deleteViewGeneration;
-        const modal = new RemoteDeleteResultsModal(this.app, batch.objects.length, {
-            onStop: () => this.deleteSession.stop(),
-            onClose: () => {
-                if (this.activeDeleteResultsModal === modal) {
-                    this.activeDeleteResultsModal = null;
-                }
-                this.deleteViewGeneration++;
+        const modal = new RemoteDeleteResultsModal(
+            this.app,
+            batch.objects.length,
+            {
+                onStop: () => this.deleteSession.stop(),
+                onClose: () => {
+                    if (this.activeDeleteResultsModal === modal) {
+                        this.activeDeleteResultsModal = null;
+                    }
+                    this.deleteViewGeneration++;
+                },
+                onRetry: (objects) => {
+                    modal.close();
+                    const currentConfig = this.getSelectedConfig();
+                    if (!currentConfig || currentConfig.id !== config.id) {
+                        new Notice(
+                            t("modal.imageBrowser.remoteDeleteRefreshRequired"),
+                        );
+                        return;
+                    }
+                    const currentProvider =
+                        createRemoteObjectProvider(currentConfig);
+                    if (currentProvider.status !== "ready") {
+                        new Notice(
+                            t("modal.imageBrowser.remoteDeleteRefreshRequired"),
+                        );
+                        return;
+                    }
+                    const context = {
+                        ...this.getDeleteContext(
+                            currentConfig,
+                            currentProvider.provider,
+                        ),
+                        // A retry may follow a partially accepted batch whose visible list was
+                        // invalidated. Only the original failed objects remain eligible here.
+                        scannedObjects: batch.objects,
+                    };
+                    const result = this.deleteSession.replaceSelection(
+                        objects,
+                        context,
+                    );
+                    this.remoteSelectionAnchorKey = null;
+                    this.updateDeleteToolbar();
+                    if (result.selected) {
+                        this.openDeleteConfirmation(
+                            currentConfig,
+                            currentProvider.provider,
+                            batch.objects,
+                        );
+                    } else {
+                        new Notice(
+                            t("modal.imageBrowser.remoteDeleteRefreshRequired"),
+                        );
+                    }
+                },
+                onRescan: () => {
+                    modal.close();
+                    void this.startScan(config);
+                },
             },
-            onRetry: (objects) => {
-                modal.close();
-                const currentConfig = this.getSelectedConfig();
-                if (!currentConfig || currentConfig.id !== config.id) {
-                    new Notice(t('modal.imageBrowser.remoteDeleteRefreshRequired'));
-                    return;
-                }
-                const currentProvider = createRemoteObjectProvider(currentConfig);
-                if (currentProvider.status !== 'ready') {
-                    new Notice(t('modal.imageBrowser.remoteDeleteRefreshRequired'));
-                    return;
-                }
-                const context = {
-                    ...this.getDeleteContext(currentConfig, currentProvider.provider),
-                    // A retry may follow a partially accepted batch whose visible list was
-                    // invalidated. Only the original failed objects remain eligible here.
-                    scannedObjects: batch.objects,
-                };
-                const result = this.deleteSession.replaceSelection(objects, context);
-                this.remoteSelectionAnchorKey = null;
-                this.updateDeleteToolbar();
-                if (result.selected) {
-                    this.openDeleteConfirmation(currentConfig, currentProvider.provider, batch.objects);
-                } else {
-                    new Notice(t('modal.imageBrowser.remoteDeleteRefreshRequired'));
-                }
-            },
-            onRescan: () => {
-                modal.close();
-                void this.startScan(config);
-            },
-        });
+        );
         this.activeDeleteResultsModal = modal;
         modal.open();
         const results = await this.deleteSession.run(provider, batch, {
@@ -870,12 +1073,18 @@ export class RemoteImageBrowserView {
                         hostingId: object.hostingId,
                         key: object.key,
                         success: result.success,
-                        ...(result.status !== undefined ? { status: result.status } : {}),
-                        ...(result.deletionKind ? { deletionKind: result.deletionKind } : {}),
-                        ...(result.failureCode ? { failureCode: result.failureCode } : {}),
+                        ...(result.status !== undefined
+                            ? { status: result.status }
+                            : {}),
+                        ...(result.deletionKind
+                            ? { deletionKind: result.deletionKind }
+                            : {}),
+                        ...(result.failureCode
+                            ? { failureCode: result.failureCode }
+                            : {}),
                     });
                 } catch {
-                    new Notice(t('modal.remoteDeleteResults.auditFailed'));
+                    new Notice(t("modal.remoteDeleteResults.auditFailed"));
                 }
                 modal.addResult(object, result);
             },
@@ -900,7 +1109,7 @@ function getScope(config: ImageHostingConfig, prefix: string): string {
 
 function getBucket(config: ImageHostingConfig): string {
     const candidate = config.config as { bucket?: string };
-    return candidate.bucket ?? '';
+    return candidate.bucket ?? "";
 }
 
 function toUrlMapping(config: ImageHostingConfig): RemoteUrlMapping {
@@ -912,52 +1121,62 @@ function toUrlMapping(config: ImageHostingConfig): RemoteUrlMapping {
     };
 }
 
-function getPreviewUnavailableMessage(reason: RemotePreviewUnavailableReason): string {
+function getPreviewUnavailableMessage(
+    reason: RemotePreviewUnavailableReason,
+): string {
     const keys: Record<RemotePreviewUnavailableReason, string> = {
-        unsupported: 'modal.remotePreview.unsupported',
-        'public-url-required': 'modal.remotePreview.publicUrlRequired',
-        archived: 'modal.remotePreview.archived',
-        disabled: 'modal.remotePreview.disabled',
-        'not-image': 'modal.remotePreview.notImage',
+        unsupported: "modal.remotePreview.unsupported",
+        "public-url-required": "modal.remotePreview.publicUrlRequired",
+        archived: "modal.remotePreview.archived",
+        disabled: "modal.remotePreview.disabled",
+        "not-image": "modal.remotePreview.notImage",
     };
     return t(keys[reason]);
 }
 
-function getDeleteUnavailableMessage(reason: RemoteDeleteUnavailableReason): string {
+function getDeleteUnavailableMessage(
+    reason: RemoteDeleteUnavailableReason,
+): string {
     const keys: Record<typeof reason, string> = {
-        unsupported: 'modal.imageBrowser.remoteDeleteUnsupported',
-        'index-empty': 'modal.imageBrowser.remoteDeleteIndexEmpty',
-        'index-stale': 'modal.imageBrowser.remoteDeleteIndexStale',
-        referenced: 'modal.imageBrowser.remoteDeleteReferenced',
-        'possibly-referenced': 'modal.imageBrowser.remoteDeletePossible',
-        unmappable: 'modal.imageBrowser.remoteDeleteUnmappable',
-        'wrong-hosting': 'modal.imageBrowser.remoteDeleteWrongHosting',
-        'outside-prefix': 'modal.imageBrowser.remoteDeleteOutsidePrefix',
-        'not-in-scan': 'modal.imageBrowser.remoteDeleteNotInScan',
+        unsupported: "modal.imageBrowser.remoteDeleteUnsupported",
+        "index-empty": "modal.imageBrowser.remoteDeleteIndexEmpty",
+        "index-stale": "modal.imageBrowser.remoteDeleteIndexStale",
+        referenced: "modal.imageBrowser.remoteDeleteReferenced",
+        "possibly-referenced": "modal.imageBrowser.remoteDeletePossible",
+        unmappable: "modal.imageBrowser.remoteDeleteUnmappable",
+        "wrong-hosting": "modal.imageBrowser.remoteDeleteWrongHosting",
+        "outside-prefix": "modal.imageBrowser.remoteDeleteOutsidePrefix",
+        "not-in-scan": "modal.imageBrowser.remoteDeleteNotInScan",
     };
     return t(keys[reason]);
 }
 
-function getRemoteFailureMessage(failure: RemoteBrowseFailure | undefined): string {
-    if (failure?.code === 'invalid-cursor') return t('modal.imageBrowser.remoteInvalidCursor');
-    const keyByCode: Record<Exclude<RemoteBrowseFailure['code'], 'invalid-cursor'>, string> = {
-        configuration: 'modal.imageBrowser.remoteErrorConfiguration',
-        authentication: 'modal.imageBrowser.remoteErrorAuthentication',
-        permission: 'modal.imageBrowser.remoteErrorPermission',
-        'not-found': 'modal.imageBrowser.remoteErrorNotFound',
-        'rate-limit': 'modal.imageBrowser.remoteErrorRateLimit',
-        network: 'modal.imageBrowser.remoteErrorNetwork',
-        parsing: 'modal.imageBrowser.remoteErrorParsing',
-        unsupported: 'modal.imageBrowser.remoteErrorUnsupported',
-        service: 'modal.imageBrowser.remoteErrorService',
-        unknown: 'modal.imageBrowser.remoteErrorUnknown',
-        'request-failed': 'modal.imageBrowser.remoteErrorUnknown',
+function getRemoteFailureMessage(
+    failure: RemoteBrowseFailure | undefined,
+): string {
+    if (failure?.code === "invalid-cursor")
+        return t("modal.imageBrowser.remoteInvalidCursor");
+    const keyByCode: Record<
+        Exclude<RemoteBrowseFailure["code"], "invalid-cursor">,
+        string
+    > = {
+        configuration: "modal.imageBrowser.remoteErrorConfiguration",
+        authentication: "modal.imageBrowser.remoteErrorAuthentication",
+        permission: "modal.imageBrowser.remoteErrorPermission",
+        "not-found": "modal.imageBrowser.remoteErrorNotFound",
+        "rate-limit": "modal.imageBrowser.remoteErrorRateLimit",
+        network: "modal.imageBrowser.remoteErrorNetwork",
+        parsing: "modal.imageBrowser.remoteErrorParsing",
+        unsupported: "modal.imageBrowser.remoteErrorUnsupported",
+        service: "modal.imageBrowser.remoteErrorService",
+        unknown: "modal.imageBrowser.remoteErrorUnknown",
+        "request-failed": "modal.imageBrowser.remoteErrorUnknown",
     };
-    const detail = t(keyByCode[failure?.code ?? 'request-failed']);
+    const detail = t(keyByCode[failure?.code ?? "request-failed"]);
     return failure?.status === undefined
-        ? t('modal.imageBrowser.remoteError', { error: detail })
-        : t('modal.imageBrowser.remoteErrorWithStatus', {
-            error: detail,
-            status: String(failure.status),
-        });
+        ? t("modal.imageBrowser.remoteError", { error: detail })
+        : t("modal.imageBrowser.remoteErrorWithStatus", {
+              error: detail,
+              status: String(failure.status),
+          });
 }

@@ -1,8 +1,8 @@
-import { App, Modal, Notice, TFile } from 'obsidian';
-import type ImageManagerPlugin from '../main';
-import { ImageScanner } from '../utils/image-scanner';
-import { formatFileSize } from '../utils/path-utils';
-import { applySelectionGesture } from '../utils/selection-range';
+import { App, Modal, Notice, TFile } from "obsidian";
+import type ImageManagerPlugin from "../main";
+import { ImageScanner } from "../utils/image-scanner";
+import { formatFileSize } from "../utils/path-utils";
+import { applySelectionGesture } from "../utils/selection-range";
 import {
     filterLocalImagesByReferenceState,
     getLocalReferenceState,
@@ -10,14 +10,14 @@ import {
     trashValidatedLocalOrphans,
     validateLocalOrphanSelection,
     type LocalReferenceFilter,
-} from '../utils/local-orphan-management';
-import type { OrphanResult } from '../utils/orphan-finder';
-import { t } from '../i18n';
-import { ConfirmDialog } from './confirm-dialog';
-import { ImagePreviewModal } from './image-preview-modal';
-import { RemoteImageBrowserView } from './remote-image-browser';
+} from "../utils/local-orphan-management";
+import type { OrphanResult } from "../utils/orphan-finder";
+import { t } from "../i18n";
+import { ConfirmDialog } from "./confirm-dialog";
+import { ImagePreviewModal } from "./image-preview-modal";
+import { RemoteImageBrowserView } from "./remote-image-browser";
 
-type LocalScanState = 'scanning' | 'ready' | 'failed';
+type LocalScanState = "scanning" | "ready" | "failed";
 
 export class ImageBrowserModal extends Modal {
     private scanner: ImageScanner;
@@ -36,39 +36,58 @@ export class ImageBrowserModal extends Modal {
     private deleteButton: HTMLButtonElement | null = null;
     private viewEl: HTMLDivElement | null = null;
     private remoteView: RemoteImageBrowserView | null = null;
-    private referenceFilter: LocalReferenceFilter = 'all';
-    private localScanState: LocalScanState = 'scanning';
+    private referenceFilter: LocalReferenceFilter = "all";
+    private localScanState: LocalScanState = "scanning";
     private selectedPaths = new Set<string>();
     private localSelectionAnchorPath: string | null = null;
-    private localSelectionControls = new Map<string, { card: HTMLDivElement; checkbox: HTMLInputElement }>();
+    private localSelectionControls = new Map<
+        string,
+        { card: HTMLDivElement; checkbox: HTMLInputElement }
+    >();
     private localViewVersion = 0;
     private deleting = false;
     private debounceTimer: number | null = null;
     private sortPreferenceSaveTimer: number | null = null;
     private protectionRefreshTimer: number | null = null;
 
-    constructor(app: App, private plugin: ImageManagerPlugin) {
+    constructor(
+        app: App,
+        private plugin: ImageManagerPlugin,
+    ) {
         super(app);
-        this.scanner = new ImageScanner(app, plugin.settings.supportedExtensions);
+        this.scanner = new ImageScanner(
+            app,
+            plugin.settings.supportedExtensions,
+        );
     }
 
     onOpen() {
-        this.modalEl.addClass('image-browser-modal');
-        this.contentEl.addClass('image-browser');
-        const header = this.contentEl.createDiv({ cls: 'image-browser-header' });
-        header.createEl('h2', { text: t('modal.imageBrowser.title'), cls: 'image-browser-title' });
-        const tabs = header.createDiv({ cls: 'image-browser-tabs' });
-        const localTab = tabs.createEl('button', { text: t('modal.imageBrowser.localTab'), cls: 'is-active' });
-        const remoteTab = tabs.createEl('button', { text: t('modal.imageBrowser.remoteTab') });
-        this.viewEl = this.contentEl.createDiv({ cls: 'image-browser-view' });
-        localTab.addEventListener('click', () => {
-            localTab.toggleClass('is-active', true);
-            remoteTab.toggleClass('is-active', false);
+        this.modalEl.addClass("image-browser-modal");
+        this.contentEl.addClass("image-browser");
+        const header = this.contentEl.createDiv({
+            cls: "image-browser-header",
+        });
+        header.createEl("h2", {
+            text: t("modal.imageBrowser.title"),
+            cls: "image-browser-title",
+        });
+        const tabs = header.createDiv({ cls: "image-browser-tabs" });
+        const localTab = tabs.createEl("button", {
+            text: t("modal.imageBrowser.localTab"),
+            cls: "is-active",
+        });
+        const remoteTab = tabs.createEl("button", {
+            text: t("modal.imageBrowser.remoteTab"),
+        });
+        this.viewEl = this.contentEl.createDiv({ cls: "image-browser-view" });
+        localTab.addEventListener("click", () => {
+            localTab.toggleClass("is-active", true);
+            remoteTab.toggleClass("is-active", false);
             this.showLocalView();
         });
-        remoteTab.addEventListener('click', () => {
-            localTab.toggleClass('is-active', false);
-            remoteTab.toggleClass('is-active', true);
+        remoteTab.addEventListener("click", () => {
+            localTab.toggleClass("is-active", false);
+            remoteTab.toggleClass("is-active", true);
             this.showRemoteView();
         });
         this.showLocalView();
@@ -77,101 +96,141 @@ export class ImageBrowserModal extends Modal {
     onClose() {
         if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
         this.flushSortPreferenceSave();
-        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
+        if (this.protectionRefreshTimer)
+            window.clearTimeout(this.protectionRefreshTimer);
         this.localViewVersion++;
         this.remoteView?.close();
         this.contentEl.empty();
     }
 
     private showLocalView() {
-        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
+        if (this.protectionRefreshTimer)
+            window.clearTimeout(this.protectionRefreshTimer);
         this.protectionRefreshTimer = null;
         const version = ++this.localViewVersion;
         this.remoteView?.close();
         this.remoteView = null;
         this.viewEl?.empty();
         if (!this.viewEl) return;
-        this.referenceFilter = 'all';
+        this.referenceFilter = "all";
         this.orphanPaths = null;
-        this.localScanState = 'scanning';
+        this.localScanState = "scanning";
         this.deleting = false;
         this.selectedPaths.clear();
         this.localSelectionAnchorPath = null;
         this.localSelectionControls.clear();
-        const controls = this.viewEl.createDiv({ cls: 'image-browser-controls' });
-        this.searchInput = controls.createEl('input', { cls: 'image-browser-search', attr: { type: 'text', placeholder: t('modal.imageBrowser.searchPlaceholder') } });
-        this.searchInput.addEventListener('input', () => this.onSearchInput());
-        this.sortSelect = controls.createEl('select', { cls: 'image-browser-sort' });
+        const controls = this.viewEl.createDiv({
+            cls: "image-browser-controls",
+        });
+        this.searchInput = controls.createEl("input", {
+            cls: "image-browser-search",
+            attr: {
+                type: "text",
+                placeholder: t("modal.imageBrowser.searchPlaceholder"),
+            },
+        });
+        this.searchInput.addEventListener("input", () => this.onSearchInput());
+        this.sortSelect = controls.createEl("select", {
+            cls: "image-browser-sort",
+        });
         for (const option of [
-            { value: 'name', labelKey: 'modal.imageBrowser.sortName' },
-            { value: 'modified', labelKey: 'modal.imageBrowser.sortModified' },
-            { value: 'size', labelKey: 'modal.imageBrowser.sortSize' },
-            { value: 'created', labelKey: 'modal.imageBrowser.sortCreated' },
-        ]) this.sortSelect.createEl('option', { value: option.value, text: t(option.labelKey) });
-        this.sortSelect.value = this.plugin.settings.localImageBrowserSort.field;
-        this.sortSelect.addEventListener('change', () => {
-            this.plugin.settings.localImageBrowserSort.field = this.sortSelect?.value as typeof this.plugin.settings.localImageBrowserSort.field;
+            { value: "name", labelKey: "modal.imageBrowser.sortName" },
+            { value: "modified", labelKey: "modal.imageBrowser.sortModified" },
+            { value: "size", labelKey: "modal.imageBrowser.sortSize" },
+            { value: "created", labelKey: "modal.imageBrowser.sortCreated" },
+        ])
+            this.sortSelect.createEl("option", {
+                value: option.value,
+                text: t(option.labelKey),
+            });
+        this.sortSelect.value =
+            this.plugin.settings.localImageBrowserSort.field;
+        this.sortSelect.addEventListener("change", () => {
+            this.plugin.settings.localImageBrowserSort.field = this.sortSelect
+                ?.value as typeof this.plugin.settings.localImageBrowserSort.field;
             this.localSelectionAnchorPath = null;
             this.scheduleSortPreferenceSave();
             this.applyFilterAndSort();
         });
-        const sortDirection = controls.createEl('button', { cls: 'image-browser-sort-direction', attr: { type: 'button' } });
+        const sortDirection = controls.createEl("button", {
+            cls: "image-browser-sort-direction",
+            attr: { type: "button" },
+        });
         const updateSortDirection = () => {
-            const key = this.plugin.settings.localImageBrowserSort.order === 'asc'
-                ? 'modal.imageBrowser.sortAscending'
-                : 'modal.imageBrowser.sortDescending';
+            const key =
+                this.plugin.settings.localImageBrowserSort.order === "asc"
+                    ? "modal.imageBrowser.sortAscending"
+                    : "modal.imageBrowser.sortDescending";
             const label = t(key);
             sortDirection.textContent = label;
-            sortDirection.setAttribute('aria-label', label);
+            sortDirection.setAttribute("aria-label", label);
         };
         updateSortDirection();
-        sortDirection.addEventListener('click', () => {
-            this.plugin.settings.localImageBrowserSort.order = this.plugin.settings.localImageBrowserSort.order === 'asc'
-                ? 'desc'
-                : 'asc';
+        sortDirection.addEventListener("click", () => {
+            this.plugin.settings.localImageBrowserSort.order =
+                this.plugin.settings.localImageBrowserSort.order === "asc"
+                    ? "desc"
+                    : "asc";
             updateSortDirection();
             this.localSelectionAnchorPath = null;
             this.scheduleSortPreferenceSave();
             this.applyFilterAndSort();
         });
-        this.referenceFilterSelect = controls.createEl('select', {
-            cls: 'image-browser-reference-filter',
-            attr: { 'aria-label': t('modal.imageBrowser.localReferenceFilter') },
+        this.referenceFilterSelect = controls.createEl("select", {
+            cls: "image-browser-reference-filter",
+            attr: {
+                "aria-label": t("modal.imageBrowser.localReferenceFilter"),
+            },
         });
         for (const [value, label] of [
-            ['all', t('modal.imageBrowser.localReferenceAll')],
-            ['referenced', t('modal.imageBrowser.localReferenced')],
-            ['orphan', t('modal.imageBrowser.localOrphan')],
+            ["all", t("modal.imageBrowser.localReferenceAll")],
+            ["referenced", t("modal.imageBrowser.localReferenced")],
+            ["orphan", t("modal.imageBrowser.localOrphan")],
         ] as const) {
-            this.referenceFilterSelect.createEl('option', { value, text: label });
+            this.referenceFilterSelect.createEl("option", {
+                value,
+                text: label,
+            });
         }
         this.referenceFilterSelect.value = this.referenceFilter;
         this.referenceFilterSelect.disabled = true;
-        this.referenceFilterSelect.addEventListener('change', () => {
-            this.referenceFilter = this.referenceFilterSelect?.value as LocalReferenceFilter;
+        this.referenceFilterSelect.addEventListener("change", () => {
+            this.referenceFilter = this.referenceFilterSelect
+                ?.value as LocalReferenceFilter;
             this.localSelectionAnchorPath = null;
             this.applyFilterAndSort();
         });
-        this.countEl = controls.createSpan({ cls: 'image-browser-count' });
-        this.gridEl = this.viewEl.createDiv({ cls: 'image-browser-grid' });
-        const deleteToolbar = this.viewEl.createDiv({ cls: 'local-image-delete-toolbar' });
-        this.deleteSummaryEl = deleteToolbar.createSpan({ cls: 'local-image-delete-summary' });
-        this.selectCurrentButton = deleteToolbar.createEl('button', {
-            text: t('modal.imageBrowser.selectCurrentResults'),
-            attr: { type: 'button' },
+        this.countEl = controls.createSpan({ cls: "image-browser-count" });
+        this.gridEl = this.viewEl.createDiv({ cls: "image-browser-grid" });
+        const deleteToolbar = this.viewEl.createDiv({
+            cls: "local-image-delete-toolbar",
         });
-        this.selectCurrentButton.addEventListener('click', () => this.selectCurrentLocalResults());
-        this.clearSelectionButton = deleteToolbar.createEl('button', {
-            text: t('modal.imageBrowser.clearSelection'),
-            attr: { type: 'button' },
+        this.deleteSummaryEl = deleteToolbar.createSpan({
+            cls: "local-image-delete-summary",
         });
-        this.clearSelectionButton.addEventListener('click', () => this.clearLocalSelection());
-        this.deleteButton = deleteToolbar.createEl('button', {
-            cls: 'mod-warning',
-            text: t('modal.imageBrowser.localDeleteSelected'),
-            attr: { type: 'button' },
+        this.selectCurrentButton = deleteToolbar.createEl("button", {
+            text: t("modal.imageBrowser.selectCurrentResults"),
+            attr: { type: "button" },
         });
-        this.deleteButton.addEventListener('click', () => void this.confirmDeleteSelected(version));
+        this.selectCurrentButton.addEventListener("click", () =>
+            this.selectCurrentLocalResults(),
+        );
+        this.clearSelectionButton = deleteToolbar.createEl("button", {
+            text: t("modal.imageBrowser.clearSelection"),
+            attr: { type: "button" },
+        });
+        this.clearSelectionButton.addEventListener("click", () =>
+            this.clearLocalSelection(),
+        );
+        this.deleteButton = deleteToolbar.createEl("button", {
+            cls: "mod-warning",
+            text: t("modal.imageBrowser.localDeleteSelected"),
+            attr: { type: "button" },
+        });
+        this.deleteButton.addEventListener(
+            "click",
+            () => void this.confirmDeleteSelected(version),
+        );
         this.allImages = this.scanner.getAllImages();
         this.applyFilterAndSort();
         void this.scanLocalReferenceStates(version);
@@ -179,7 +238,8 @@ export class ImageBrowserModal extends Modal {
 
     private showRemoteView() {
         if (!this.viewEl) return;
-        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
+        if (this.protectionRefreshTimer)
+            window.clearTimeout(this.protectionRefreshTimer);
         this.protectionRefreshTimer = null;
         this.localViewVersion++;
         this.viewEl.empty();
@@ -187,7 +247,7 @@ export class ImageBrowserModal extends Modal {
             this.app,
             this.plugin,
             this.viewEl,
-            () => this.close()
+            () => this.close(),
         );
         this.remoteView.open();
     }
@@ -202,7 +262,8 @@ export class ImageBrowserModal extends Modal {
     }
 
     private scheduleSortPreferenceSave() {
-        if (this.sortPreferenceSaveTimer !== null) window.clearTimeout(this.sortPreferenceSaveTimer);
+        if (this.sortPreferenceSaveTimer !== null)
+            window.clearTimeout(this.sortPreferenceSaveTimer);
         this.sortPreferenceSaveTimer = window.setTimeout(() => {
             this.sortPreferenceSaveTimer = null;
             void this.plugin.saveSettings();
@@ -217,14 +278,14 @@ export class ImageBrowserModal extends Modal {
     }
 
     private applyFilterAndSort() {
-        const keyword = this.searchInput?.value ?? '';
+        const keyword = this.searchInput?.value ?? "";
         let images = this.scanner.filterImages(this.allImages, { keyword });
-        if (this.localScanState === 'ready' && this.orphanPaths) {
+        if (this.localScanState === "ready" && this.orphanPaths) {
             images = filterLocalImagesByReferenceState(
                 images,
                 this.orphanPaths,
                 this.referenceFilter,
-                this.indeterminatePaths
+                this.indeterminatePaths,
             );
         }
         const { field, order } = this.plugin.settings.localImageBrowserSort;
@@ -236,103 +297,163 @@ export class ImageBrowserModal extends Modal {
         if (!this.gridEl) return;
         this.gridEl.empty();
         this.localSelectionControls.clear();
-        if (this.countEl) this.countEl.textContent = t('modal.imageBrowser.showing', { count: String(this.filteredImages.length), total: String(this.allImages.length) });
+        if (this.countEl)
+            this.countEl.textContent = t("modal.imageBrowser.showing", {
+                count: String(this.filteredImages.length),
+                total: String(this.allImages.length),
+            });
         this.updateDeleteToolbar();
         if (this.filteredImages.length === 0) {
-            this.gridEl.createDiv({ cls: 'image-browser-empty', text: t('modal.imageBrowser.noImages') });
+            this.gridEl.createDiv({
+                cls: "image-browser-empty",
+                text: t("modal.imageBrowser.noImages"),
+            });
             return;
         }
         for (const file of this.filteredImages) {
-            const card = this.gridEl.createDiv({ cls: 'image-browser-card' });
+            const card = this.gridEl.createDiv({ cls: "image-browser-card" });
             const referenceState = getLocalReferenceState(
                 file.path,
                 this.orphanPaths,
                 this.localScanState,
-                this.indeterminatePaths
+                this.indeterminatePaths,
             );
-            card.toggleClass('is-selected', this.selectedPaths.has(file.path));
-            card.setAttribute('title', `${file.path}\n${t('modal.imageBrowser.insertTooltip')}`);
-            const imageContainer = card.createDiv({ cls: 'image-browser-card-img' });
-            const image = imageContainer.createEl('img', { attr: { src: this.app.vault.getResourcePath(file) } });
+            card.toggleClass("is-selected", this.selectedPaths.has(file.path));
+            card.setAttribute(
+                "title",
+                `${file.path}\n${t("modal.imageBrowser.insertTooltip")}`,
+            );
+            const imageContainer = card.createDiv({
+                cls: "image-browser-card-img",
+            });
+            const image = imageContainer.createEl("img", {
+                attr: { src: this.app.vault.getResourcePath(file) },
+            });
             image.style.width = `${this.plugin.settings.thumbnailSize}px`;
             image.style.height = `${this.plugin.settings.thumbnailSize}px`;
-            if (referenceState === 'orphan') {
-                const selectLabel = imageContainer.createEl('label', {
-                    cls: 'local-image-card-select',
+            if (referenceState === "orphan") {
+                const selectLabel = imageContainer.createEl("label", {
+                    cls: "local-image-card-select",
                 });
-                selectLabel.addEventListener('click', (event) => event.stopPropagation());
-                const checkbox = selectLabel.createEl('input', { attr: { type: 'checkbox' } });
+                selectLabel.addEventListener("click", (event) =>
+                    event.stopPropagation(),
+                );
+                const checkbox = selectLabel.createEl("input", {
+                    attr: { type: "checkbox" },
+                });
                 checkbox.checked = this.selectedPaths.has(file.path);
-                selectLabel.createSpan({ text: t('modal.imageBrowser.localSelect') });
+                selectLabel.createSpan({
+                    text: t("modal.imageBrowser.localSelect"),
+                });
                 this.localSelectionControls.set(file.path, { card, checkbox });
-                checkbox.addEventListener('click', (event) => {
-                    this.applyLocalSelectionGesture(file.path, checkbox.checked, event.shiftKey);
+                checkbox.addEventListener("click", (event) => {
+                    this.applyLocalSelectionGesture(
+                        file.path,
+                        checkbox.checked,
+                        event.shiftKey,
+                    );
                 });
             }
-            const name = card.createDiv({ cls: 'image-browser-card-name', text: file.name });
-            name.setAttribute('title', file.name);
+            const name = card.createDiv({
+                cls: "image-browser-card-name",
+                text: file.name,
+            });
+            name.setAttribute("title", file.name);
             card.createDiv({
                 cls: `local-image-card-reference ${localReferenceClass(referenceState)}`,
                 text: localReferenceLabel(referenceState),
             });
-            card.createDiv({ cls: 'image-browser-card-meta', text: formatFileSize(file.stat.size) });
-            card.addEventListener('click', () => new ImagePreviewModal(this.app, {
-                getSupportedExtensions: () => this.plugin.settings.supportedExtensions,
-                getEnabledHostingConfigs: () => this.plugin.settings.hostingConfigs.filter((config) => config.enabled),
-                uploadImage: (target, hosting) => this.plugin.doUpload(target, hosting),
-                renameImage: (target, newName) => this.plugin.batchRename.renameImage(target, newName),
-            }, file, this).open());
+            card.createDiv({
+                cls: "image-browser-card-meta",
+                text: formatFileSize(file.stat.size),
+            });
+            card.addEventListener("click", () =>
+                new ImagePreviewModal(
+                    this.app,
+                    {
+                        getSupportedExtensions: () =>
+                            this.plugin.settings.supportedExtensions,
+                        getEnabledHostingConfigs: () =>
+                            this.plugin.settings.hostingConfigs.filter(
+                                (config) => config.enabled,
+                            ),
+                        uploadImage: (target, hosting) =>
+                            this.plugin.doUpload(target, hosting),
+                        renameImage: (target, newName) =>
+                            this.plugin.batchRename.renameImage(
+                                target,
+                                newName,
+                            ),
+                    },
+                    file,
+                    this,
+                ).open(),
+            );
         }
     }
 
     private async scanLocalReferenceStates(version: number): Promise<void> {
-        this.localScanState = 'scanning';
-        if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
+        this.localScanState = "scanning";
+        if (this.referenceFilterSelect)
+            this.referenceFilterSelect.disabled = true;
         this.applyFilterAndSort();
         try {
             const result = await scanLocalOrphans(
                 this.app,
                 this.plugin.settings.supportedExtensions,
                 new Map(),
-                this.plugin.getIndeterminateImagePaths()
+                this.plugin.getIndeterminateImagePaths(),
             );
             if (version !== this.localViewVersion) return;
             this.applyLocalOrphanResult(result);
         } catch (error) {
             if (version !== this.localViewVersion) return;
-            this.localScanState = 'failed';
+            this.localScanState = "failed";
             this.orphanPaths = null;
             this.indeterminatePaths.clear();
             this.selectedPaths.clear();
-            if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
+            if (this.referenceFilterSelect)
+                this.referenceFilterSelect.disabled = true;
             this.applyFilterAndSort();
-            new Notice(t('modal.imageBrowser.localScanFailed'));
-            console.error('[ImageManager] Failed to scan local image references:', error);
+            new Notice(t("modal.imageBrowser.localScanFailed"));
+            console.error(
+                "[ImageManager] Failed to scan local image references:",
+                error,
+            );
         }
     }
 
     private applyLocalOrphanResult(result: OrphanResult): void {
         this.localSelectionAnchorPath = null;
-        this.localScanState = 'ready';
+        this.localScanState = "ready";
         this.orphanPaths = new Set(result.orphans.map((file) => file.path));
-        this.indeterminatePaths = new Set(result.indeterminate.map((file) => file.path));
+        this.indeterminatePaths = new Set(
+            result.indeterminate.map((file) => file.path),
+        );
         for (const path of this.selectedPaths) {
             if (!this.orphanPaths.has(path)) this.selectedPaths.delete(path);
         }
-        if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = false;
+        if (this.referenceFilterSelect)
+            this.referenceFilterSelect.disabled = false;
         this.applyFilterAndSort();
-        if (this.protectionRefreshTimer) window.clearTimeout(this.protectionRefreshTimer);
+        if (this.protectionRefreshTimer)
+            window.clearTimeout(this.protectionRefreshTimer);
         this.protectionRefreshTimer = null;
         if (this.indeterminatePaths.size > 0) {
             const version = this.localViewVersion;
             this.protectionRefreshTimer = window.setTimeout(() => {
                 this.protectionRefreshTimer = null;
-                if (version === this.localViewVersion) void this.scanLocalReferenceStates(version);
+                if (version === this.localViewVersion)
+                    void this.scanLocalReferenceStates(version);
             }, 2_100);
         }
     }
 
-    private applyLocalSelectionGesture(path: string, checked: boolean, shiftKey: boolean): void {
+    private applyLocalSelectionGesture(
+        path: string,
+        checked: boolean,
+        shiftKey: boolean,
+    ): void {
         const eligiblePaths = this.getCurrentLocalEligiblePaths();
         const result = applySelectionGesture({
             orderedIds: this.filteredImages.map((file) => file.path),
@@ -350,7 +471,8 @@ export class ImageBrowserModal extends Modal {
     }
 
     private selectCurrentLocalResults(): void {
-        for (const path of this.getCurrentLocalEligiblePaths()) this.selectedPaths.add(path);
+        for (const path of this.getCurrentLocalEligiblePaths())
+            this.selectedPaths.add(path);
         this.localSelectionAnchorPath = null;
         this.syncLocalSelectionControls();
         this.updateDeleteToolbar();
@@ -364,47 +486,61 @@ export class ImageBrowserModal extends Modal {
     }
 
     private getCurrentLocalEligiblePaths(): Set<string> {
-        if (this.localScanState !== 'ready' || !this.orphanPaths) return new Set();
-        return new Set(this.filteredImages
-            .filter((file) => this.orphanPaths?.has(file.path))
-            .map((file) => file.path));
+        if (this.localScanState !== "ready" || !this.orphanPaths)
+            return new Set();
+        return new Set(
+            this.filteredImages
+                .filter((file) => this.orphanPaths?.has(file.path))
+                .map((file) => file.path),
+        );
     }
 
     private syncLocalSelectionControls(): void {
         for (const [path, control] of this.localSelectionControls) {
             const selected = this.selectedPaths.has(path);
             control.checkbox.checked = selected;
-            control.card.toggleClass('is-selected', selected);
+            control.card.toggleClass("is-selected", selected);
         }
     }
 
     private updateDeleteToolbar(): void {
         if (!this.deleteSummaryEl || !this.deleteButton) return;
-        const selectedFiles = this.allImages.filter((file) => this.selectedPaths.has(file.path));
-        const totalSize = selectedFiles.reduce((sum, file) => sum + file.stat.size, 0);
+        const selectedFiles = this.allImages.filter((file) =>
+            this.selectedPaths.has(file.path),
+        );
+        const totalSize = selectedFiles.reduce(
+            (sum, file) => sum + file.stat.size,
+            0,
+        );
         const eligiblePaths = this.getCurrentLocalEligiblePaths();
-        const hasUnselectedCurrentResult = [...eligiblePaths]
-            .some((path) => !this.selectedPaths.has(path));
-        this.deleteSummaryEl.textContent = t('modal.imageBrowser.localDeleteSelection', {
-            count: String(selectedFiles.length),
-            size: formatFileSize(totalSize),
-        });
+        const hasUnselectedCurrentResult = [...eligiblePaths].some(
+            (path) => !this.selectedPaths.has(path),
+        );
+        this.deleteSummaryEl.textContent = t(
+            "modal.imageBrowser.localDeleteSelection",
+            {
+                count: String(selectedFiles.length),
+                size: formatFileSize(totalSize),
+            },
+        );
         if (this.selectCurrentButton) {
-            this.selectCurrentButton.disabled = this.deleting || !hasUnselectedCurrentResult;
+            this.selectCurrentButton.disabled =
+                this.deleting || !hasUnselectedCurrentResult;
         }
         if (this.clearSelectionButton) {
-            this.clearSelectionButton.disabled = this.deleting || selectedFiles.length === 0;
+            this.clearSelectionButton.disabled =
+                this.deleting || selectedFiles.length === 0;
         }
-        this.deleteButton.disabled = (
-            this.deleting
-            || this.localScanState !== 'ready'
-            || selectedFiles.length === 0
-        );
+        this.deleteButton.disabled =
+            this.deleting ||
+            this.localScanState !== "ready" ||
+            selectedFiles.length === 0;
     }
 
     private async confirmDeleteSelected(version: number): Promise<void> {
         if (this.deleting || this.selectedPaths.size === 0) {
-            if (this.selectedPaths.size === 0) new Notice(t('modal.orphan.noSelection'));
+            if (this.selectedPaths.size === 0)
+                new Notice(t("modal.orphan.noSelection"));
             return;
         }
 
@@ -416,28 +552,36 @@ export class ImageBrowserModal extends Modal {
                 this.app,
                 this.plugin.settings.supportedExtensions,
                 new Map(),
-                this.plugin.getIndeterminateImagePaths()
+                this.plugin.getIndeterminateImagePaths(),
             );
             if (version !== this.localViewVersion) return;
             this.applyLocalOrphanResult(freshResult);
-            const validation = validateLocalOrphanSelection(this.selectedPaths, freshResult);
-            this.selectedPaths = new Set(validation.eligible.map((file) => file.path));
+            const validation = validateLocalOrphanSelection(
+                this.selectedPaths,
+                freshResult,
+            );
+            this.selectedPaths = new Set(
+                validation.eligible.map((file) => file.path),
+            );
             this.applyFilterAndSort();
             if (validation.eligible.length === 0) {
-                new Notice(t('modal.orphan.noSelection'));
+                new Notice(t("modal.orphan.noSelection"));
                 return;
             }
 
-            const totalSize = validation.eligible.reduce((sum, file) => sum + file.stat.size, 0);
+            const totalSize = validation.eligible.reduce(
+                (sum, file) => sum + file.stat.size,
+                0,
+            );
             const confirmedPaths = new Set(this.selectedPaths);
             new ConfirmDialog(this.app, {
-                title: t('modal.imageBrowser.localDeleteConfirmTitle'),
-                message: t('modal.imageBrowser.localDeleteConfirm', {
+                title: t("modal.imageBrowser.localDeleteConfirmTitle"),
+                message: t("modal.imageBrowser.localDeleteConfirm", {
                     count: String(validation.eligible.length),
                     size: formatFileSize(totalSize),
                 }),
-                confirmText: t('modal.imageBrowser.localDeleteSelected'),
-                pendingText: t('modal.imageBrowser.localDeletePending'),
+                confirmText: t("modal.imageBrowser.localDeleteSelected"),
+                pendingText: t("modal.imageBrowser.localDeletePending"),
                 onConfirm: async () => {
                     await this.deleteSelected(confirmedPaths, version);
                 },
@@ -450,14 +594,18 @@ export class ImageBrowserModal extends Modal {
             confirmationOpened = true;
         } catch (error) {
             if (version === this.localViewVersion) {
-                this.localScanState = 'failed';
+                this.localScanState = "failed";
                 this.orphanPaths = null;
                 this.selectedPaths.clear();
-                if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
+                if (this.referenceFilterSelect)
+                    this.referenceFilterSelect.disabled = true;
                 this.applyFilterAndSort();
-                new Notice(t('modal.imageBrowser.localScanFailed'));
+                new Notice(t("modal.imageBrowser.localScanFailed"));
             }
-            console.error('[ImageManager] Failed to revalidate local orphan selection:', error);
+            console.error(
+                "[ImageManager] Failed to revalidate local orphan selection:",
+                error,
+            );
         } finally {
             if (!confirmationOpened) {
                 this.deleting = false;
@@ -466,25 +614,31 @@ export class ImageBrowserModal extends Modal {
         }
     }
 
-    private async deleteSelected(paths: ReadonlySet<string>, version: number): Promise<void> {
+    private async deleteSelected(
+        paths: ReadonlySet<string>,
+        version: number,
+    ): Promise<void> {
         this.deleting = true;
         this.updateDeleteToolbar();
         try {
             const result = await trashValidatedLocalOrphans(
                 this.app,
                 paths,
-                () => scanLocalOrphans(
-                    this.app,
-                    this.plugin.settings.supportedExtensions,
-                    new Map(),
-                    this.plugin.getIndeterminateImagePaths()
-                )
+                () =>
+                    scanLocalOrphans(
+                        this.app,
+                        this.plugin.settings.supportedExtensions,
+                        new Map(),
+                        this.plugin.getIndeterminateImagePaths(),
+                    ),
             );
-            new Notice(t('modal.imageBrowser.localDeleteResult', {
-                deleted: String(result.deletedPaths.length),
-                skipped: String(result.skippedPaths.length),
-                failed: String(result.failedPaths.length),
-            }));
+            new Notice(
+                t("modal.imageBrowser.localDeleteResult", {
+                    deleted: String(result.deletedPaths.length),
+                    skipped: String(result.skippedPaths.length),
+                    failed: String(result.failedPaths.length),
+                }),
+            );
             if (version !== this.localViewVersion) return;
 
             this.selectedPaths.clear();
@@ -492,14 +646,18 @@ export class ImageBrowserModal extends Modal {
             await this.scanLocalReferenceStates(version);
         } catch (error) {
             if (version === this.localViewVersion) {
-                this.localScanState = 'failed';
+                this.localScanState = "failed";
                 this.orphanPaths = null;
                 this.selectedPaths.clear();
-                if (this.referenceFilterSelect) this.referenceFilterSelect.disabled = true;
+                if (this.referenceFilterSelect)
+                    this.referenceFilterSelect.disabled = true;
                 this.applyFilterAndSort();
-                new Notice(t('modal.imageBrowser.localScanFailed'));
+                new Notice(t("modal.imageBrowser.localScanFailed"));
             }
-            console.error('[ImageManager] Failed to delete local orphan images:', error);
+            console.error(
+                "[ImageManager] Failed to delete local orphan images:",
+                error,
+            );
         } finally {
             if (version === this.localViewVersion) {
                 this.deleting = false;
@@ -509,18 +667,22 @@ export class ImageBrowserModal extends Modal {
     }
 }
 
-function localReferenceLabel(state: ReturnType<typeof getLocalReferenceState>): string {
+function localReferenceLabel(
+    state: ReturnType<typeof getLocalReferenceState>,
+): string {
     const keys = {
-        scanning: 'modal.imageBrowser.localChecking',
-        referenced: 'modal.imageBrowser.localReferenced',
-        orphan: 'modal.imageBrowser.localOrphan',
-        unknown: 'modal.imageBrowser.localUnknown',
+        scanning: "modal.imageBrowser.localChecking",
+        referenced: "modal.imageBrowser.localReferenced",
+        orphan: "modal.imageBrowser.localOrphan",
+        unknown: "modal.imageBrowser.localUnknown",
     } as const;
     return t(keys[state]);
 }
 
-function localReferenceClass(state: ReturnType<typeof getLocalReferenceState>): string {
-    if (state === 'referenced') return 'is-referenced';
-    if (state === 'orphan') return 'is-orphan';
-    return 'is-unknown';
+function localReferenceClass(
+    state: ReturnType<typeof getLocalReferenceState>,
+): string {
+    if (state === "referenced") return "is-referenced";
+    if (state === "orphan") return "is-orphan";
+    return "is-unknown";
 }
