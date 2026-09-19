@@ -36,7 +36,7 @@ Vitest 测试应覆盖可观察行为与高风险协议，而不是源码字符�
 ## 关键 ESLint/TypeScript 约束
 
 | 规则 | 正确做法 |
-|---|---|
+| --- | --- |
 | no-floating-promises | await、return、catch/then 或显式 `void` |
 | no-misused-promises | 非 async callback 内 `void` 启动 Promise |
 | no-unsafe-* | 为 JSON/request payload 定义窄类型并校验 |

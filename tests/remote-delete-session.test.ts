@@ -1,51 +1,66 @@
-import { describe, expect, it, vi } from 'vitest';
-import type { ImageHostingConfig, RemoteManagementConfig } from '../src/types';
-import type { RemoteObjectProvider } from '../src/remote/provider';
-import type { RemoteObject, RemoteReferenceState } from '../src/remote/types';
-import { RemoteDeleteSession } from '../src/remote/delete-session';
+import { describe, expect, it, vi } from "vitest";
+import type { ImageHostingConfig, RemoteManagementConfig } from "../src/types";
+import type { RemoteObjectProvider } from "../src/remote/provider";
+import type { RemoteObject, RemoteReferenceState } from "../src/remote/types";
+import { RemoteDeleteSession } from "../src/remote/delete-session";
 import {
     getRemoteDeleteUnavailableReason,
     isKeyInRemotePrefix,
     type RemoteDeleteEligibilityContext,
-} from '../src/remote/delete-policy';
-import { canConfirmRemoteDelete } from '../src/remote/delete-confirmation';
+} from "../src/remote/delete-policy";
+import { canConfirmRemoteDelete } from "../src/remote/delete-confirmation";
 
 function config(): ImageHostingConfig {
     return {
-        id: 's3-test', name: 'S3', type: 's3', enabled: true,
+        id: "s3-test",
+        name: "S3",
+        type: "s3",
+        enabled: true,
         config: {
-            endpoint: 'https://minio.example.com:9000/base', region: 'us-east-1',
-            accessKeyId: 'access', secretAccessKey: 'secret', bucket: 'images',
+            endpoint: "https://minio.example.com:9000/base",
+            region: "us-east-1",
+            accessKeyId: "access",
+            secretAccessKey: "secret",
+            bucket: "images",
             forcePathStyle: true,
         },
-        uploadPath: '', urlPrefix: '',
+        uploadPath: "",
+        urlPrefix: "",
         remoteManagement: {
-            enabled: true, prefix: 'vault-a', pageSize: 10, previewMode: 'manual',
-            previewAccess: 'presigned', publicUrlAliases: [],
+            enabled: true,
+            prefix: "vault-a",
+            pageSize: 10,
+            previewMode: "manual",
+            previewAccess: "presigned",
+            publicUrlAliases: [],
         },
     };
 }
 
 function object(index: number): RemoteObject {
-    return { hostingId: 's3-test', key: `vault-a/${index}.png`, size: index };
+    return { hostingId: "s3-test", key: `vault-a/${index}.png`, size: index };
 }
 
 function context(
     objects: readonly RemoteObject[],
-    state: RemoteReferenceState = 'not-referenced-in-current-vault'
+    state: RemoteReferenceState = "not-referenced-in-current-vault",
 ): RemoteDeleteEligibilityContext {
     const provider: RemoteObjectProvider = {
-        capabilities: new Set(['list', 'delete']),
+        capabilities: new Set(["list", "delete"]),
         listObjects: vi.fn(),
         deleteObject: vi.fn(),
     };
     return {
-        config: config(), provider,
+        config: config(),
+        provider,
         indexState: {
-            status: 'fresh',
+            status: "fresh",
             summary: {
-                scannedAt: 123, markdownFileCount: 1, referencedCount: 0,
-                possiblyReferencedCount: 0, unmappableCount: 0,
+                scannedAt: 123,
+                markdownFileCount: 1,
+                referencedCount: 0,
+                possiblyReferencedCount: 0,
+                unmappableCount: 0,
             },
         },
         scannedObjects: objects,
@@ -53,96 +68,153 @@ function context(
     };
 }
 
-describe('remote delete safety policy', () => {
-    it('requires the exact count and irreversible-delete acknowledgement', () => {
-        expect(canConfirmRemoteDelete('3', 3, false)).toBe(false);
-        expect(canConfirmRemoteDelete('2', 3, true)).toBe(false);
-        expect(canConfirmRemoteDelete(' 3 ', 3, true)).toBe(true);
+describe("remote delete safety policy", () => {
+    it("requires the exact count and irreversible-delete acknowledgement", () => {
+        expect(canConfirmRemoteDelete("3", 3, false)).toBe(false);
+        expect(canConfirmRemoteDelete("2", 3, true)).toBe(false);
+        expect(canConfirmRemoteDelete(" 3 ", 3, true)).toBe(true);
     });
 
-    it('requires a fresh index, exact hosting, directory boundary, current scan, and unreferenced state', () => {
+    it("requires a fresh index, exact hosting, directory boundary, current scan, and unreferenced state", () => {
         const candidate = object(1);
         const base = context([candidate]);
-        expect(getRemoteDeleteUnavailableReason(candidate, base)).toBeUndefined();
-        expect(getRemoteDeleteUnavailableReason(candidate, { ...base, indexState: { status: 'empty' } }))
-            .toBe('index-empty');
-        expect(getRemoteDeleteUnavailableReason(candidate, context([candidate], 'referenced')))
-            .toBe('referenced');
-        expect(getRemoteDeleteUnavailableReason({ ...candidate, hostingId: 'other' }, base))
-            .toBe('wrong-hosting');
-        expect(getRemoteDeleteUnavailableReason({ ...candidate, key: 'vault-ab/1.png' }, base))
-            .toBe('outside-prefix');
-        expect(getRemoteDeleteUnavailableReason(object(2), base)).toBe('not-in-scan');
-        expect(isKeyInRemotePrefix('vault-a/nested/a.png', 'vault-a')).toBe(true);
-        expect(isKeyInRemotePrefix('vault-ab/a.png', 'vault-a')).toBe(false);
+        expect(
+            getRemoteDeleteUnavailableReason(candidate, base),
+        ).toBeUndefined();
+        expect(
+            getRemoteDeleteUnavailableReason(candidate, {
+                ...base,
+                indexState: { status: "empty" },
+            }),
+        ).toBe("index-empty");
+        expect(
+            getRemoteDeleteUnavailableReason(
+                candidate,
+                context([candidate], "referenced"),
+            ),
+        ).toBe("referenced");
+        expect(
+            getRemoteDeleteUnavailableReason(
+                { ...candidate, hostingId: "other" },
+                base,
+            ),
+        ).toBe("wrong-hosting");
+        expect(
+            getRemoteDeleteUnavailableReason(
+                { ...candidate, key: "vault-ab/1.png" },
+                base,
+            ),
+        ).toBe("outside-prefix");
+        expect(getRemoteDeleteUnavailableReason(object(2), base)).toBe(
+            "not-in-scan",
+        );
+        expect(isKeyInRemotePrefix("vault-a/nested/a.png", "vault-a")).toBe(
+            true,
+        );
+        expect(isKeyInRemotePrefix("vault-ab/a.png", "vault-a")).toBe(false);
     });
 
     it.each([
-        ['referenced', 'referenced'],
-        ['possibly-referenced', 'possibly-referenced'],
-        ['unmappable', 'unmappable'],
-    ] as const)('blocks the %s reference state', (state, reason) => {
+        ["referenced", "referenced"],
+        ["possibly-referenced", "possibly-referenced"],
+        ["unmappable", "unmappable"],
+    ] as const)("blocks the %s reference state", (state, reason) => {
         const candidate = object(1);
-        expect(getRemoteDeleteUnavailableReason(candidate, context([candidate], state))).toBe(reason);
+        expect(
+            getRemoteDeleteUnavailableReason(
+                candidate,
+                context([candidate], state),
+            ),
+        ).toBe(reason);
     });
 
-    it('enables deletion with remote management and blocks unsupported or stale contexts', () => {
+    it("enables deletion with remote management and blocks unsupported or stale contexts", () => {
         const candidate = object(1);
         const disabled = context([candidate]);
         disabled.config.remoteManagement!.enabled = false;
-        expect(getRemoteDeleteUnavailableReason(candidate, disabled)).toBe('unsupported');
+        expect(getRemoteDeleteUnavailableReason(candidate, disabled)).toBe(
+            "unsupported",
+        );
 
-        expect(getRemoteDeleteUnavailableReason(candidate, context([candidate]))).toBeUndefined();
+        expect(
+            getRemoteDeleteUnavailableReason(candidate, context([candidate])),
+        ).toBeUndefined();
 
         const legacy = context([candidate]);
-        (legacy.config.remoteManagement as RemoteManagementConfig & { deleteEnabled: boolean })
-            .deleteEnabled = false;
-        expect(getRemoteDeleteUnavailableReason(candidate, legacy)).toBeUndefined();
+        (
+            legacy.config.remoteManagement as RemoteManagementConfig & {
+                deleteEnabled: boolean;
+            }
+        ).deleteEnabled = false;
+        expect(
+            getRemoteDeleteUnavailableReason(candidate, legacy),
+        ).toBeUndefined();
 
         const unsupported = context([candidate]);
-        unsupported.provider = { capabilities: new Set(['list']), listObjects: vi.fn() };
-        expect(getRemoteDeleteUnavailableReason(candidate, unsupported)).toBe('unsupported');
+        unsupported.provider = {
+            capabilities: new Set(["list"]),
+            listObjects: vi.fn(),
+        };
+        expect(getRemoteDeleteUnavailableReason(candidate, unsupported)).toBe(
+            "unsupported",
+        );
 
         const stale = context([candidate]);
-        if (stale.indexState.status !== 'fresh') throw new Error('Expected fresh test index');
-        stale.indexState = { status: 'stale', summary: stale.indexState.summary };
-        expect(getRemoteDeleteUnavailableReason(candidate, stale)).toBe('index-stale');
+        if (stale.indexState.status !== "fresh")
+            throw new Error("Expected fresh test index");
+        stale.indexState = {
+            status: "stale",
+            summary: stale.indexState.summary,
+        };
+        expect(getRemoteDeleteUnavailableReason(candidate, stale)).toBe(
+            "index-stale",
+        );
     });
 
-    it('supports selecting more than 20 eligible objects', () => {
+    it("supports selecting more than 20 eligible objects", () => {
         const objects = Array.from({ length: 25 }, (_, index) => object(index));
         const session = new RemoteDeleteSession();
         const eligibility = context(objects);
         for (const candidate of objects) {
-            expect(session.setSelected(candidate, true, eligibility).selected).toBe(true);
+            expect(
+                session.setSelected(candidate, true, eligibility).selected,
+            ).toBe(true);
         }
         expect(session.getSelectedObjects()).toEqual(objects);
         expect(session.createBatch(eligibility)?.objects).toEqual(objects);
     });
 
-    it('atomically replaces the selection with more than 20 eligible objects', () => {
+    it("atomically replaces the selection with more than 20 eligible objects", () => {
         const original = object(100);
-        const replacements = Array.from({ length: 25 }, (_, index) => object(index));
+        const replacements = Array.from({ length: 25 }, (_, index) =>
+            object(index),
+        );
         const eligibility = context([original, ...replacements]);
         const session = new RemoteDeleteSession();
         session.setSelected(original, true, eligibility);
 
-        expect(session.replaceSelection(replacements, eligibility)).toEqual({ selected: true });
+        expect(session.replaceSelection(replacements, eligibility)).toEqual({
+            selected: true,
+        });
         expect(session.getSelectedObjects()).toEqual(replacements);
     });
 
-    it('replaces selection atomically when a batch contains an ineligible object', () => {
+    it("replaces selection atomically when a batch contains an ineligible object", () => {
         const original = object(100);
         const replacement = object(1);
         const session = new RemoteDeleteSession();
         session.setSelected(original, true, context([original]));
 
-        expect(session.replaceSelection([replacement], context([replacement], 'referenced')))
-            .toEqual({ selected: false, reason: 'referenced' });
+        expect(
+            session.replaceSelection(
+                [replacement],
+                context([replacement], "referenced"),
+            ),
+        ).toEqual({ selected: false, reason: "referenced" });
         expect(session.getSelectedObjects()).toEqual([original]);
     });
 
-    it('rejects config, scan time, and freshness drift before execution', () => {
+    it("rejects config, scan time, and freshness drift before execution", () => {
         const candidate = object(1);
         const session = new RemoteDeleteSession();
         const original = context([candidate]);
@@ -151,18 +223,24 @@ describe('remote delete safety policy', () => {
 
         expect(session.validateBatch(batch, original)).toBe(true);
         const changed = context([candidate]);
-        changed.config.remoteManagement!.prefix = 'other';
+        changed.config.remoteManagement!.prefix = "other";
         expect(session.validateBatch(batch, changed)).toBe(false);
-        if (original.indexState.status !== 'fresh') throw new Error('Expected fresh test index');
-        expect(session.validateBatch(batch, {
-            ...original,
-            indexState: { status: 'stale', summary: original.indexState.summary },
-        })).toBe(false);
+        if (original.indexState.status !== "fresh")
+            throw new Error("Expected fresh test index");
+        expect(
+            session.validateBatch(batch, {
+                ...original,
+                indexState: {
+                    status: "stale",
+                    summary: original.indexState.summary,
+                },
+            }),
+        ).toBe(false);
     });
 });
 
-describe('remote delete scheduling', () => {
-    it('runs at most two requests concurrently without automatic retries', async () => {
+describe("remote delete scheduling", () => {
+    it("runs at most two requests concurrently without automatic retries", async () => {
         const objects = Array.from({ length: 6 }, (_, index) => object(index));
         const eligibility = context(objects);
         const session = new RemoteDeleteSession();
@@ -175,10 +253,17 @@ describe('remote delete scheduling', () => {
             maximum = Math.max(maximum, active);
             await Promise.resolve();
             active--;
-            return { key: candidate.key, success: true, status: 204, deletionKind: 'unknown' as const };
+            return {
+                key: candidate.key,
+                success: true,
+                status: 204,
+                deletionKind: "unknown" as const,
+            };
         });
         const provider: RemoteObjectProvider = {
-            capabilities: new Set(['delete']), listObjects: vi.fn(), deleteObject,
+            capabilities: new Set(["delete"]),
+            listObjects: vi.fn(),
+            deleteObject,
         };
 
         const results = await session.run(provider, batch);
@@ -188,22 +273,41 @@ describe('remote delete scheduling', () => {
         expect(deleteObject).toHaveBeenCalledTimes(6);
     });
 
-    it('stops scheduling unsent objects while retaining in-flight results', async () => {
+    it("stops scheduling unsent objects while retaining in-flight results", async () => {
         const objects = Array.from({ length: 5 }, (_, index) => object(index));
         const eligibility = context(objects);
         const session = new RemoteDeleteSession();
         session.replaceSelection(objects, eligibility);
         const batch = session.createBatch(eligibility)!;
         const finishes: Array<() => void> = [];
-        const deleteObject = vi.fn((candidate: RemoteObject) => new Promise<{
-            key: string; success: boolean; status: number; deletionKind: 'unknown';
-        }>((resolve) => finishes.push(() => resolve({
-            key: candidate.key, success: true, status: 204, deletionKind: 'unknown',
-        }))));
+        const deleteObject = vi.fn(
+            (candidate: RemoteObject) =>
+                new Promise<{
+                    key: string;
+                    success: boolean;
+                    status: number;
+                    deletionKind: "unknown";
+                }>((resolve) =>
+                    finishes.push(() =>
+                        resolve({
+                            key: candidate.key,
+                            success: true,
+                            status: 204,
+                            deletionKind: "unknown",
+                        }),
+                    ),
+                ),
+        );
         const onResult = vi.fn();
-        const pending = session.run({
-            capabilities: new Set(['delete']), listObjects: vi.fn(), deleteObject,
-        }, batch, { onResult });
+        const pending = session.run(
+            {
+                capabilities: new Set(["delete"]),
+                listObjects: vi.fn(),
+                deleteObject,
+            },
+            batch,
+            { onResult },
+        );
         await vi.waitFor(() => expect(deleteObject).toHaveBeenCalledTimes(2));
 
         session.stop();

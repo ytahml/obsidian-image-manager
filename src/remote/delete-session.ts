@@ -1,11 +1,15 @@
-import type { RemoteObjectProvider } from './provider';
+import type { RemoteObjectProvider } from "./provider";
 import {
     getRemoteDeleteConfigFingerprint,
     getRemoteDeleteUnavailableReason,
     type RemoteDeleteEligibilityContext,
     type RemoteDeleteUnavailableReason,
-} from './delete-policy';
-import type { RemoteDeleteResult, RemoteObject, RemoteReferenceState } from './types';
+} from "./delete-policy";
+import type {
+    RemoteDeleteResult,
+    RemoteObject,
+    RemoteReferenceState,
+} from "./types";
 
 export const REMOTE_DELETE_CONCURRENCY = 2;
 
@@ -23,7 +27,10 @@ export interface RemoteDeleteBatchSnapshot {
 }
 
 export interface RemoteDeleteRunOptions {
-    onResult?: (object: RemoteObject, result: RemoteDeleteResult) => void | Promise<void>;
+    onResult?: (
+        object: RemoteObject,
+        result: RemoteDeleteResult,
+    ) => void | Promise<void>;
 }
 
 /** Provider-independent selection, validation, and bounded delete scheduling. */
@@ -51,7 +58,7 @@ export class RemoteDeleteSession {
     setSelected(
         object: RemoteObject,
         selected: boolean,
-        context: RemoteDeleteEligibilityContext
+        context: RemoteDeleteEligibilityContext,
     ): RemoteDeleteSelectionResult {
         const id = objectId(object);
         if (!selected) {
@@ -66,7 +73,7 @@ export class RemoteDeleteSession {
 
     replaceSelection(
         objects: readonly RemoteObject[],
-        context: RemoteDeleteEligibilityContext
+        context: RemoteDeleteEligibilityContext,
     ): RemoteDeleteSelectionResult {
         const replacement = new Map<string, RemoteObject>();
         for (const object of objects) {
@@ -78,42 +85,55 @@ export class RemoteDeleteSession {
         return { selected: this.selected.size > 0 };
     }
 
-    createBatch(context: RemoteDeleteEligibilityContext): RemoteDeleteBatchSnapshot | undefined {
+    createBatch(
+        context: RemoteDeleteEligibilityContext,
+    ): RemoteDeleteBatchSnapshot | undefined {
         const objects = this.getSelectedObjects();
         if (objects.length === 0) return undefined;
         const states = new Map<string, RemoteReferenceState>();
         for (const object of objects) {
-            if (getRemoteDeleteUnavailableReason(object, context)) return undefined;
+            if (getRemoteDeleteUnavailableReason(object, context))
+                return undefined;
             states.set(objectId(object), context.classify(object));
         }
-        if (context.indexState.status !== 'fresh') return undefined;
+        if (context.indexState.status !== "fresh") return undefined;
         return {
             objects,
             states,
             configFingerprint: getRemoteDeleteConfigFingerprint(context.config),
             scannedAt: context.indexState.summary.scannedAt,
-            totalSize: objects.reduce((total, object) => total + object.size, 0),
+            totalSize: objects.reduce(
+                (total, object) => total + object.size,
+                0,
+            ),
         };
     }
 
     validateBatch(
         batch: RemoteDeleteBatchSnapshot,
-        context: RemoteDeleteEligibilityContext
+        context: RemoteDeleteEligibilityContext,
     ): boolean {
-        if (context.indexState.status !== 'fresh') return false;
-        if (batch.configFingerprint !== getRemoteDeleteConfigFingerprint(context.config)) return false;
-        if (batch.scannedAt !== context.indexState.summary.scannedAt) return false;
-        return batch.objects.every((object) =>
-            getRemoteDeleteUnavailableReason(object, context) === undefined
+        if (context.indexState.status !== "fresh") return false;
+        if (
+            batch.configFingerprint !==
+            getRemoteDeleteConfigFingerprint(context.config)
+        )
+            return false;
+        if (batch.scannedAt !== context.indexState.summary.scannedAt)
+            return false;
+        return batch.objects.every(
+            (object) =>
+                getRemoteDeleteUnavailableReason(object, context) === undefined,
         );
     }
 
     async run(
         provider: RemoteObjectProvider,
         batch: RemoteDeleteBatchSnapshot,
-        options: RemoteDeleteRunOptions = {}
+        options: RemoteDeleteRunOptions = {},
     ): Promise<RemoteDeleteResult[]> {
-        if (!provider.capabilities.has('delete') || !provider.deleteObject) return [];
+        if (!provider.capabilities.has("delete") || !provider.deleteObject)
+            return [];
         const deleteObject = provider.deleteObject.bind(provider);
         const runGeneration = ++this.generation;
         const queue = [...batch.objects];
@@ -129,7 +149,7 @@ export class RemoteDeleteSession {
                     result = {
                         key: object.key,
                         success: false,
-                        failureCode: 'unknown',
+                        failureCode: "unknown",
                         retryable: false,
                     };
                 }
@@ -137,10 +157,12 @@ export class RemoteDeleteSession {
                 await options.onResult?.(object, result);
             }
         };
-        await Promise.all(Array.from(
-            { length: Math.min(REMOTE_DELETE_CONCURRENCY, queue.length) },
-            () => worker()
-        ));
+        await Promise.all(
+            Array.from(
+                { length: Math.min(REMOTE_DELETE_CONCURRENCY, queue.length) },
+                () => worker(),
+            ),
+        );
         return results;
     }
 }
