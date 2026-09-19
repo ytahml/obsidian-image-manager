@@ -195,7 +195,10 @@ export class ImageBrowserModal extends Modal {
     private onSearchInput() {
         this.localSelectionAnchorPath = null;
         if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
-        this.debounceTimer = window.setTimeout(() => this.applyFilterAndSort(), 300);
+        this.debounceTimer = window.setTimeout(() => {
+            this.localSelectionAnchorPath = null;
+            this.applyFilterAndSort();
+        }, 300);
     }
 
     private scheduleSortPreferenceSave() {
