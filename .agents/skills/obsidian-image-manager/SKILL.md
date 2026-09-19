@@ -31,7 +31,7 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 - Provider cursors are opaque. Shared code must not parse, decode, re-encode, or synthesize them.
 - Any reliably mapped remote URL in supported Markdown content counts as `referenced`, regardless of whether it appears as an image, link, HTML, frontmatter, Wiki wrapper, or raw URL.
 - Only a completed fresh Markdown index may return `not-referenced-in-current-vault`. Empty, stale, aborted, ambiguous, or unmappable states must never enable deletion.
-- Remote deletion requires matching hosting, prefix, scan snapshot, exact-count confirmation and acknowledgement; limit 20 objects, two concurrent requests, no automatic retry.
+- Remote deletion requires matching hosting, prefix, scan snapshot, exact-count confirmation and acknowledgement; selection count is uncapped, requests remain limited to two concurrent operations, and there is no automatic retry.
 - Local orphan cleanup rescans before confirmation and again at execution, then uses `fileManager.trashFile()` only for files that remain orphaned.
 - Upload success may invalidate an open matching remote session, but neither upload results nor delete history prove current remote existence.
 - Custom reference templates require `{fileUrl}`. Unknown variables or unavailable requested dimensions safely fall back to Markdown.

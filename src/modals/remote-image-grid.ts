@@ -24,7 +24,7 @@ interface RemoteImageGridOptions {
     items: readonly RemoteImageGridItem[];
     thumbnailSession: RemoteThumbnailSession;
     isSelected: (object: RemoteObject) => boolean;
-    onSelectionChange: (object: RemoteObject, selected: boolean, checkbox: HTMLInputElement) => void;
+    onSelectionChange: (object: RemoteObject, selected: boolean, shiftKey: boolean) => void;
     onPreview: (
         provider: RemoteObjectProvider,
         object: RemoteObject,
@@ -43,6 +43,7 @@ export class RemoteImageGrid {
     private sentinelEl: HTMLElement | null = null;
     private renderedCount = 0;
     private images = new Set<HTMLImageElement>();
+    private selectionControls = new Map<RemoteObject, { card: HTMLElement; checkbox: HTMLInputElement }>();
     private destroyed = false;
 
     constructor(private options: RemoteImageGridOptions) {
@@ -63,6 +64,15 @@ export class RemoteImageGrid {
             image.removeAttribute('src');
         }
         this.images.clear();
+        this.selectionControls.clear();
+    }
+
+    syncSelection(): void {
+        for (const [object, control] of this.selectionControls) {
+            const selected = this.options.isSelected(object);
+            control.checkbox.checked = selected;
+            control.card.toggleClass('is-selected', selected);
+        }
     }
 
     private createObservers(): void {
@@ -145,9 +155,10 @@ export class RemoteImageGrid {
                 const checkbox = label.createEl('input', { attr: { type: 'checkbox' } });
                 checkbox.checked = this.options.isSelected(object);
                 label.createSpan({ text: t('modal.imageBrowser.remoteSelect') });
-                checkbox.addEventListener('change', () => {
-                    this.options.onSelectionChange(object, checkbox.checked, checkbox);
-                    card.toggleClass('is-selected', checkbox.checked);
+                this.selectionControls.set(object, { card, checkbox });
+                checkbox.addEventListener('click', (event) => {
+                    this.options.onSelectionChange(object, checkbox.checked, event.shiftKey);
+                    this.syncSelection();
                 });
                 card.toggleClass('is-selected', checkbox.checked);
             }

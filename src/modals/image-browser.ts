@@ -2,6 +2,7 @@ import { App, Modal, Notice, TFile } from 'obsidian';
 import type ImageManagerPlugin from '../main';
 import { ImageScanner } from '../utils/image-scanner';
 import { formatFileSize } from '../utils/path-utils';
+import { applySelectionGesture } from '../utils/selection-range';
 import {
     filterLocalImagesByReferenceState,
     getLocalReferenceState,
@@ -30,12 +31,16 @@ export class ImageBrowserModal extends Modal {
     private sortSelect: HTMLSelectElement | null = null;
     private referenceFilterSelect: HTMLSelectElement | null = null;
     private deleteSummaryEl: HTMLSpanElement | null = null;
+    private selectCurrentButton: HTMLButtonElement | null = null;
+    private clearSelectionButton: HTMLButtonElement | null = null;
     private deleteButton: HTMLButtonElement | null = null;
     private viewEl: HTMLDivElement | null = null;
     private remoteView: RemoteImageBrowserView | null = null;
     private referenceFilter: LocalReferenceFilter = 'all';
     private localScanState: LocalScanState = 'scanning';
     private selectedPaths = new Set<string>();
+    private localSelectionAnchorPath: string | null = null;
+    private localSelectionControls = new Map<string, { card: HTMLDivElement; checkbox: HTMLInputElement }>();
     private localViewVersion = 0;
     private deleting = false;
     private debounceTimer: number | null = null;
@@ -91,6 +96,8 @@ export class ImageBrowserModal extends Modal {
         this.localScanState = 'scanning';
         this.deleting = false;
         this.selectedPaths.clear();
+        this.localSelectionAnchorPath = null;
+        this.localSelectionControls.clear();
         const controls = this.viewEl.createDiv({ cls: 'image-browser-controls' });
         this.searchInput = controls.createEl('input', { cls: 'image-browser-search', attr: { type: 'text', placeholder: t('modal.imageBrowser.searchPlaceholder') } });
         this.searchInput.addEventListener('input', () => this.onSearchInput());
@@ -104,6 +111,7 @@ export class ImageBrowserModal extends Modal {
         this.sortSelect.value = this.plugin.settings.localImageBrowserSort.field;
         this.sortSelect.addEventListener('change', () => {
             this.plugin.settings.localImageBrowserSort.field = this.sortSelect?.value as typeof this.plugin.settings.localImageBrowserSort.field;
+            this.localSelectionAnchorPath = null;
             this.scheduleSortPreferenceSave();
             this.applyFilterAndSort();
         });
@@ -122,6 +130,7 @@ export class ImageBrowserModal extends Modal {
                 ? 'desc'
                 : 'asc';
             updateSortDirection();
+            this.localSelectionAnchorPath = null;
             this.scheduleSortPreferenceSave();
             this.applyFilterAndSort();
         });
@@ -140,15 +149,27 @@ export class ImageBrowserModal extends Modal {
         this.referenceFilterSelect.disabled = true;
         this.referenceFilterSelect.addEventListener('change', () => {
             this.referenceFilter = this.referenceFilterSelect?.value as LocalReferenceFilter;
+            this.localSelectionAnchorPath = null;
             this.applyFilterAndSort();
         });
         this.countEl = controls.createSpan({ cls: 'image-browser-count' });
         this.gridEl = this.viewEl.createDiv({ cls: 'image-browser-grid' });
         const deleteToolbar = this.viewEl.createDiv({ cls: 'local-image-delete-toolbar' });
         this.deleteSummaryEl = deleteToolbar.createSpan({ cls: 'local-image-delete-summary' });
+        this.selectCurrentButton = deleteToolbar.createEl('button', {
+            text: t('modal.imageBrowser.selectCurrentResults'),
+            attr: { type: 'button' },
+        });
+        this.selectCurrentButton.addEventListener('click', () => this.selectCurrentLocalResults());
+        this.clearSelectionButton = deleteToolbar.createEl('button', {
+            text: t('modal.imageBrowser.clearSelection'),
+            attr: { type: 'button' },
+        });
+        this.clearSelectionButton.addEventListener('click', () => this.clearLocalSelection());
         this.deleteButton = deleteToolbar.createEl('button', {
             cls: 'mod-warning',
             text: t('modal.imageBrowser.localDeleteSelected'),
+            attr: { type: 'button' },
         });
         this.deleteButton.addEventListener('click', () => void this.confirmDeleteSelected(version));
         this.allImages = this.scanner.getAllImages();
@@ -172,6 +193,7 @@ export class ImageBrowserModal extends Modal {
     }
 
     private onSearchInput() {
+        this.localSelectionAnchorPath = null;
         if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
         this.debounceTimer = window.setTimeout(() => this.applyFilterAndSort(), 300);
     }
@@ -210,6 +232,7 @@ export class ImageBrowserModal extends Modal {
     private renderGrid() {
         if (!this.gridEl) return;
         this.gridEl.empty();
+        this.localSelectionControls.clear();
         if (this.countEl) this.countEl.textContent = t('modal.imageBrowser.showing', { count: String(this.filteredImages.length), total: String(this.allImages.length) });
         this.updateDeleteToolbar();
         if (this.filteredImages.length === 0) {
@@ -238,11 +261,9 @@ export class ImageBrowserModal extends Modal {
                 const checkbox = selectLabel.createEl('input', { attr: { type: 'checkbox' } });
                 checkbox.checked = this.selectedPaths.has(file.path);
                 selectLabel.createSpan({ text: t('modal.imageBrowser.localSelect') });
-                checkbox.addEventListener('change', () => {
-                    if (checkbox.checked) this.selectedPaths.add(file.path);
-                    else this.selectedPaths.delete(file.path);
-                    card.toggleClass('is-selected', checkbox.checked);
-                    this.updateDeleteToolbar();
+                this.localSelectionControls.set(file.path, { card, checkbox });
+                checkbox.addEventListener('click', (event) => {
+                    this.applyLocalSelectionGesture(file.path, checkbox.checked, event.shiftKey);
                 });
             }
             const name = card.createDiv({ cls: 'image-browser-card-name', text: file.name });
@@ -288,6 +309,7 @@ export class ImageBrowserModal extends Modal {
     }
 
     private applyLocalOrphanResult(result: OrphanResult): void {
+        this.localSelectionAnchorPath = null;
         this.localScanState = 'ready';
         this.orphanPaths = new Set(result.orphans.map((file) => file.path));
         this.indeterminatePaths = new Set(result.indeterminate.map((file) => file.path));
@@ -307,14 +329,69 @@ export class ImageBrowserModal extends Modal {
         }
     }
 
+    private applyLocalSelectionGesture(path: string, checked: boolean, shiftKey: boolean): void {
+        const eligiblePaths = this.getCurrentLocalEligiblePaths();
+        const result = applySelectionGesture({
+            orderedIds: this.filteredImages.map((file) => file.path),
+            eligibleIds: eligiblePaths,
+            selectedIds: this.selectedPaths,
+            anchorId: this.localSelectionAnchorPath,
+            targetId: path,
+            checked,
+            shiftKey,
+        });
+        this.selectedPaths = result.selectedIds;
+        this.localSelectionAnchorPath = result.anchorId;
+        this.syncLocalSelectionControls();
+        this.updateDeleteToolbar();
+    }
+
+    private selectCurrentLocalResults(): void {
+        for (const path of this.getCurrentLocalEligiblePaths()) this.selectedPaths.add(path);
+        this.localSelectionAnchorPath = null;
+        this.syncLocalSelectionControls();
+        this.updateDeleteToolbar();
+    }
+
+    private clearLocalSelection(): void {
+        this.selectedPaths.clear();
+        this.localSelectionAnchorPath = null;
+        this.syncLocalSelectionControls();
+        this.updateDeleteToolbar();
+    }
+
+    private getCurrentLocalEligiblePaths(): Set<string> {
+        if (this.localScanState !== 'ready' || !this.orphanPaths) return new Set();
+        return new Set(this.filteredImages
+            .filter((file) => this.orphanPaths?.has(file.path))
+            .map((file) => file.path));
+    }
+
+    private syncLocalSelectionControls(): void {
+        for (const [path, control] of this.localSelectionControls) {
+            const selected = this.selectedPaths.has(path);
+            control.checkbox.checked = selected;
+            control.card.toggleClass('is-selected', selected);
+        }
+    }
+
     private updateDeleteToolbar(): void {
         if (!this.deleteSummaryEl || !this.deleteButton) return;
         const selectedFiles = this.allImages.filter((file) => this.selectedPaths.has(file.path));
         const totalSize = selectedFiles.reduce((sum, file) => sum + file.stat.size, 0);
+        const eligiblePaths = this.getCurrentLocalEligiblePaths();
+        const hasUnselectedCurrentResult = [...eligiblePaths]
+            .some((path) => !this.selectedPaths.has(path));
         this.deleteSummaryEl.textContent = t('modal.imageBrowser.localDeleteSelection', {
             count: String(selectedFiles.length),
             size: formatFileSize(totalSize),
         });
+        if (this.selectCurrentButton) {
+            this.selectCurrentButton.disabled = this.deleting || !hasUnselectedCurrentResult;
+        }
+        if (this.clearSelectionButton) {
+            this.clearSelectionButton.disabled = this.deleting || selectedFiles.length === 0;
+        }
         this.deleteButton.disabled = (
             this.deleting
             || this.localScanState !== 'ready'
