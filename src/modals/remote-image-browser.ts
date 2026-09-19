@@ -3,6 +3,7 @@ import type ImageManagerPlugin from '../main';
 import type { ImageHostingConfig } from '../types';
 import { t } from '../i18n';
 import { formatFileSize } from '../utils/path-utils';
+import { applySelectionGesture } from '../utils/selection-range';
 import { ConfirmDialog } from './confirm-dialog';
 import { RemoteBrowseSession } from '../remote/browse-session';
 import { getRemoteManagementConfig, normalizeRemotePrefix } from '../remote/management-settings';
@@ -62,7 +63,11 @@ export class RemoteImageBrowserView {
     private removeIndexInvalidationListener: (() => void) | null = null;
     private removeUploadSuccessListener: (() => void) | null = null;
     private deleteSummaryEl: HTMLElement | null = null;
+    private selectCurrentButton: HTMLButtonElement | null = null;
+    private clearSelectionButton: HTMLButtonElement | null = null;
     private deleteButton: HTMLButtonElement | null = null;
+    private currentEligibleObjects: readonly RemoteObject[] = [];
+    private remoteSelectionAnchorKey: string | null = null;
     private deleteViewGeneration = 0;
 
     constructor(
@@ -74,7 +79,7 @@ export class RemoteImageBrowserView {
 
     open() {
         this.removeIndexInvalidationListener ??= this.plugin.remoteReferenceIndex.onInvalidate(() => {
-            this.deleteSession.clear();
+            this.clearRemoteSelection();
             this.invalidatePreview();
             this.render();
         });
@@ -82,7 +87,7 @@ export class RemoteImageBrowserView {
             if (result.hostingId !== this.selectedHostingId) return;
             this.invalidatePreview();
             this.deleteViewGeneration++;
-            this.deleteSession.clear();
+            this.clearRemoteSelection();
             this.session.invalidate();
             this.render();
         });
@@ -101,7 +106,7 @@ export class RemoteImageBrowserView {
         this.scanAbortController = null;
         this.session.stop();
         this.deleteViewGeneration++;
-        this.deleteSession.clear();
+        this.clearRemoteSelection();
         this.activeDeleteResultsModal?.close();
         this.activeDeleteResultsModal = null;
         this.activeFolderPicker?.close();
@@ -114,7 +119,10 @@ export class RemoteImageBrowserView {
         this.previewCountEl = null;
         this.resultCountEl = null;
         this.deleteSummaryEl = null;
+        this.selectCurrentButton = null;
+        this.clearSelectionButton = null;
         this.deleteButton = null;
+        this.currentEligibleObjects = [];
         this.containerEl.empty();
     }
 
@@ -137,7 +145,10 @@ export class RemoteImageBrowserView {
         this.previewCountEl = null;
         this.resultCountEl = null;
         this.deleteSummaryEl = null;
+        this.selectCurrentButton = null;
+        this.clearSelectionButton = null;
         this.deleteButton = null;
+        this.currentEligibleObjects = [];
         this.containerEl.empty();
         this.containerEl.addClass('remote-image-browser');
         const configs = this.getConfigs();
@@ -166,7 +177,7 @@ export class RemoteImageBrowserView {
             this.emptyPrefixConfirmed.clear();
             this.invalidatePreview();
             this.deleteViewGeneration++;
-            this.deleteSession.clear();
+            this.clearRemoteSelection();
             this.session.invalidate();
             this.render();
         });
@@ -299,7 +310,7 @@ export class RemoteImageBrowserView {
         if (result.status !== 'ready' || !result.provider.capabilities.has('list')) return;
         this.invalidatePreview();
         this.deleteViewGeneration++;
-        this.deleteSession.clear();
+        this.clearRemoteSelection();
         this.scanAbortController?.abort();
         const controller = new AbortController();
         this.scanAbortController = controller;
@@ -440,6 +451,9 @@ export class RemoteImageBrowserView {
         this.destroyGrid();
         this.thumbnailSession.resetView();
         container.empty();
+        this.remoteSelectionAnchorKey = null;
+        this.currentEligibleObjects = [];
+        this.updateDeleteToolbar();
         const snapshot = this.session.getSnapshot();
         const providerResult = createRemoteObjectProvider(config);
         const provider = providerResult.status === 'ready' ? providerResult.provider : undefined;
@@ -501,6 +515,12 @@ export class RemoteImageBrowserView {
                     : undefined,
                 references: lookup.getReferences(object),
             }));
+            this.currentEligibleObjects = deleteContext
+                ? items
+                    .filter((item) => item.deleteUnavailable === undefined)
+                    .map((item) => item.object)
+                : [];
+            this.updateDeleteToolbar();
             this.imageGrid = new RemoteImageGrid({
                 container,
                 provider,
@@ -508,17 +528,16 @@ export class RemoteImageBrowserView {
                 items,
                 thumbnailSession: this.thumbnailSession,
                 isSelected: (object) => this.deleteSession.isSelected(object),
-                onSelectionChange: (object, selected, checkbox) => {
-                    const currentContext = this.getDeleteContext(config, provider);
-                    const result = this.deleteSession.setSelected(object, selected, currentContext);
-                    checkbox.checked = result.selected;
-                    if (result.reason) {
-                        const message = result.reason === 'limit'
-                            ? t('modal.imageBrowser.remoteDeleteLimit')
-                            : getDeleteUnavailableMessage(result.reason);
-                        new Notice(message);
-                    }
-                    this.updateDeleteToolbar();
+                onSelectionChange: (object, selected, shiftKey) => {
+                    this.applyRemoteSelectionGesture(
+                        config,
+                        provider,
+                        objects,
+                        this.currentEligibleObjects,
+                        object,
+                        selected,
+                        shiftKey
+                    );
                 },
                 onPreview: (readyProvider, object, references) => {
                     this.openPreview(readyProvider, object, references);
@@ -565,7 +584,7 @@ export class RemoteImageBrowserView {
         this.emptyPrefixConfirmed.clear();
         this.invalidatePreview();
         this.deleteViewGeneration++;
-        this.deleteSession.clear();
+        this.clearRemoteSelection();
         this.session.invalidate();
         if (this.pageResultsEl) this.renderPageResults(config, this.pageResultsEl);
         this.scheduleSettingsSave();
@@ -631,9 +650,22 @@ export class RemoteImageBrowserView {
         if (!provider.capabilities.has('delete') || !provider.deleteObject) return;
         const toolbar = this.containerEl.createDiv({ cls: 'remote-delete-toolbar' });
         this.deleteSummaryEl = toolbar.createSpan();
+        this.selectCurrentButton = toolbar.createEl('button', {
+            text: t('modal.imageBrowser.selectCurrentResults'),
+            attr: { type: 'button' },
+        });
+        this.selectCurrentButton.addEventListener('click', () => {
+            this.selectCurrentRemoteResults(config, provider);
+        });
+        this.clearSelectionButton = toolbar.createEl('button', {
+            text: t('modal.imageBrowser.clearSelection'),
+            attr: { type: 'button' },
+        });
+        this.clearSelectionButton.addEventListener('click', () => this.clearRemoteSelection());
         this.deleteButton = toolbar.createEl('button', {
             text: t('modal.imageBrowser.remoteDeleteSelected'),
             cls: 'mod-warning',
+            attr: { type: 'button' },
         });
         this.deleteButton.addEventListener('click', () => this.openDeleteConfirmation(config, provider));
         this.updateDeleteToolbar();
@@ -642,13 +674,89 @@ export class RemoteImageBrowserView {
     private updateDeleteToolbar(): void {
         const selected = this.deleteSession.getSelectedObjects();
         const totalSize = selected.reduce((total, object) => total + object.size, 0);
+        const hasUnselectedCurrentResult = this.currentEligibleObjects
+            .some((object) => !this.deleteSession.isSelected(object));
         if (this.deleteSummaryEl) {
             this.deleteSummaryEl.textContent = t('modal.imageBrowser.remoteDeleteSelection', {
                 count: String(selected.length),
                 size: formatFileSize(totalSize),
             });
         }
+        if (this.selectCurrentButton) {
+            this.selectCurrentButton.disabled = !hasUnselectedCurrentResult;
+        }
+        if (this.clearSelectionButton) {
+            this.clearSelectionButton.disabled = selected.length === 0;
+        }
         if (this.deleteButton) this.deleteButton.disabled = selected.length === 0;
+    }
+
+    private selectCurrentRemoteResults(
+        config: ImageHostingConfig,
+        provider: RemoteObjectProvider
+    ): void {
+        const objectsByKey = new Map(
+            this.deleteSession.getSelectedObjects().map((object) => [object.key, object])
+        );
+        for (const object of this.currentEligibleObjects) objectsByKey.set(object.key, object);
+        const result = this.deleteSession.replaceSelection(
+            [...objectsByKey.values()],
+            this.getDeleteContext(config, provider)
+        );
+        if (result.reason) this.showRemoteSelectionFailure(result.reason);
+        else this.remoteSelectionAnchorKey = null;
+        this.imageGrid?.syncSelection();
+        this.updateDeleteToolbar();
+    }
+
+    private clearRemoteSelection(): void {
+        this.deleteSession.clear();
+        this.remoteSelectionAnchorKey = null;
+        this.imageGrid?.syncSelection();
+        this.updateDeleteToolbar();
+    }
+
+    private applyRemoteSelectionGesture(
+        config: ImageHostingConfig,
+        provider: RemoteObjectProvider | undefined,
+        orderedObjects: readonly RemoteObject[],
+        eligibleObjects: readonly RemoteObject[],
+        target: RemoteObject,
+        checked: boolean,
+        shiftKey: boolean
+    ): void {
+        const gesture = applySelectionGesture({
+            orderedIds: orderedObjects.map((object) => object.key),
+            eligibleIds: new Set(eligibleObjects.map((object) => object.key)),
+            selectedIds: new Set(
+                this.deleteSession.getSelectedObjects().map((object) => object.key)
+            ),
+            anchorId: this.remoteSelectionAnchorKey,
+            targetId: target.key,
+            checked,
+            shiftKey,
+        });
+        const objectsByKey = new Map(
+            this.session.getAllObjects().map((object) => [object.key, object])
+        );
+        const nextObjects = [...gesture.selectedIds]
+            .map((key) => objectsByKey.get(key))
+            .filter((object): object is RemoteObject => object !== undefined);
+        const result = this.deleteSession.replaceSelection(
+            nextObjects,
+            this.getDeleteContext(config, provider)
+        );
+        if (result.reason) {
+            this.showRemoteSelectionFailure(result.reason);
+        } else {
+            this.remoteSelectionAnchorKey = gesture.anchorId;
+        }
+        this.imageGrid?.syncSelection();
+        this.updateDeleteToolbar();
+    }
+
+    private showRemoteSelectionFailure(reason: RemoteDeleteUnavailableReason): void {
+        new Notice(getDeleteUnavailableMessage(reason));
     }
 
     private getDeleteContext(
@@ -677,8 +785,7 @@ export class RemoteImageBrowserView {
         };
         const batch = this.deleteSession.createBatch(context);
         if (!batch) {
-            this.deleteSession.clear();
-            this.updateDeleteToolbar();
+            this.clearRemoteSelection();
             new Notice(t('modal.imageBrowser.remoteDeleteRefreshRequired'));
             return;
         }
@@ -699,8 +806,7 @@ export class RemoteImageBrowserView {
                 return this.deleteSession.validateBatch(batch, validationContext);
             },
             onInvalid: () => {
-                this.deleteSession.clear();
-                this.updateDeleteToolbar();
+                this.clearRemoteSelection();
                 new Notice(t('modal.imageBrowser.remoteDeleteRefreshRequired'));
             },
             onConfirm: () => void this.executeDeleteBatch(config, provider, batch),
@@ -741,6 +847,7 @@ export class RemoteImageBrowserView {
                     scannedObjects: batch.objects,
                 };
                 const result = this.deleteSession.replaceSelection(objects, context);
+                this.remoteSelectionAnchorKey = null;
                 this.updateDeleteToolbar();
                 if (result.selected) {
                     this.openDeleteConfirmation(currentConfig, currentProvider.provider, batch.objects);
@@ -779,7 +886,7 @@ export class RemoteImageBrowserView {
             results.some((result) => result.success)
         ) {
             this.invalidatePreview();
-            this.deleteSession.clear();
+            this.clearRemoteSelection();
             this.session.invalidate();
             this.render();
         }

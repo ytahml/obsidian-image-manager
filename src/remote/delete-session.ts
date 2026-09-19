@@ -7,12 +7,11 @@ import {
 } from './delete-policy';
 import type { RemoteDeleteResult, RemoteObject, RemoteReferenceState } from './types';
 
-export const REMOTE_DELETE_BATCH_LIMIT = 20;
 export const REMOTE_DELETE_CONCURRENCY = 2;
 
 export interface RemoteDeleteSelectionResult {
     selected: boolean;
-    reason?: RemoteDeleteUnavailableReason | 'limit';
+    reason?: RemoteDeleteUnavailableReason;
 }
 
 export interface RemoteDeleteBatchSnapshot {
@@ -61,9 +60,6 @@ export class RemoteDeleteSession {
         }
         const reason = getRemoteDeleteUnavailableReason(object, context);
         if (reason) return { selected: false, reason };
-        if (!this.selected.has(id) && this.selected.size >= REMOTE_DELETE_BATCH_LIMIT) {
-            return { selected: false, reason: 'limit' };
-        }
         this.selected.set(id, object);
         return { selected: true };
     }
@@ -72,20 +68,19 @@ export class RemoteDeleteSession {
         objects: readonly RemoteObject[],
         context: RemoteDeleteEligibilityContext
     ): RemoteDeleteSelectionResult {
-        this.selected.clear();
+        const replacement = new Map<string, RemoteObject>();
         for (const object of objects) {
-            const result = this.setSelected(object, true, context);
-            if (!result.selected) {
-                this.selected.clear();
-                return result;
-            }
+            const reason = getRemoteDeleteUnavailableReason(object, context);
+            if (reason) return { selected: false, reason };
+            replacement.set(objectId(object), object);
         }
+        this.selected = replacement;
         return { selected: this.selected.size > 0 };
     }
 
     createBatch(context: RemoteDeleteEligibilityContext): RemoteDeleteBatchSnapshot | undefined {
         const objects = this.getSelectedObjects();
-        if (objects.length === 0 || objects.length > REMOTE_DELETE_BATCH_LIMIT) return undefined;
+        if (objects.length === 0) return undefined;
         const states = new Map<string, RemoteReferenceState>();
         for (const object of objects) {
             if (getRemoteDeleteUnavailableReason(object, context)) return undefined;

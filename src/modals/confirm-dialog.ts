@@ -17,6 +17,7 @@ export class ConfirmDialog extends Modal {
     private confirmButton: HTMLButtonElement | null = null;
     private cancelButton: HTMLButtonElement | null = null;
     private pending = false;
+    private settled = false;
 
     constructor(app: App, options: ConfirmDialogOptions) {
         super(app);
@@ -49,7 +50,7 @@ export class ConfirmDialog extends Modal {
         });
         this.cancelButton.addEventListener('click', () => {
             if (this.pending) return;
-            this.options.onCancel?.();
+            this.notifyCancel();
             this.close();
         });
 
@@ -63,14 +64,22 @@ export class ConfirmDialog extends Modal {
     }
 
     onClose() {
+        this.notifyCancel();
         const { contentEl } = this;
         contentEl.empty();
         activeDocument.removeEventListener('keydown', this.keyHandler);
     }
 
+    private notifyCancel(): void {
+        if (this.settled) return;
+        this.settled = true;
+        this.options.onCancel?.();
+    }
+
     private async handleConfirm() {
         if (this.pending) return;
         this.pending = true;
+        this.settled = true;
         this.contentEl.setAttribute('aria-busy', 'true');
         if (this.cancelButton) this.cancelButton.disabled = true;
         if (this.confirmButton) {

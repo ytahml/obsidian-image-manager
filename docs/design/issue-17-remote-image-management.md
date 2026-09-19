@@ -51,7 +51,7 @@
 
 对象只有同时满足以下条件才能选择：远程管理启用、Provider 有 delete capability、索引 fresh、hosting 匹配、key 在 prefix 边界内、对象属于当前 scan snapshot，且状态为 `not-referenced-in-current-vault`。
 
-- 每批最多 20 项、最多 2 个请求并发、不自动重试。
+- 选择数量不设上限；最多 2 个请求并发，不自动重试。
 - 确认要求输入精确数量并勾选不可撤销确认；IME composing 时 Enter 不提交。
 - batch 创建后冻结配置、prefix、scan 和 index 身份；执行前验证漂移。
 - 只发送 exact-key 单对象删除，不使用批量 DeleteObjects，不附加 versionId、MFA 或 Object Lock 绕过参数。

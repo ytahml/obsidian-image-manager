@@ -114,10 +114,13 @@ Modal 分为固定基础区和 capability 门控正文：
 - 桌面 Modal 最大约 1100px × 84vh；移动端保留 8–12px 安全边距。
 - 切页与关闭要释放 observer/URL/session，并隔离迟到任务。
 
-状态语义保持一致：
+状态与选择语义保持一致：
 
 - 本地与远程浏览器分别记忆最后的排序字段与方向；远程偏好不按图床隔离。
 - 方向按钮显示当前升序或降序，并提供同样本地化的 `aria-label`；排序只重排当前内存结果，不触发扫描或远程 list 请求。
+- 两页都提供“选择当前结果”和“清空选择”；前者只作用于当前搜索/筛选结果中的可删除项，后者清空全部选择。
+- Shift 只修饰原生复选框操作；普通卡片点击保持预览。移动端不依赖 Shift，可使用批量选择按钮完成操作。
+- 选择工具栏在窄屏允许摘要独占一行、按钮换行，并保持原生键盘焦点与禁用状态。
 - 绿色：已引用
 - 橙色：孤立图片
 - 灰色：无法判断
@@ -133,6 +136,7 @@ Modal 分为固定基础区和 capability 门控正文：
 
 - 有 Enter 提交的输入框必须先检查 `event.isComposing`。
 - Escape 取消，Enter 提交；异步提交期间防重复。
+- `ConfirmDialog` 的取消按钮、Escape 和关闭叉号都属于未确认关闭，必须恰好调用一次 `onCancel`；确认已经开始后关闭不得再投影为取消。
 - onClose 清理 content、listener、observer、临时 URL 和会话。
 - 使用 Obsidian ButtonComponent/Setting/DOM helpers，避免手写不兼容结构。
 - 标题使用 `new Setting().setName(...).setHeading()`，不要创建手写 h3。

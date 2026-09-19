@@ -29,7 +29,7 @@ Vitest 测试应覆盖可观察行为与高风险协议，而不是源码字符�
 - Provider cursor、文件夹 scope、错误脱敏。
 - browse/preview/thumbnail session 的聚合、缓存、并发和 late response。
 - 广义远程 URL 索引、alias/query/encoded slash、fresh/stale/abort。
-- 删除确认、20 项、2 并发、stop、部分失败和 audit 串行写入。
+- 删除确认、无选择数量上限、2 并发、stop、部分失败和 audit 串行写入。
 
 保持测试文件按业务域组织；小纯函数可并入相邻业务测试，但不要为了减少用例数合并不同协议的安全矩阵。
 

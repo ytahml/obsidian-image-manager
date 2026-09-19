@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ImageHostingConfig, RemoteManagementConfig } from '../src/types';
 import type { RemoteObjectProvider } from '../src/remote/provider';
 import type { RemoteObject, RemoteReferenceState } from '../src/remote/types';
-import {
-    REMOTE_DELETE_BATCH_LIMIT,
-    RemoteDeleteSession,
-} from '../src/remote/delete-session';
+import { RemoteDeleteSession } from '../src/remote/delete-session';
 import {
     getRemoteDeleteUnavailableReason,
     isKeyInRemotePrefix,
@@ -112,15 +109,37 @@ describe('remote delete safety policy', () => {
         expect(getRemoteDeleteUnavailableReason(candidate, stale)).toBe('index-stale');
     });
 
-    it('enforces the 20 item limit in shared code', () => {
-        const objects = Array.from({ length: REMOTE_DELETE_BATCH_LIMIT + 1 }, (_, index) => object(index));
+    it('supports selecting more than 20 eligible objects', () => {
+        const objects = Array.from({ length: 25 }, (_, index) => object(index));
         const session = new RemoteDeleteSession();
         const eligibility = context(objects);
-        for (const candidate of objects.slice(0, REMOTE_DELETE_BATCH_LIMIT)) {
+        for (const candidate of objects) {
             expect(session.setSelected(candidate, true, eligibility).selected).toBe(true);
         }
-        expect(session.setSelected(objects[REMOTE_DELETE_BATCH_LIMIT]!, true, eligibility))
-            .toEqual({ selected: false, reason: 'limit' });
+        expect(session.getSelectedObjects()).toEqual(objects);
+        expect(session.createBatch(eligibility)?.objects).toEqual(objects);
+    });
+
+    it('atomically replaces the selection with more than 20 eligible objects', () => {
+        const original = object(100);
+        const replacements = Array.from({ length: 25 }, (_, index) => object(index));
+        const eligibility = context([original, ...replacements]);
+        const session = new RemoteDeleteSession();
+        session.setSelected(original, true, eligibility);
+
+        expect(session.replaceSelection(replacements, eligibility)).toEqual({ selected: true });
+        expect(session.getSelectedObjects()).toEqual(replacements);
+    });
+
+    it('replaces selection atomically when a batch contains an ineligible object', () => {
+        const original = object(100);
+        const replacement = object(1);
+        const session = new RemoteDeleteSession();
+        session.setSelected(original, true, context([original]));
+
+        expect(session.replaceSelection([replacement], context([replacement], 'referenced')))
+            .toEqual({ selected: false, reason: 'referenced' });
+        expect(session.getSelectedObjects()).toEqual([original]);
     });
 
     it('rejects config, scan time, and freshness drift before execution', () => {
