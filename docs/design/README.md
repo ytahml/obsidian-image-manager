@@ -8,6 +8,7 @@
 
 - [本地图片生命周期](issue-36-local-image-workflow-ownership.md)
 - [远程对象管理](issue-17-remote-image-management.md)
+- [本地图片引用安全](local-reference-safety.md)
 
 ## 维护规则
 

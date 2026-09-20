@@ -52,7 +52,6 @@ export class ImageBrowserModal extends Modal {
     private deleting = false;
     private debounceTimer: number | null = null;
     private sortPreferenceSaveTimer: number | null = null;
-    private protectionRefreshTimer: number | null = null;
 
     constructor(
         app: App,
@@ -100,17 +99,12 @@ export class ImageBrowserModal extends Modal {
     onClose() {
         if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
         this.flushSortPreferenceSave();
-        if (this.protectionRefreshTimer)
-            window.clearTimeout(this.protectionRefreshTimer);
         this.localViewVersion++;
         this.remoteView?.close();
         this.contentEl.empty();
     }
 
     private showLocalView() {
-        if (this.protectionRefreshTimer)
-            window.clearTimeout(this.protectionRefreshTimer);
-        this.protectionRefreshTimer = null;
         const version = ++this.localViewVersion;
         this.remoteView?.close();
         this.remoteView = null;
@@ -242,9 +236,6 @@ export class ImageBrowserModal extends Modal {
 
     private showRemoteView() {
         if (!this.viewEl) return;
-        if (this.protectionRefreshTimer)
-            window.clearTimeout(this.protectionRefreshTimer);
-        this.protectionRefreshTimer = null;
         this.localViewVersion++;
         this.viewEl.empty();
         this.remoteView = new RemoteImageBrowserView(
@@ -468,17 +459,7 @@ export class ImageBrowserModal extends Modal {
         if (this.referenceFilterSelect)
             this.referenceFilterSelect.disabled = false;
         this.applyFilterAndSort();
-        if (this.protectionRefreshTimer)
-            window.clearTimeout(this.protectionRefreshTimer);
-        this.protectionRefreshTimer = null;
-        if (this.indeterminatePaths.size > 0) {
-            const version = this.localViewVersion;
-            this.protectionRefreshTimer = window.setTimeout(() => {
-                this.protectionRefreshTimer = null;
-                if (version === this.localViewVersion)
-                    void this.scanLocalReferenceStates(version);
-            }, 2_100);
-        }
+        // Unknown parser results are persistent until an explicit scan. Do not poll the whole Vault.
     }
 
     private applyLocalSelectionGesture(

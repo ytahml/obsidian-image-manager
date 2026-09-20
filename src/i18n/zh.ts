@@ -363,6 +363,8 @@ export const zh: Record<string, string> = {
     "modal.orphan.status":
         "找到 {orphan} 个孤立图片（共 {total} 张图片，{referenced} 张被引用）",
     "modal.orphan.noOrphans": "未找到孤立图片，所有图片均被引用。",
+    "modal.orphan.noOrphansUnknown":
+        "未找到可删除的孤立图片；有 {unknown} 张图片无法确认引用状态，已为安全起见保留。",
     "modal.orphan.selectAll": "全选",
     "modal.orphan.selectNone": "取消全选",
     "modal.orphan.totalSize": "总计：{size}",

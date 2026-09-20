@@ -119,12 +119,14 @@ ClipboardEvent/DragEvent
 
 ## 孤立图片与安全清理
 
-`OrphanFinder` 扫描全部受支持图片和 Markdown 文件，将引用解析为 Vault 文件：
+`OrphanFinder` 使用只读 `LocalReferenceIndex` 扫描全部受支持图片、Markdown 和 Canvas 文件。它只用于“保留还是允许清理”，不是格式转换、上传替换或整理的可写引用列表。
 
-1. 绝对 `/path` 去根斜杠后规范化。
-2. `./`、`../` 基于笔记目录。
-3. 含 `/` 的路径先尝试 Vault 路径，再尝试相对路径。
-4. 仅文件名先笔记目录、再 Vault 根、最后全局搜索。
+- 识别 Markdown 内联/引用式图片或链接、Wiki 嵌入及普通 Wiki 链接（包含表格中的 `\\|` 尺寸分隔符）、HTML `src`/`href`/`srcset`、frontmatter 中的图片路径、Canvas file/text 节点，以及 Excalidraw Embedded Files 的普通 Wiki 链接。
+- Markdown 目标逐段容错解码；Wiki/Canvas 目标保留宿主字面路径语义。先使用 Obsidian public `getFirstLinkpathDest()`，再在 Vault-root 和来源目录中验证明确路径。
+- 结果按真实 `TFile.path` 而非仅文件名归并。短文件名有多个候选时，所有候选均为“无法判断”，没有唯一匹配时绝不猜第一个。
+- 外部 scheme、protocol-relative、data 与 blob 目标不作为本地图片使用；扫描不加载图片、不执行 HTML/脚本，也不访问 Vault 外路径。
+- 损坏或无法解析的 Canvas 采用 fail-closed：完整扫描中的全部图片均为 unknown，直到 Canvas 恢复可解析并重新扫描。
+- 引用扫描、预览位置和每条删除前的资格复验共享这套解析语义。无法判定的文件为 gray/unknown，不可选择或自动回收；浏览器不会为持久 unknown 无限轮询全库，用户可显式重新扫描。
 
 本地删除资格不缓存：
 
