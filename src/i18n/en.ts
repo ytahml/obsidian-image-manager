@@ -158,7 +158,8 @@ export const en: Record<string, string> = {
     "modal.imageBrowser.sortDescending": "Descending",
     "modal.imageBrowser.showing": "Showing {count} of {total} images",
     "modal.imageBrowser.noImages": "No images found in vault",
-    "modal.imageBrowser.insertTooltip": "Click to preview",
+    "modal.imageBrowser.insertTooltip":
+        "Click to select or deselect an eligible image; Shift-click selects or deselects a range; Ctrl/Cmd-click also toggles only the current image. Double-click or use Preview to open without changing the selection.",
     "modal.imageBrowser.orphanScanning": "Scanning for orphan images...",
     "modal.imageBrowser.localReferenceFilter": "Reference status filter",
     "modal.imageBrowser.localReferenceAll": "All reference states",

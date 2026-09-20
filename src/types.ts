@@ -1,5 +1,5 @@
-import { TFile } from 'obsidian';
-import type { RemoteDeleteAuditEntry } from './remote/types';
+import { TFile } from "obsidian";
+import type { RemoteDeleteAuditEntry } from "./remote/types";
 
 /** 图片文件信息 */
 export interface ImageFile {
@@ -14,7 +14,7 @@ export interface ImageFile {
 }
 
 /** 图片引用格式 */
-export type ReferenceFormat = 'markdown' | 'wiki';
+export type ReferenceFormat = "markdown" | "wiki";
 
 /** 图片引用信息 */
 export interface ImageReference {
@@ -27,7 +27,7 @@ export interface ImageReference {
 }
 
 /** 图床类型 */
-export type HostingType = 'aliyun-oss' | 'qiniu' | 's3' | 'custom';
+export type HostingType = "aliyun-oss" | "qiniu" | "s3" | "custom";
 
 /** 图床配置 */
 export interface ImageHostingConfig {
@@ -50,8 +50,8 @@ export interface RemoteManagementConfig {
     /** Legacy persisted value; the card grid no longer paginates locally. */
     pageSize: number;
     /** Normalized to viewport; retained only for old data.json compatibility. */
-    previewMode: 'manual' | 'viewport';
-    previewAccess: 'presigned' | 'public';
+    previewMode: "manual" | "viewport";
+    previewAccess: "presigned" | "public";
     publicUrlAliases: string[];
 }
 
@@ -90,7 +90,7 @@ export interface S3Config {
 /** 自定义图床配置 */
 export interface CustomConfig {
     uploadUrl: string;
-    method: 'POST' | 'PUT';
+    method: "POST" | "PUT";
     headers: Record<string, string>;
     fileFieldName: string;
     jsonPath: string;
@@ -125,10 +125,15 @@ export interface MigrationChange {
 }
 
 /** 排序方式 */
-export type SortBy = 'name' | 'size' | 'modified' | 'created' | 'reference-count';
-export type SortOrder = 'asc' | 'desc';
-export type LocalImageBrowserSort = 'name' | 'size' | 'modified' | 'created';
-export type RemoteImageBrowserSort = 'key' | 'size' | 'modified';
+export type SortBy =
+    | "name"
+    | "size"
+    | "modified"
+    | "created"
+    | "reference-count";
+export type SortOrder = "asc" | "desc";
+export type LocalImageBrowserSort = "name" | "size" | "modified" | "created";
+export type RemoteImageBrowserSort = "key" | "size" | "modified";
 
 export interface ImageBrowserSortPreference<T extends string> {
     field: T;
@@ -147,13 +152,13 @@ export interface ImageFilter {
 
 /** 插件设置 */
 export interface ImageManagerSettings {
-    locale: 'en' | 'zh';
+    locale: "en" | "zh";
     imagePathTemplate: string;
-    imagePathBase: 'vault' | 'note';
+    imagePathBase: "vault" | "note";
     supportedExtensions: string[];
     /** Legacy persisted value, read only during migration. */
     autoCompress?: boolean;
-    localManagementMode: 'managed' | 'delegated';
+    localManagementMode: "managed" | "delegated";
     managedPasteReferenceFormat: ReferenceFormat;
     compressManagedPasteLocal: boolean;
     compressBeforeUpload: boolean;
@@ -182,28 +187,40 @@ export interface ImageManagerSettings {
     remoteDeleteHistory: RemoteDeleteAuditEntry[];
 }
 
-export const DEFAULT_UPLOAD_PATH_TEMPLATE = 'images/{year}/{month}/{hash}.{ext}';
+export const DEFAULT_UPLOAD_PATH_TEMPLATE =
+    "images/{year}/{month}/{hash}.{ext}";
 
 export const DEFAULT_SETTINGS: ImageManagerSettings = {
-    locale: 'en',
-    imagePathTemplate: 'attachments',
-    imagePathBase: 'note',
-    supportedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'avif'],
-    localManagementMode: 'managed',
-    managedPasteReferenceFormat: 'markdown',
+    locale: "en",
+    imagePathTemplate: "attachments",
+    imagePathBase: "note",
+    supportedExtensions: [
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "bmp",
+        "svg",
+        "webp",
+        "ico",
+        "tiff",
+        "avif",
+    ],
+    localManagementMode: "managed",
+    managedPasteReferenceFormat: "markdown",
     compressManagedPasteLocal: false,
     compressBeforeUpload: false,
     compressQuality: 80,
     thumbnailSize: 200,
-    localImageBrowserSort: { field: 'name', order: 'asc' },
-    remoteImageBrowserSort: { field: 'key', order: 'asc' },
-    imageNamingTemplate: 'image-{timestamp}',
+    localImageBrowserSort: { field: "name", order: "asc" },
+    remoteImageBrowserSort: { field: "key", order: "asc" },
+    imageNamingTemplate: "image-{timestamp}",
     promptImageName: false,
     hostingConfigs: [],
-    defaultHostingId: '',
+    defaultHostingId: "",
     uploadPathTemplate: DEFAULT_UPLOAD_PATH_TEMPLATE,
     autoReplaceAfterUpload: false,
-    customReferenceTemplate: '',
+    customReferenceTemplate: "",
     reorganizeConvertFormat: true,
     skipWikiRefsOnReorganize: true,
     enableImageBrowser: true,
@@ -214,47 +231,72 @@ export const DEFAULT_SETTINGS: ImageManagerSettings = {
     remoteDeleteHistory: [],
 };
 
-export function normalizeImageManagerSettings(loaded: Partial<ImageManagerSettings> | null): ImageManagerSettings {
+export function normalizeImageManagerSettings(
+    loaded: Partial<ImageManagerSettings> | null,
+): ImageManagerSettings {
     const merged = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
-    const legacyCompression = typeof loaded?.autoCompress === 'boolean' ? loaded.autoCompress : undefined;
-    const legacyMarkdown = loaded?.reorganizeConvertFormat ?? DEFAULT_SETTINGS.reorganizeConvertFormat;
-    const canResolveEnabledHosting = merged.hostingConfigs.some((config) => config.enabled);
+    const legacyCompression =
+        typeof loaded?.autoCompress === "boolean"
+            ? loaded.autoCompress
+            : undefined;
+    const legacyMarkdown =
+        loaded?.reorganizeConvertFormat ??
+        DEFAULT_SETTINGS.reorganizeConvertFormat;
+    const canResolveEnabledHosting = merged.hostingConfigs.some(
+        (config) => config.enabled,
+    );
 
-    merged.localManagementMode = loaded?.localManagementMode === 'delegated' ? 'delegated' : 'managed';
-    merged.managedPasteReferenceFormat = loaded?.managedPasteReferenceFormat === 'wiki'
-        ? 'wiki'
-        : legacyMarkdown ? 'markdown' : 'wiki';
-    merged.compressManagedPasteLocal = typeof loaded?.compressManagedPasteLocal === 'boolean'
-        ? loaded.compressManagedPasteLocal
-        : legacyCompression ?? DEFAULT_SETTINGS.compressManagedPasteLocal;
-    merged.compressBeforeUpload = typeof loaded?.compressBeforeUpload === 'boolean'
-        ? loaded.compressBeforeUpload
-        : legacyCompression ?? DEFAULT_SETTINGS.compressBeforeUpload;
-    const legacyAutoUploadOnPaste = loaded?.localManagementMode === 'managed' || loaded?.localManagementMode === 'delegated'
-        ? Boolean(loaded.autoUploadOnPaste)
-        : Boolean(loaded?.autoUploadOnPaste && legacyMarkdown && canResolveEnabledHosting);
+    merged.localManagementMode =
+        loaded?.localManagementMode === "delegated" ? "delegated" : "managed";
+    merged.managedPasteReferenceFormat =
+        loaded?.managedPasteReferenceFormat === "wiki"
+            ? "wiki"
+            : legacyMarkdown
+              ? "markdown"
+              : "wiki";
+    merged.compressManagedPasteLocal =
+        typeof loaded?.compressManagedPasteLocal === "boolean"
+            ? loaded.compressManagedPasteLocal
+            : (legacyCompression ?? DEFAULT_SETTINGS.compressManagedPasteLocal);
+    merged.compressBeforeUpload =
+        typeof loaded?.compressBeforeUpload === "boolean"
+            ? loaded.compressBeforeUpload
+            : (legacyCompression ?? DEFAULT_SETTINGS.compressBeforeUpload);
+    const legacyAutoUploadOnPaste =
+        loaded?.localManagementMode === "managed" ||
+        loaded?.localManagementMode === "delegated"
+            ? Boolean(loaded.autoUploadOnPaste)
+            : Boolean(
+                  loaded?.autoUploadOnPaste &&
+                      legacyMarkdown &&
+                      canResolveEnabledHosting,
+              );
     const legacyKeepLocalCopy = Boolean(loaded?.keepLocalCopy);
-    merged.managedAutoUploadOnPaste = typeof loaded?.managedAutoUploadOnPaste === 'boolean'
-        ? loaded.managedAutoUploadOnPaste
-        : legacyAutoUploadOnPaste;
-    merged.delegatedAutoUploadOnPaste = typeof loaded?.delegatedAutoUploadOnPaste === 'boolean'
-        ? loaded.delegatedAutoUploadOnPaste
-        : legacyAutoUploadOnPaste;
-    merged.managedKeepLocalCopy = typeof loaded?.managedKeepLocalCopy === 'boolean'
-        ? loaded.managedKeepLocalCopy
-        : legacyKeepLocalCopy;
-    merged.delegatedKeepLocalCopy = typeof loaded?.delegatedKeepLocalCopy === 'boolean'
-        ? loaded.delegatedKeepLocalCopy
-        : legacyKeepLocalCopy;
+    merged.managedAutoUploadOnPaste =
+        typeof loaded?.managedAutoUploadOnPaste === "boolean"
+            ? loaded.managedAutoUploadOnPaste
+            : legacyAutoUploadOnPaste;
+    merged.delegatedAutoUploadOnPaste =
+        typeof loaded?.delegatedAutoUploadOnPaste === "boolean"
+            ? loaded.delegatedAutoUploadOnPaste
+            : legacyAutoUploadOnPaste;
+    merged.managedKeepLocalCopy =
+        typeof loaded?.managedKeepLocalCopy === "boolean"
+            ? loaded.managedKeepLocalCopy
+            : legacyKeepLocalCopy;
+    merged.delegatedKeepLocalCopy =
+        typeof loaded?.delegatedKeepLocalCopy === "boolean"
+            ? loaded.delegatedKeepLocalCopy
+            : legacyKeepLocalCopy;
     merged.localImageBrowserSort = normalizeImageBrowserSortPreference(
         loaded?.localImageBrowserSort,
-        ['name', 'size', 'modified', 'created'],
-        DEFAULT_SETTINGS.localImageBrowserSort
+        ["name", "size", "modified", "created"],
+        DEFAULT_SETTINGS.localImageBrowserSort,
     );
     merged.remoteImageBrowserSort = normalizeImageBrowserSortPreference(
         loaded?.remoteImageBrowserSort,
-        ['key', 'size', 'modified'],
-        DEFAULT_SETTINGS.remoteImageBrowserSort
+        ["key", "size", "modified"],
+        DEFAULT_SETTINGS.remoteImageBrowserSort,
     );
     delete merged.autoUploadOnPaste;
     delete merged.keepLocalCopy;
@@ -264,17 +306,24 @@ export function normalizeImageManagerSettings(loaded: Partial<ImageManagerSettin
 function normalizeImageBrowserSortPreference<T extends string>(
     value: unknown,
     fields: readonly T[],
-    fallback: ImageBrowserSortPreference<T>
+    fallback: ImageBrowserSortPreference<T>,
 ): ImageBrowserSortPreference<T> {
-    if (!isRecord(value) || typeof value.field !== 'string' || typeof value.order !== 'string') {
+    if (
+        !isRecord(value) ||
+        typeof value.field !== "string" ||
+        typeof value.order !== "string"
+    ) {
         return { ...fallback };
     }
-    if (fields.indexOf(value.field as T) === -1 || (value.order !== 'asc' && value.order !== 'desc')) {
+    if (
+        fields.indexOf(value.field as T) === -1 ||
+        (value.order !== "asc" && value.order !== "desc")
+    ) {
         return { ...fallback };
     }
     return { field: value.field as T, order: value.order };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null;
+    return typeof value === "object" && value !== null;
 }

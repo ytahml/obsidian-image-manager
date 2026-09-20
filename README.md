@@ -23,7 +23,7 @@ To help diagnose problems quickly, include:
 - Steps to reproduce, plus the expected and actual behavior
 - Relevant error messages, logs, or screenshots with sensitive vault information removed
 
-For private questions, contact **orchidsword@163.com**. If you find the plugin useful, consider giving the [project a ⭐](https://github.com/ytahml/obsidian-image-manager).
+For private questions, contact **<orchidsword@163.com>**. If you find the plugin useful, consider giving the [project a ⭐](https://github.com/ytahml/obsidian-image-manager).
 
 ---
 
@@ -78,7 +78,7 @@ flowchart LR
 ## Tech Stack
 
 | Item | Technology |
-|------|------------|
+| ------ | ------------ |
 | Language | TypeScript 5.8 (strict mode) |
 | Runtime | Obsidian Plugin API |
 | Bundler | esbuild → CommonJS `main.js` |
@@ -256,12 +256,11 @@ src/
 
 ![设置-图床-en.png](images/设置-图床-en.png)
 
-
 ![图床配置-en.png](images/图床配置-en.png)
 
 #### Remote Management Safety
 
-Aliyun OSS, S3-compatible, and Qiniu remote browsing list objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Select an image to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
+Aliyun OSS, S3-compatible, and Qiniu remote browsing list objects only after an explicit scan, with a visible loading state for longer scans. Results use an image card grid, and thumbnails load automatically as they approach the viewport; this can incur object-read, original-file transfer, and provider charges. Reference scanning covers Markdown images, plain links, HTML, frontmatter, Wiki wrappers, and raw URLs; every reliably mapped address counts as a reference. Double-click an image or use its Preview button to view its referencing notes and line numbers and jump directly to the source. Objects with no detected reference are labeled "Orphan image" and can be selected for deletion. This does not prove that websites, other vaults, or other applications do not use the object.
 
 Remote object management supports Aliyun OSS, S3-compatible storage, and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. OSS ListObjectsV2 incurs API request charges; private preview uses a 300-second V4 presigned URL, while public preview uses the configured public access URL base. Grant only `oss:ListObjects`, `oss:GetObject` for private previews, and `oss:DeleteObject` when deletion is required. Archive, Cold Archive, and Deep Cold Archive objects are not previewed automatically. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
 
@@ -287,13 +286,13 @@ The image browser manages both local images and remote objects from supported ho
 - Switch between **Local images** and **Hosting images**
 - Local images support search, sort (name/size/modified time/created time), reference-state filtering, safe orphan selection, and preview
 - Remote images support explicit scan/continue/refresh, virtual folders, search, sort, reference-state filtering, viewport thumbnails, preview, and guarded orphan deletion
-- Click a thumbnail to preview, copy or insert a local reference, upload a local image, or jump to a referencing note
+- Click an eligible card to select it; a later single click deselects it without clearing other selections. Ctrl/Cmd-click also toggles the current card without changing other selections
+- Shift-click a card or checkbox to select or deselect the range from the anchor; only eligible orphan images can be selected. Checkboxes also support individual toggles. Updating search results resets the range anchor, not the existing selection
+- Double-click a card or use its Preview button to preview, copy or insert a local reference, upload a local image, or jump to a referencing note. Double-clicking preserves the selection and range anchor from before the double click. The Preview button also works with touch and keyboard
 
 ![图片浏览器-图床管理-en.png](images/图片浏览器-图床管理-en.png)
 
 ![使用-图片浏览器-预览图片-en.png](images/使用-图片浏览器-预览图片-en.png)
-
-
 
 ### Paste/Drag & Drop Images
 
@@ -344,7 +343,7 @@ The image browser manages both local images and remote objects from supported ho
 ## Supported Image Hosting
 
 | Provider | Status | Description |
-|----------|--------|-------------|
+| ---------- | -------- | ------------- |
 | Aliyun OSS | ✅ Supported | OSS V4 upload, ListObjectsV2, folders, public/private preview, and guarded delete |
 | Qiniu Cloud | ✅ Supported | Token upload, remote list/folders, public/private preview, and guarded delete; public access URL base required |
 | S3 Compatible Storage | ✅ Supported | AWS SigV4 upload and remote management; supports MinIO, Cloudflare R2, etc. |
@@ -357,7 +356,7 @@ The image browser manages both local images and remote objects from supported ho
 ### Image Naming Template
 
 | Variable | Description | Example |
-|----------|-------------|---------|
+| ---------- | ------------- | --------- |
 | `{noteName}` | Current note name (without extension) | `my-note` |
 | `{date}` | Current date | `2026-05-30` |
 | `{time}` | Current time | `143025` |
@@ -368,7 +367,7 @@ The image browser manages both local images and remote objects from supported ho
 ### Image Path Template
 
 | Variable | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `{noteName}` | Current note name (without extension) |
 | `{notePath}` | Current note's directory path |
 | `{year}` / `{month}` / `{day}` | Date |
@@ -378,7 +377,7 @@ The image browser manages both local images and remote objects from supported ho
 ### Upload Path Template
 
 | Variable | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `{year}` / `{month}` / `{day}` | Date |
 | `{filename}` | Filename (without extension) |
 | `{ext}` | Extension |
@@ -391,7 +390,7 @@ Provider-specific upload paths override the global template. Aliyun OSS, Qiniu, 
 ### Custom Reference Template
 
 | Variable | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `{fileUrl}` | Uploaded file URL (required) |
 | `{fileAlt}` | Alt text |
 | `{fileName}` | Full filename |

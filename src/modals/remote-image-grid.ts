@@ -9,6 +9,7 @@ import type {
     RemoteReferenceState,
 } from "../remote/types";
 import { formatFileSize } from "../utils/path-utils";
+import { createCardSelectionHandler } from "../utils/selection-range";
 
 const INITIAL_CARD_COUNT = 60;
 const CARD_BATCH_SIZE = 60;
@@ -32,7 +33,7 @@ interface RemoteImageGridOptions {
         object: RemoteObject,
         selected: boolean,
         shiftKey: boolean,
-    ) => void;
+    ) => () => void;
     onPreview: (
         provider: RemoteObjectProvider,
         object: RemoteObject,
@@ -139,7 +140,34 @@ export class RemoteImageGrid {
     private renderCard(item: RemoteImageGridItem, index: number): void {
         const { object } = item;
         const card = this.gridEl.createDiv({ cls: "remote-image-card" });
-        card.setAttribute("title", getObjectTitle(object));
+        card.setAttribute(
+            "title",
+            `${getObjectTitle(object)}\n${t("modal.imageBrowser.insertTooltip")}`,
+        );
+        const handleSelection = createCardSelectionHandler({
+            isSelected: () => this.options.isSelected(object),
+            onSelectionChange: (checked, shiftKey) => {
+                const undo = this.options.onSelectionChange(
+                    object,
+                    checked,
+                    shiftKey,
+                );
+                this.syncSelection();
+                return () => {
+                    undo();
+                    this.syncSelection();
+                };
+            },
+        });
+        card.addEventListener("click", (event) => {
+            if (
+                this.destroyed ||
+                !this.options.deleteEnabled ||
+                item.deleteUnavailable
+            )
+                return;
+            handleSelection(event);
+        });
         const media = card.createDiv({
             cls: "remote-image-card-media",
             attr: {
@@ -156,32 +184,42 @@ export class RemoteImageGrid {
                   )
                 : t("modal.imageBrowser.remoteThumbnailWaiting"),
         });
+        let previewButton: HTMLButtonElement | undefined;
         if (!item.previewUnavailable && this.options.provider) {
             media.dataset.remoteLoadId = String(index);
             this.thumbnailObserver?.observe(media);
-            media.addEventListener("click", () => {
-                if (this.options.provider) {
+            const openPreview = () => {
+                if (!this.destroyed && this.options.provider) {
                     this.options.onPreview(
                         this.options.provider,
                         object,
                         item.references,
                     );
                 }
+            };
+            card.addEventListener("dblclick", openPreview);
+            const preview = card.createEl("button", {
+                cls: "image-browser-card-preview",
+                text: t("modal.imageBrowser.remotePreview"),
+                attr: { type: "button" },
             });
+            preview.addEventListener("click", (event) => {
+                event.stopPropagation();
+                if (event.detail <= 1) openPreview();
+            });
+            preview.addEventListener("dblclick", (event) =>
+                event.stopPropagation(),
+            );
+            previewButton = preview;
             media.addEventListener("keydown", (event) => {
                 if (
+                    event.target !== media ||
                     event.isComposing ||
                     (event.key !== "Enter" && event.key !== " ")
                 )
                     return;
                 event.preventDefault();
-                if (this.options.provider) {
-                    this.options.onPreview(
-                        this.options.provider,
-                        object,
-                        item.references,
-                    );
-                }
+                openPreview();
             });
         } else {
             media.setAttribute("aria-disabled", "true");
@@ -202,6 +240,12 @@ export class RemoteImageGrid {
                 const label = card.createEl("label", {
                     cls: "remote-image-card-select",
                 });
+                label.addEventListener("click", (event) =>
+                    event.stopPropagation(),
+                );
+                label.addEventListener("dblclick", (event) =>
+                    event.stopPropagation(),
+                );
                 const checkbox = label.createEl("input", {
                     attr: { type: "checkbox" },
                 });
@@ -245,6 +289,7 @@ export class RemoteImageGrid {
             cls: "remote-image-card-meta",
             text: `${formatFileSize(object.size)} · ${formatModified(object.lastModified)}`,
         });
+        if (previewButton) card.appendChild(previewButton);
         placeholder.setAttribute("title", object.key);
     }
 
@@ -304,6 +349,7 @@ export class RemoteImageGrid {
             event.stopPropagation();
             this.loadThumbnail(media, item, true);
         });
+        retry.addEventListener("dblclick", (event) => event.stopPropagation());
     }
 }
 
