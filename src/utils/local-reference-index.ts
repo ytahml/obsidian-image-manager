@@ -203,12 +203,14 @@ function collectMarkdownCandidates(text: string): ReferenceCandidate[] {
             /(?:^|[\s:["'[])([^\s,"'\][]+\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)(?:[?#][^\s,"'\][]*)?)/gi;
         const quotedImageValue =
             /"([^"\r\n]*?\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)(?:[?#][^"\r\n]*)?)"|'([^'\r\n]*?\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)(?:[?#][^'\r\n]*)?)'/gi;
-        const quotedRanges: Array<{ start: number; end: number }> = [];
+        const unquotedScalarImageValue =
+            /^\s*(?:[^:#\r\n]+:\s*|-\s+)([^"'[\]{},\r\n].*?\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)(?:[?#]\S*)?)\s*(?:\s+#.*)?$/gim;
+        const structuredRanges: Array<{ start: number; end: number }> = [];
         let imageMatch: RegExpExecArray | null;
         const yaml = frontmatter[1] ?? "";
         while ((imageMatch = quotedImageValue.exec(yaml)) !== null) {
             const target = imageMatch[1] ?? imageMatch[2] ?? "";
-            quotedRanges.push({
+            structuredRanges.push({
                 start: imageMatch.index,
                 end: imageMatch.index + imageMatch[0].length,
             });
@@ -219,12 +221,27 @@ function collectMarkdownCandidates(text: string): ReferenceCandidate[] {
                 semantics: "url",
             });
         }
+        while ((imageMatch = unquotedScalarImageValue.exec(yaml)) !== null) {
+            const target = (imageMatch[1] ?? "").trim();
+            const targetIndex =
+                imageMatch.index + imageMatch[0].indexOf(target);
+            structuredRanges.push({
+                start: targetIndex,
+                end: targetIndex + target.length,
+            });
+            candidates.push({
+                kind: "frontmatter",
+                target,
+                index: offset + targetIndex,
+                semantics: "url",
+            });
+        }
         while ((imageMatch = imageValue.exec(yaml)) !== null) {
             const target = imageMatch[1] ?? "";
             const targetIndex =
                 imageMatch.index + imageMatch[0].lastIndexOf(target);
             if (
-                quotedRanges.some(
+                structuredRanges.some(
                     (range) =>
                         targetIndex >= range.start && targetIndex < range.end,
                 )
@@ -258,10 +275,11 @@ function collectMarkdownInlineCandidates(text: string): ReferenceCandidate[] {
             "]",
         );
         if (closingBracket === -1) continue;
+        const label = text.slice(openingBracket + 1, closingBracket);
         let destinationStart = closingBracket + 1;
         while (/\s/.test(text[destinationStart] ?? "")) destinationStart++;
         if (text[destinationStart] !== "(") {
-            index = closingBracket;
+            index = label.includes("![") ? openingBracket : closingBracket;
             continue;
         }
         const closingParen = findClosingDelimiter(
@@ -282,7 +300,6 @@ function collectMarkdownInlineCandidates(text: string): ReferenceCandidate[] {
                 index,
                 semantics: "markdown",
             });
-        const label = text.slice(openingBracket + 1, closingBracket);
         index = label.includes("![") ? openingBracket : closingParen;
     }
     return candidates;
@@ -379,10 +396,7 @@ function splitWikiTarget(value: string): string {
     return (separator === -1 ? value : value.slice(0, separator)).trim();
 }
 
-function normalizeTarget(
-    target: string,
-    semantics: TargetSemantics,
-): string {
+function normalizeTarget(target: string, semantics: TargetSemantics): string {
     const trimmed = target.trim();
     if (!trimmed || semantics === "literal") return trimmed;
     const withoutSuffix = stripUnescapedSuffix(trimmed, semantics === "wiki");
@@ -438,27 +452,33 @@ function normalizeLabel(value: string): string {
 }
 
 function decodeHtmlEntities(value: string): string {
-    return value
-        .replace(
-            /&#(?:x([0-9a-f]+)|([0-9]+));/gi,
-            (entity, hexadecimal: string | undefined, decimal: string | undefined) => {
-                const codePoint = Number.parseInt(
-                    hexadecimal ?? decimal ?? "",
-                    hexadecimal ? 16 : 10,
-                );
-                if (
-                    !Number.isFinite(codePoint) ||
-                    codePoint <= 0 ||
-                    codePoint > 0x10ffff ||
-                    (codePoint >= 0xd800 && codePoint <= 0xdfff)
-                )
-                    return entity;
-                return String.fromCodePoint(codePoint);
-            },
-        )
-        .replace(/&amp;/gi, "&")
-        .replace(/&quot;/gi, '"')
-        .replace(/&apos;/gi, "'");
+    return value.replace(
+        /&(?:#x([0-9a-f]+)|#([0-9]+)|(amp|quot|apos));/gi,
+        (
+            entity,
+            hexadecimal: string | undefined,
+            decimal: string | undefined,
+            named: string | undefined,
+        ) => {
+            if (named) {
+                if (named.toLowerCase() === "amp") return "&";
+                if (named.toLowerCase() === "quot") return '"';
+                return "'";
+            }
+            const codePoint = Number.parseInt(
+                hexadecimal ?? decimal ?? "",
+                hexadecimal ? 16 : 10,
+            );
+            if (
+                !Number.isFinite(codePoint) ||
+                codePoint <= 0 ||
+                codePoint > 0x10ffff ||
+                (codePoint >= 0xd800 && codePoint <= 0xdfff)
+            )
+                return entity;
+            return String.fromCodePoint(codePoint);
+        },
+    );
 }
 
 function splitSrcset(value: string): string[] {
@@ -467,8 +487,7 @@ function splitSrcset(value: string): string[] {
     while (index < value.length) {
         while (/[\s,]/.test(value[index] ?? "")) index++;
         const start = index;
-        while (index < value.length && !/\s/.test(value[index] ?? ""))
-            index++;
+        while (index < value.length && !/\s/.test(value[index] ?? "")) index++;
         const rawUrl = value.slice(start, index);
         const url = rawUrl.replace(/,+$/, "");
         if (url) entries.push(url);

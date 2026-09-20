@@ -83,36 +83,47 @@ describe("local reference index", () => {
     it("finds nested linked images and decodes Markdown punctuation escapes", async () => {
         const note = file("notes/example.md", "md");
         const linked = file("notes/assets/chart.png", "png");
+        const referenceLinked = file(
+            "notes/assets/reference-linked.png",
+            "png",
+        );
         const escaped = file("notes/assets/diagram (draft).png", "png");
         const app = appWith(
             {
                 [note.path]: [
                     "[![chart](assets/chart.png)](https://example.org)",
+                    "[![reference](assets/reference-linked.png)][dest]",
+                    "[dest]: https://example.org",
                     "![draft](assets/diagram \\(draft\\).png)",
                 ].join("\n"),
             },
-            [note, linked, escaped],
+            [note, linked, referenceLinked, escaped],
         );
 
         const index = await buildLocalReferenceIndex(app, ["png"]);
         expect(index.indeterminate).toEqual([]);
         expect(index.occurrencesByImagePath.has(linked.path)).toBe(true);
+        expect(index.occurrencesByImagePath.has(referenceLinked.path)).toBe(
+            true,
+        );
         expect(index.occurrencesByImagePath.has(escaped.path)).toBe(true);
     });
 
     it("keeps quoted frontmatter and HTML entity paths with URL suffixes", async () => {
         const note = file("notes/example.md", "md");
         const image = file("notes/assets/my chart.svg", "svg");
+        const plain = file("notes/assets/plain chart.svg", "svg");
         const app = appWith(
             {
                 [note.path]: [
                     "---",
                     'cover: "assets/my chart.svg"',
+                    "thumbnail: assets/plain chart.svg",
                     "---",
                     '<img src="assets/my&#32;chart.svg#layer">',
                 ].join("\n"),
             },
-            [note, image],
+            [note, image, plain],
         );
 
         const index = await buildLocalReferenceIndex(app, ["svg"]);
@@ -123,6 +134,24 @@ describe("local reference index", () => {
                 expect.objectContaining({ kind: "html" }),
             ]),
         );
+        expect(index.occurrencesByImagePath.get(plain.path)).toMatchObject([
+            { kind: "frontmatter", sourcePath: note.path },
+        ]);
+    });
+
+    it("decodes each HTML entity exactly once", async () => {
+        const note = file("notes/example.md", "md");
+        const image = file("notes/assets/&quot;.png", "png");
+        const app = appWith(
+            { [note.path]: '<img src="assets/&#38;quot;.png">' },
+            [note, image],
+        );
+
+        const index = await buildLocalReferenceIndex(app, ["png"]);
+        expect(index.indeterminate).toEqual([]);
+        expect(index.occurrencesByImagePath.get(image.path)).toMatchObject([
+            { kind: "html", sourcePath: note.path },
+        ]);
     });
 
     it("keeps a local srcset candidate after a descriptor-free data URL", async () => {
@@ -195,10 +224,11 @@ describe("local reference index", () => {
         const canvas = file("maps/damaged.canvas", "canvas");
         const first = file("assets/first.png", "png");
         const second = file("assets/second.png", "png");
-        const app = appWith(
-            { [canvas.path]: '{"nodes":[{"type":"file"' },
-            [canvas, first, second],
-        );
+        const app = appWith({ [canvas.path]: '{"nodes":[{"type":"file"' }, [
+            canvas,
+            first,
+            second,
+        ]);
 
         const index = await buildLocalReferenceIndex(app, ["png"]);
         expect(index.occurrencesByImagePath).toEqual(new Map());

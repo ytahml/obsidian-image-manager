@@ -108,12 +108,7 @@ describe("local orphan management", () => {
         } as unknown as App;
 
         await expect(
-            scanLocalOrphans(
-                app,
-                ["png"],
-                new Map(),
-                new Set([changing.path]),
-            ),
+            scanLocalOrphans(app, ["png"], new Map(), new Set([changing.path])),
         ).resolves.toEqual({
             orphans: [],
             indeterminate: [first, second, changing],
