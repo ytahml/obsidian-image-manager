@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.0.3
+
+### 🇺🇸 English
+
+#### Improvements
+
+- Updated the local and remote image browsers so a single click selects an image and a double click opens its preview, while preserving Ctrl/Cmd multi-selection and Shift range selection ([PR #50](https://github.com/ytahml/obsidian-image-manager/pull/50)).
+- Kept keyboard preview, filtered-result selection anchors, and deletion eligibility consistent with the revised pointer interactions.
+
+### 🇨🇳 中文
+
+#### 改进
+
+- 调整本地与远程图片浏览器交互：单击选择图片、双击打开预览，同时保留 Ctrl/Cmd 多选与 Shift 区间选择（[PR #50](https://github.com/ytahml/obsidian-image-manager/pull/50)）。
+- 让键盘预览、筛选结果选择锚点与删除资格在新指针交互下保持一致。
+
+---
+
 ## 2.0.2
 
 ### 🇺🇸 English
