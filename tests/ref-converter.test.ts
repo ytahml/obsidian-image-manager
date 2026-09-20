@@ -1,14 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TFile, TFolder, type App } from 'obsidian';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TFile, TFolder, type App } from "obsidian";
 
-vi.mock('obsidian', () => ({
+vi.mock("obsidian", () => ({
     TFile: class {},
     TFolder: class {},
 }));
 
-import { RefConverter } from '../src/utils/ref-converter';
+import { RefConverter } from "../src/utils/ref-converter";
 
-function createConverter(files: Array<{ name: string; path: string }> = []): RefConverter {
+function createConverter(
+    files: Array<{ name: string; path: string }> = [],
+): RefConverter {
     const app = {
         vault: {
             getFiles: () => files,
@@ -26,68 +28,112 @@ function createNote(path: string, parentPath: string): TFile {
     return note;
 }
 
-describe('RefConverter', () => {
+describe("RefConverter", () => {
     let converter: RefConverter;
 
     beforeEach(() => {
         converter = createConverter();
     });
 
-    it('parses Markdown and Wiki references in source order with line numbers', () => {
-        const refs = converter.parseReferences('![cover](assets/a.png)\ntext\n![[b.jpg|Photo]]');
+    it("parses Markdown and Wiki references in source order with line numbers", () => {
+        const refs = converter.parseReferences(
+            "![cover](assets/a.png)\ntext\n![[b.jpg|Photo]]",
+        );
 
         expect(refs).toMatchObject([
-            { format: 'markdown', altText: 'cover', path: 'assets/a.png', line: 0 },
-            { format: 'wiki', altText: 'Photo', path: 'b.jpg', line: 2 },
+            {
+                format: "markdown",
+                altText: "cover",
+                path: "assets/a.png",
+                line: 0,
+            },
+            { format: "wiki", altText: "Photo", path: "b.jpg", line: 2 },
         ]);
         expect(refs[0]!.col).toBeLessThan(refs[1]!.col);
     });
 
-    it('does not leak global regular expression state between parses', () => {
-        expect(converter.parseReferences('![[first.png]]')).toHaveLength(1);
-        expect(converter.parseReferences('![[second.png]]')).toHaveLength(1);
+    it("parses a table-escaped Wiki separator without adding the escape to the path", () => {
+        expect(
+            converter.parseReferences("![[assets/chart.png\\|140]]"),
+        ).toMatchObject([
+            { format: "wiki", path: "assets/chart.png", altText: "140" },
+        ]);
+        expect(
+            converter.countReferences("![[assets/chart.png\\|140]]"),
+        ).toEqual({
+            markdown: 0,
+            wiki: 1,
+        });
     });
 
-    it('counts both reference formats', () => {
-        expect(converter.countReferences('![a](a.png) ![[b.png]] ![](c.jpg)')).toEqual({
+    it("does not leak global regular expression state between parses", () => {
+        expect(converter.parseReferences("![[first.png]]")).toHaveLength(1);
+        expect(converter.parseReferences("![[second.png]]")).toHaveLength(1);
+    });
+
+    it("counts both reference formats", () => {
+        expect(
+            converter.countReferences("![a](a.png) ![[b.png]] ![](c.jpg)"),
+        ).toEqual({
             markdown: 2,
             wiki: 1,
         });
     });
 
     it.each([
-        ['notes/blog', 'assets/images/photo.png', '../../assets/images/photo.png'],
-        ['notes/blog', 'notes/assets/photo.png', '../assets/photo.png'],
-        ['', 'assets/photo.png', 'assets/photo.png'],
-        ['notes', 'notes', 'notes'],
-    ])('computes a relative path from %s to %s', (from, to, expected) => {
+        [
+            "notes/blog",
+            "assets/images/photo.png",
+            "../../assets/images/photo.png",
+        ],
+        ["notes/blog", "notes/assets/photo.png", "../assets/photo.png"],
+        ["", "assets/photo.png", "assets/photo.png"],
+        ["notes", "notes", "notes"],
+    ])("computes a relative path from %s to %s", (from, to, expected) => {
         expect(converter.computeRelativePath(from, to)).toBe(expected);
     });
 
-    it('converts Markdown references to Wiki references and omits redundant alt text', () => {
-        expect(converter.convertAllReferences('![photo](assets/photo.png)', 'wiki')).toBe('![[photo.png]]');
-        expect(converter.convertAllReferences('![Cover](assets/photo.png)', 'wiki')).toBe(
-            '![[photo.png|Cover]]'
-        );
+    it("converts Markdown references to Wiki references and omits redundant alt text", () => {
+        expect(
+            converter.convertAllReferences(
+                "![photo](assets/photo.png)",
+                "wiki",
+            ),
+        ).toBe("![[photo.png]]");
+        expect(
+            converter.convertAllReferences(
+                "![Cover](assets/photo.png)",
+                "wiki",
+            ),
+        ).toBe("![[photo.png|Cover]]");
     });
 
-    it('resolves Wiki filenames and converts them relative to the note', () => {
-        converter = createConverter([{ name: 'my photo.png', path: 'assets/my photo.png' }]);
-        const note = createNote('notes/travel/day.md', 'notes/travel');
+    it("resolves Wiki filenames and converts them relative to the note", () => {
+        converter = createConverter([
+            { name: "my photo.png", path: "assets/my photo.png" },
+        ]);
+        const note = createNote("notes/travel/day.md", "notes/travel");
 
-        expect(converter.convertAllReferences('![[my photo.png|Cover]]', 'markdown', note)).toBe(
-            '![Cover](../../assets/my%20photo.png)'
-        );
+        expect(
+            converter.convertAllReferences(
+                "![[my photo.png|Cover]]",
+                "markdown",
+                note,
+            ),
+        ).toBe("![Cover](../../assets/my%20photo.png)");
     });
 
-    it('converts multiple references without corrupting later offsets', () => {
-        expect(converter.convertAllReferences('A ![one](a.png) B ![b](b.png)', 'wiki')).toBe(
-            'A ![[a.png|one]] B ![[b.png]]'
-        );
+    it("converts multiple references without corrupting later offsets", () => {
+        expect(
+            converter.convertAllReferences(
+                "A ![one](a.png) B ![b](b.png)",
+                "wiki",
+            ),
+        ).toBe("A ![[a.png|one]] B ![[b.png]]");
     });
 
-    it('leaves references unchanged when already in the target format', () => {
-        const source = '![[image.png|caption]]';
-        expect(converter.convertAllReferences(source, 'wiki')).toBe(source);
+    it("leaves references unchanged when already in the target format", () => {
+        const source = "![[image.png|caption]]";
+        expect(converter.convertAllReferences(source, "wiki")).toBe(source);
     });
 });

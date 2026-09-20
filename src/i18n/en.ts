@@ -404,6 +404,8 @@ export const en: Record<string, string> = {
         "Found {orphan} orphan(s) out of {total} images ({referenced} referenced)",
     "modal.orphan.noOrphans":
         "No orphan images found. All images are referenced.",
+    "modal.orphan.noOrphansUnknown":
+        "No deletable orphan images found. {unknown} image(s) could not be verified and were kept for safety.",
     "modal.orphan.selectAll": "Select All",
     "modal.orphan.selectNone": "Select None",
     "modal.orphan.totalSize": "Total: {size}",
