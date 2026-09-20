@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.0.4
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Fixed local image reference detection across Markdown images and links, Wiki embeds and links, HTML `src`/`href`/`srcset`, frontmatter, Canvas, and Excalidraw content so referenced images are no longer shown or deleted as orphans ([PR #52](https://github.com/ytahml/obsidian-image-manager/pull/52), [Issue #51](https://github.com/ytahml/obsidian-image-manager/issues/51)).
+- Ambiguous same-name paths, malformed Canvas files, unsaved editor content, and in-flight attachment changes now remain in an unknown state without deletion eligibility.
+- Local deletion confirmation and execution now share the same fresh reference scan and revalidate every image immediately before moving it to the Obsidian trash.
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 完善 Markdown 图片与链接、Wiki 嵌入与链接、HTML `src`/`href`/`srcset`、frontmatter、Canvas 及 Excalidraw 内容中的本地图片引用识别，避免已引用图片被显示为孤立图片或被错误回收（[PR #52](https://github.com/ytahml/obsidian-image-manager/pull/52)、[Issue #51](https://github.com/ytahml/obsidian-image-manager/issues/51)）。
+- 同名路径歧义、损坏的 Canvas、未保存编辑器内容及正在处理的附件变更统一保持为无法判定状态，不获得删除资格。
+- 本地删除确认与执行共享同一套最新引用扫描，并在每张图片移入 Obsidian 回收站前再次验证。
+
+---
+
 ## 2.0.3
 
 ### 🇺🇸 English
