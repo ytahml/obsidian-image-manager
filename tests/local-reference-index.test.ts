@@ -44,7 +44,7 @@ describe("local reference index", () => {
                     "![inline](assets/chart.png)",
                     "[linked][chart]",
                     "[chart]: assets/chart.png",
-                    '<img src="assets/chart.png" srcset="assets/chart.png 1x, https://example.test/remote.png 2x">',
+                    '<img src="assets/chart.png" srcset="data:image/svg+xml,%3Csvg%3E 1x, assets/chart.png 2x, https://example.test/remote.png 3x">',
                     "![[assets/chart.png\\|140]]",
                 ].join("\n"),
             },

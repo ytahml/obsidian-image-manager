@@ -348,19 +348,20 @@ function decodeHtmlEntities(value: string): string {
 
 function splitSrcset(value: string): string[] {
     const entries: string[] = [];
-    let start = 0;
-    let data = false;
-    for (let index = 0; index < value.length; index++) {
-        if (value.slice(index, index + 5).toLowerCase() === "data:")
-            data = true;
-        if (value[index] === "," && !data) {
-            entries.push(
-                value.slice(start, index).trim().split(/\s+/, 1)[0] ?? "",
-            );
-            start = index + 1;
+    let index = 0;
+    while (index < value.length) {
+        while (/[\s,]/.test(value[index] ?? "")) index++;
+        const start = index;
+        const data = value.slice(index, index + 5).toLowerCase() === "data:";
+        while (index < value.length && !/\s/.test(value[index] ?? "")) {
+            if (!data && value[index] === ",") break;
+            index++;
         }
+        const url = value.slice(start, index);
+        if (url) entries.push(url);
+        while (index < value.length && value[index] !== ",") index++;
+        if (value[index] === ",") index++;
     }
-    entries.push(value.slice(start).trim().split(/\s+/, 1)[0] ?? "");
     return entries;
 }
 
