@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("obsidian", () => ({
+    MarkdownView: class MarkdownView {},
     TFile: class TFile {},
+    normalizePath: (path: string) =>
+        path.replace(/\\/g, "/").replace(/\/+/g, "/"),
 }));
 
 import { TFile, type App } from "obsidian";
@@ -9,6 +12,7 @@ import type { OrphanResult } from "../src/utils/orphan-finder";
 import {
     filterLocalImagesByReferenceState,
     getLocalReferenceState,
+    scanLocalOrphans,
     trashValidatedLocalOrphans,
     validateLocalOrphanSelection,
 } from "../src/utils/local-orphan-management";
@@ -16,6 +20,11 @@ import {
 function image(path: string, size = 10): TFile {
     const file = new TFile();
     file.path = path;
+    file.name = path.split("/").pop()!;
+    file.extension = file.name.split(".").pop()!;
+    file.parent = {
+        path: path.slice(0, path.lastIndexOf("/")),
+    } as TFile["parent"];
     file.stat = { size, ctime: 0, mtime: 0 };
     return file;
 }
@@ -78,6 +87,39 @@ describe("local orphan management", () => {
         expect(
             filterLocalImagesByReferenceState(images, orphanPaths, "orphan"),
         ).toEqual([{ path: "orphan.png" }, { path: "nested/orphan.webp" }]);
+    });
+
+    it("preserves parser unknowns while adding lifecycle protection", async () => {
+        const note = image("notes/example.md");
+        const first = image("one/chart.png");
+        const second = image("two/chart.png");
+        const changing = image("changing.png");
+        const files = [note, first, second, changing];
+        const app = {
+            metadataCache: { getFirstLinkpathDest: () => null },
+            vault: {
+                cachedRead: async (file: TFile) =>
+                    file.path === note.path ? "![[chart.png]]" : "",
+                getAbstractFileByPath: (path: string) =>
+                    files.find((file) => file.path === path) ?? null,
+                getFiles: () => files,
+            },
+            workspace: { getLeavesOfType: () => [] },
+        } as unknown as App;
+
+        await expect(
+            scanLocalOrphans(
+                app,
+                ["png"],
+                new Map(),
+                new Set([changing.path]),
+            ),
+        ).resolves.toEqual({
+            orphans: [],
+            indeterminate: [first, second, changing],
+            total: 3,
+            referenced: 0,
+        });
     });
 
     it("only validates files that remain orphaned in the fresh result", () => {

@@ -21,10 +21,13 @@ export interface LocalReferenceIndex {
     indeterminate: TFile[];
 }
 
+type TargetSemantics = "markdown" | "wiki" | "url" | "literal";
+
 interface ReferenceCandidate {
     kind: LocalReferenceKind;
     target: string;
     index: number;
+    semantics: TargetSemantics;
 }
 
 const IMAGE_EXTENSION = /\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)$/i;
@@ -78,8 +81,15 @@ export async function buildLocalReferenceIndex(
             source.extension.toLowerCase() === "canvas"
                 ? collectCanvasCandidates(text)
                 : collectMarkdownCandidates(text);
+        if (!candidates) {
+            for (const image of images) indeterminate.set(image.path, image);
+            continue;
+        }
         for (const candidate of candidates) {
-            const target = normalizeTarget(candidate.target, candidate.kind);
+            const target = normalizeTarget(
+                candidate.target,
+                candidate.semantics,
+            );
             if (
                 !target ||
                 isRemoteImageReference(target) ||
@@ -98,7 +108,7 @@ export async function buildLocalReferenceIndex(
                 target,
                 byPath,
                 byName,
-                candidate.kind,
+                candidate.semantics,
             );
             const image = resolved.length === 1 ? resolved[0] : undefined;
             if (image) {
@@ -135,7 +145,12 @@ function collectMarkdownCandidates(text: string): ReferenceCandidate[] {
     while ((match = WIKI_LINK.exec(text)) !== null) {
         const target = splitWikiTarget(match[1] ?? "");
         if (target)
-            candidates.push({ kind: "wiki", target, index: match.index });
+            candidates.push({
+                kind: "wiki",
+                target,
+                index: match.index,
+                semantics: "wiki",
+            });
     }
     candidates.push(...collectMarkdownInlineCandidates(text));
     REFERENCE_USE.lastIndex = 0;
@@ -149,7 +164,12 @@ function collectMarkdownCandidates(text: string): ReferenceCandidate[] {
         );
         const target = definitions.get(label);
         if (target)
-            candidates.push({ kind: "markdown", target, index: match.index });
+            candidates.push({
+                kind: "markdown",
+                target,
+                index: match.index,
+                semantics: "markdown",
+            });
     }
     HTML_ATTRIBUTE.lastIndex = 0;
     while ((match = HTML_ATTRIBUTE.exec(text)) !== null) {
@@ -157,6 +177,7 @@ function collectMarkdownCandidates(text: string): ReferenceCandidate[] {
             kind: "html",
             target: decodeHtmlEntities(match[1] ?? match[2] ?? match[3] ?? ""),
             index: match.index,
+            semantics: "url",
         });
     }
     HTML_SRCSET.lastIndex = 0;
@@ -165,7 +186,12 @@ function collectMarkdownCandidates(text: string): ReferenceCandidate[] {
             match[1] ?? match[2] ?? match[3] ?? "",
         );
         for (const target of splitSrcset(value))
-            candidates.push({ kind: "html", target, index: match.index });
+            candidates.push({
+                kind: "html",
+                target,
+                index: match.index,
+                semantics: "url",
+            });
     }
 
     // YAML is intentionally treated as data, not a schema: only image-looking scalar values become candidates.
@@ -175,13 +201,40 @@ function collectMarkdownCandidates(text: string): ReferenceCandidate[] {
             frontmatter.index + frontmatter[0].indexOf(frontmatter[1] ?? "");
         const imageValue =
             /(?:^|[\s:["'[])([^\s,"'\][]+\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)(?:[?#][^\s,"'\][]*)?)/gi;
+        const quotedImageValue =
+            /"([^"\r\n]*?\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)(?:[?#][^"\r\n]*)?)"|'([^'\r\n]*?\.(?:png|jpe?g|gif|bmp|svg|webp|ico|tiff?|avif)(?:[?#][^'\r\n]*)?)'/gi;
+        const quotedRanges: Array<{ start: number; end: number }> = [];
         let imageMatch: RegExpExecArray | null;
         const yaml = frontmatter[1] ?? "";
-        while ((imageMatch = imageValue.exec(yaml)) !== null) {
+        while ((imageMatch = quotedImageValue.exec(yaml)) !== null) {
+            const target = imageMatch[1] ?? imageMatch[2] ?? "";
+            quotedRanges.push({
+                start: imageMatch.index,
+                end: imageMatch.index + imageMatch[0].length,
+            });
             candidates.push({
                 kind: "frontmatter",
-                target: imageMatch[1] ?? "",
-                index: offset + imageMatch.index,
+                target,
+                index: offset + imageMatch.index + 1,
+                semantics: "url",
+            });
+        }
+        while ((imageMatch = imageValue.exec(yaml)) !== null) {
+            const target = imageMatch[1] ?? "";
+            const targetIndex =
+                imageMatch.index + imageMatch[0].lastIndexOf(target);
+            if (
+                quotedRanges.some(
+                    (range) =>
+                        targetIndex >= range.start && targetIndex < range.end,
+                )
+            )
+                continue;
+            candidates.push({
+                kind: "frontmatter",
+                target,
+                index: offset + targetIndex,
+                semantics: "url",
             });
         }
     }
@@ -227,8 +280,10 @@ function collectMarkdownInlineCandidates(text: string): ReferenceCandidate[] {
                 kind: "markdown",
                 target: unwrapMarkdownDestination(target),
                 index,
+                semantics: "markdown",
             });
-        index = closingParen;
+        const label = text.slice(openingBracket + 1, closingBracket);
+        index = label.includes("![") ? openingBracket : closingParen;
     }
     return candidates;
 }
@@ -251,12 +306,12 @@ function findClosingDelimiter(
     return -1;
 }
 
-function collectCanvasCandidates(text: string): ReferenceCandidate[] {
+function collectCanvasCandidates(text: string): ReferenceCandidate[] | null {
     try {
         const parsed: unknown = JSON.parse(text);
-        if (!parsed || typeof parsed !== "object") return [];
+        if (!parsed || typeof parsed !== "object") return null;
         const nodes = (parsed as { nodes?: unknown }).nodes;
-        if (!Array.isArray(nodes)) return [];
+        if (!Array.isArray(nodes)) return null;
         const candidates: ReferenceCandidate[] = [];
         for (const node of nodes) {
             if (!node || typeof node !== "object") continue;
@@ -266,6 +321,7 @@ function collectCanvasCandidates(text: string): ReferenceCandidate[] {
                     kind: "canvas",
                     target: record.file,
                     index: text.indexOf(record.file),
+                    semantics: "literal",
                 });
             if (typeof record.text === "string")
                 candidates.push(
@@ -279,7 +335,7 @@ function collectCanvasCandidates(text: string): ReferenceCandidate[] {
         }
         return candidates;
     } catch {
-        return [];
+        return null;
     }
 }
 
@@ -289,9 +345,12 @@ function resolveTarget(
     target: string,
     byPath: ReadonlyMap<string, TFile>,
     byName: ReadonlyMap<string, TFile[]>,
-    kind: LocalReferenceKind,
+    semantics: TargetSemantics,
 ): TFile[] {
-    const linkTarget = kind === "wiki" ? target : decodePathSegments(target);
+    const linkTarget =
+        semantics === "markdown" || semantics === "url"
+            ? decodePathSegments(target)
+            : target;
     const metadataCache = app.metadataCache;
     const linked = metadataCache?.getFirstLinkpathDest(linkTarget, source.path);
     if (linked instanceof TFile && byPath.has(linked.path)) return [linked];
@@ -320,12 +379,51 @@ function splitWikiTarget(value: string): string {
     return (separator === -1 ? value : value.slice(0, separator)).trim();
 }
 
-function normalizeTarget(target: string, kind: LocalReferenceKind): string {
+function normalizeTarget(
+    target: string,
+    semantics: TargetSemantics,
+): string {
     const trimmed = target.trim();
-    if (!trimmed) return "";
-    if (kind === "wiki" || kind === "canvas")
-        return trimmed.split(/(?<!%)#/, 1)[0] ?? trimmed;
-    return trimmed;
+    if (!trimmed || semantics === "literal") return trimmed;
+    const withoutSuffix = stripUnescapedSuffix(trimmed, semantics === "wiki");
+    return semantics === "markdown"
+        ? decodeMarkdownEscapes(withoutSuffix)
+        : withoutSuffix;
+}
+
+function stripUnescapedSuffix(value: string, fragmentOnly: boolean): string {
+    for (let index = 0; index < value.length; index++) {
+        if (value[index] === "\\") {
+            index++;
+            continue;
+        }
+        if (value[index] === "#" || (!fragmentOnly && value[index] === "?"))
+            return value.slice(0, index);
+    }
+    return value;
+}
+
+function decodeMarkdownEscapes(value: string): string {
+    let result = "";
+    for (let index = 0; index < value.length; index++) {
+        const current = value[index] ?? "";
+        const next = value[index + 1];
+        if (current === "\\" && next && isAsciiPunctuation(next)) {
+            result += next;
+            index++;
+        } else result += current;
+    }
+    return result;
+}
+
+function isAsciiPunctuation(value: string): boolean {
+    const code = value.charCodeAt(0);
+    return (
+        (code >= 0x21 && code <= 0x2f) ||
+        (code >= 0x3a && code <= 0x40) ||
+        (code >= 0x5b && code <= 0x60) ||
+        (code >= 0x7b && code <= 0x7e)
+    );
 }
 
 function unwrapMarkdownDestination(value: string): string {
@@ -341,9 +439,26 @@ function normalizeLabel(value: string): string {
 
 function decodeHtmlEntities(value: string): string {
     return value
-        .replace(/&(?:amp|#38);/gi, "&")
-        .replace(/&(?:quot|#34);/gi, '"')
-        .replace(/&(?:apos|#39);/gi, "'");
+        .replace(
+            /&#(?:x([0-9a-f]+)|([0-9]+));/gi,
+            (entity, hexadecimal: string | undefined, decimal: string | undefined) => {
+                const codePoint = Number.parseInt(
+                    hexadecimal ?? decimal ?? "",
+                    hexadecimal ? 16 : 10,
+                );
+                if (
+                    !Number.isFinite(codePoint) ||
+                    codePoint <= 0 ||
+                    codePoint > 0x10ffff ||
+                    (codePoint >= 0xd800 && codePoint <= 0xdfff)
+                )
+                    return entity;
+                return String.fromCodePoint(codePoint);
+            },
+        )
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, '"')
+        .replace(/&apos;/gi, "'");
 }
 
 function splitSrcset(value: string): string[] {
@@ -352,13 +467,12 @@ function splitSrcset(value: string): string[] {
     while (index < value.length) {
         while (/[\s,]/.test(value[index] ?? "")) index++;
         const start = index;
-        const data = value.slice(index, index + 5).toLowerCase() === "data:";
-        while (index < value.length && !/\s/.test(value[index] ?? "")) {
-            if (!data && value[index] === ",") break;
+        while (index < value.length && !/\s/.test(value[index] ?? ""))
             index++;
-        }
-        const url = value.slice(start, index);
+        const rawUrl = value.slice(start, index);
+        const url = rawUrl.replace(/,+$/, "");
         if (url) entries.push(url);
+        if (url.length < rawUrl.length) continue;
         while (index < value.length && value[index] !== ",") index++;
         if (value[index] === ",") index++;
     }

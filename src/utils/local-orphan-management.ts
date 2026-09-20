@@ -82,25 +82,35 @@ export function scanLocalOrphans(
             const supported = new Set(
                 supportedExtensions.map((extension) => extension.toLowerCase()),
             );
-            const indeterminate = Array.from(indeterminatePaths)
+            const parserIndeterminatePaths = new Set(
+                result.indeterminate.map((file) => file.path),
+            );
+            const lifecycleIndeterminate = Array.from(indeterminatePaths)
                 .map((path) => app.vault.getAbstractFileByPath(path))
                 .filter(
                     (file): file is TFile =>
                         file instanceof TFile &&
                         supported.has(file.extension.toLowerCase()),
                 );
+            const indeterminateByPath = new Map(
+                result.indeterminate.map((file) => [file.path, file]),
+            );
+            for (const file of lifecycleIndeterminate)
+                indeterminateByPath.set(file.path, file);
             const orphanPaths = new Set(
                 result.orphans.map((file) => file.path),
             );
-            const protectedReferenced = indeterminate.filter(
-                (file) => !orphanPaths.has(file.path),
+            const protectedReferenced = lifecycleIndeterminate.filter(
+                (file) =>
+                    !orphanPaths.has(file.path) &&
+                    !parserIndeterminatePaths.has(file.path),
             ).length;
             return {
                 ...result,
                 orphans: result.orphans.filter(
                     (file) => !indeterminatePaths.has(file.path),
                 ),
-                indeterminate,
+                indeterminate: Array.from(indeterminateByPath.values()),
                 referenced: Math.max(
                     0,
                     result.referenced - protectedReferenced,

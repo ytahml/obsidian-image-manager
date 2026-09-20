@@ -80,6 +80,69 @@ describe("local reference index", () => {
         ]);
     });
 
+    it("finds nested linked images and decodes Markdown punctuation escapes", async () => {
+        const note = file("notes/example.md", "md");
+        const linked = file("notes/assets/chart.png", "png");
+        const escaped = file("notes/assets/diagram (draft).png", "png");
+        const app = appWith(
+            {
+                [note.path]: [
+                    "[![chart](assets/chart.png)](https://example.org)",
+                    "![draft](assets/diagram \\(draft\\).png)",
+                ].join("\n"),
+            },
+            [note, linked, escaped],
+        );
+
+        const index = await buildLocalReferenceIndex(app, ["png"]);
+        expect(index.indeterminate).toEqual([]);
+        expect(index.occurrencesByImagePath.has(linked.path)).toBe(true);
+        expect(index.occurrencesByImagePath.has(escaped.path)).toBe(true);
+    });
+
+    it("keeps quoted frontmatter and HTML entity paths with URL suffixes", async () => {
+        const note = file("notes/example.md", "md");
+        const image = file("notes/assets/my chart.svg", "svg");
+        const app = appWith(
+            {
+                [note.path]: [
+                    "---",
+                    'cover: "assets/my chart.svg"',
+                    "---",
+                    '<img src="assets/my&#32;chart.svg#layer">',
+                ].join("\n"),
+            },
+            [note, image],
+        );
+
+        const index = await buildLocalReferenceIndex(app, ["svg"]);
+        expect(index.indeterminate).toEqual([]);
+        expect(index.occurrencesByImagePath.get(image.path)).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ kind: "frontmatter" }),
+                expect.objectContaining({ kind: "html" }),
+            ]),
+        );
+    });
+
+    it("keeps a local srcset candidate after a descriptor-free data URL", async () => {
+        const note = file("notes/example.md", "md");
+        const image = file("notes/assets/chart.png", "png");
+        const app = appWith(
+            {
+                [note.path]:
+                    '<img srcset="data:image/png;base64,AAAA, assets/chart.png 2x">',
+            },
+            [note, image],
+        );
+
+        const index = await buildLocalReferenceIndex(app, ["png"]);
+        expect(index.indeterminate).toEqual([]);
+        expect(index.occurrencesByImagePath.get(image.path)).toMatchObject([
+            { kind: "html", sourcePath: note.path },
+        ]);
+    });
+
     it("indexes Canvas file nodes and text-node image links", async () => {
         const canvas = file("maps/diagram.canvas", "canvas");
         const image = file("maps/assets/chart.png", "png");
@@ -101,6 +164,45 @@ describe("local reference index", () => {
             { kind: "canvas", sourcePath: canvas.path },
             { kind: "canvas", sourcePath: canvas.path },
         ]);
+    });
+
+    it("keeps Canvas file-node paths literal while decoding text-node Markdown paths", async () => {
+        const canvas = file("maps/diagram.canvas", "canvas");
+        const literal = file("maps/assets/chart%20draft.png", "png");
+        const markdown = file("maps/assets/chart draft.png", "png");
+        const app = appWith(
+            {
+                [canvas.path]: JSON.stringify({
+                    nodes: [
+                        { type: "file", file: "assets/chart%20draft.png" },
+                        {
+                            type: "text",
+                            text: "![chart](assets/chart%20draft.png)",
+                        },
+                    ],
+                }),
+            },
+            [canvas, literal, markdown],
+        );
+
+        const index = await buildLocalReferenceIndex(app, ["png"]);
+        expect(index.indeterminate).toEqual([]);
+        expect(index.occurrencesByImagePath.has(literal.path)).toBe(true);
+        expect(index.occurrencesByImagePath.has(markdown.path)).toBe(true);
+    });
+
+    it("marks every image indeterminate when a Canvas file cannot be parsed", async () => {
+        const canvas = file("maps/damaged.canvas", "canvas");
+        const first = file("assets/first.png", "png");
+        const second = file("assets/second.png", "png");
+        const app = appWith(
+            { [canvas.path]: '{"nodes":[{"type":"file"' },
+            [canvas, first, second],
+        );
+
+        const index = await buildLocalReferenceIndex(app, ["png"]);
+        expect(index.occurrencesByImagePath).toEqual(new Map());
+        expect(index.indeterminate).toEqual([first, second]);
     });
 
     it("protects every same-name candidate when a short link is ambiguous", async () => {
