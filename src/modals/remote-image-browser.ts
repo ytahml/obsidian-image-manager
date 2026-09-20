@@ -3,7 +3,10 @@ import type ImageManagerPlugin from "../main";
 import type { ImageHostingConfig } from "../types";
 import { t } from "../i18n";
 import { formatFileSize } from "../utils/path-utils";
-import { applySelectionGesture } from "../utils/selection-range";
+import {
+    applySelectionGesture,
+    createSelectionUndo,
+} from "../utils/selection-range";
 import { ConfirmDialog } from "./confirm-dialog";
 import { RemoteBrowseSession } from "../remote/browse-session";
 import {
@@ -663,7 +666,7 @@ export class RemoteImageBrowserView {
                 thumbnailSession: this.thumbnailSession,
                 isSelected: (object) => this.deleteSession.isSelected(object),
                 onSelectionChange: (object, selected, shiftKey) => {
-                    this.applyRemoteSelectionGesture(
+                    return this.applyRemoteSelectionGesture(
                         config,
                         provider,
                         objects,
@@ -886,15 +889,15 @@ export class RemoteImageBrowserView {
         target: RemoteObject,
         checked: boolean,
         shiftKey: boolean,
-    ): void {
+    ): () => void {
+        const previousAnchor = this.remoteSelectionAnchorKey;
+        const previousSelection = new Set(
+            this.deleteSession.getSelectedObjects().map((object) => object.key),
+        );
         const gesture = applySelectionGesture({
             orderedIds: orderedObjects.map((object) => object.key),
             eligibleIds: new Set(eligibleObjects.map((object) => object.key)),
-            selectedIds: new Set(
-                this.deleteSession
-                    .getSelectedObjects()
-                    .map((object) => object.key),
-            ),
+            selectedIds: previousSelection,
             anchorId: this.remoteSelectionAnchorKey,
             targetId: target.key,
             checked,
@@ -917,6 +920,50 @@ export class RemoteImageBrowserView {
         }
         this.imageGrid?.syncSelection();
         this.updateDeleteToolbar();
+        if (result.reason) return () => {};
+        const undoSelection = createSelectionUndo(
+            previousSelection,
+            gesture.selectedIds,
+        );
+        return () => {
+            const context = this.getDeleteContext(config, provider);
+            const currentObjects = new Map(
+                this.session
+                    .getAllObjects()
+                    .map((object) => [object.key, object]),
+            );
+            const restored = undoSelection(
+                new Set(
+                    this.deleteSession
+                        .getSelectedObjects()
+                        .map((object) => object.key),
+                ),
+                (key) => {
+                    const object = currentObjects.get(key);
+                    return (
+                        object !== undefined &&
+                        getRemoteDeleteUnavailableReason(object, context) ===
+                            undefined
+                    );
+                },
+            );
+            const restoredObjects = [...restored]
+                .map((key) => currentObjects.get(key))
+                .filter(
+                    (object): object is RemoteObject => object !== undefined,
+                );
+            const restoredResult = this.deleteSession.replaceSelection(
+                restoredObjects,
+                context,
+            );
+            if (restoredResult.reason) {
+                this.showRemoteSelectionFailure(restoredResult.reason);
+            } else {
+                this.remoteSelectionAnchorKey = previousAnchor;
+            }
+            this.imageGrid?.syncSelection();
+            this.updateDeleteToolbar();
+        };
     }
 
     private showRemoteSelectionFailure(

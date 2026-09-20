@@ -5,6 +5,7 @@
 ## 工作树内归档
 
 - [图片浏览器批量选择实现计划](image-browser-batch-selection-plan.md) — Issue #45 / PR #46 / v2.0.2。
+- [图片浏览器选择与预览交互实施记录](image-browser-selection-interaction-plan.md) — Issue #49；历史过程与验收证据，当前行为以代码和技能参考为准。
 
 ## 已归档范围
 

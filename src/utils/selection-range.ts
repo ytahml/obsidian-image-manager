@@ -8,6 +8,67 @@ export interface SelectionGestureOptions {
     shiftKey: boolean;
 }
 
+type CardClick = Pick<
+    MouseEvent,
+    "button" | "detail" | "ctrlKey" | "metaKey" | "shiftKey"
+>;
+
+/** Card clicks toggle, including Ctrl/Cmd; Ctrl/Cmd + Shift keeps range additions. */
+export function getCardSelectionChecked(
+    event: CardClick,
+    selected: boolean,
+): boolean | undefined {
+    if (event.button !== 0 || event.detail > 1) return undefined;
+    return event.shiftKey && (event.ctrlKey || event.metaKey)
+        ? true
+        : !selected;
+}
+
+/** One handler per card. The native second click undoes only the first click's
+ * selection effect before dblclick opens the preview. No guessed double-click
+ * timeout or delayed work survives a search redraw, tab switch, or close.
+ */
+export function createCardSelectionHandler(options: {
+    isSelected: () => boolean;
+    // The adapter returns a live-validated undo for the entire gesture, including its anchor.
+    onSelectionChange: (checked: boolean, shiftKey: boolean) => () => void;
+}): (event: CardClick) => void {
+    let undoClick: (() => void) | undefined;
+    return (event) => {
+        if (event.button !== 0) return;
+        if (event.detail === 2) {
+            const undo = undoClick;
+            undoClick = undefined;
+            undo?.();
+            return;
+        }
+        const checked = getCardSelectionChecked(event, options.isSelected());
+        if (checked === undefined) return;
+        const undo = options.onSelectionChange(checked, event.shiftKey);
+        undoClick = event.detail === 1 ? undo : undefined;
+    };
+}
+
+/** Capture only the IDs changed by a gesture, not a replacement selection snapshot. */
+export function createSelectionUndo(
+    before: ReadonlySet<string>,
+    after: ReadonlySet<string>,
+): (
+    current: ReadonlySet<string>,
+    canRestore: (id: string) => boolean,
+) => Set<string> {
+    const added = [...after].filter((id) => !before.has(id));
+    const removed = [...before].filter((id) => !after.has(id));
+    return (current, canRestore) => {
+        const restored = new Set(current);
+        for (const id of added) restored.delete(id);
+        for (const id of removed) {
+            if (canRestore(id)) restored.add(id);
+        }
+        return restored;
+    };
+}
+
 export interface SelectionGestureResult {
     selectedIds: Set<string>;
     anchorId: string | null;

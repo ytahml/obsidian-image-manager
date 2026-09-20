@@ -145,7 +145,8 @@ export const zh: Record<string, string> = {
     "modal.imageBrowser.sortDescending": "降序",
     "modal.imageBrowser.showing": "显示 {count} / {total} 张图片",
     "modal.imageBrowser.noImages": "仓库中未找到图片",
-    "modal.imageBrowser.insertTooltip": "点击预览",
+    "modal.imageBrowser.insertTooltip":
+        "单击选中或取消当前图片，Shift + 单击按区间选中或取消，Ctrl/Cmd + 单击也可切换当前项；双击或点击预览按钮只打开预览，不改变选择。",
     "modal.imageBrowser.orphanScanning": "正在扫描孤立图片…",
     "modal.imageBrowser.localReferenceFilter": "引用状态筛选",
     "modal.imageBrowser.localReferenceAll": "全部引用状态",

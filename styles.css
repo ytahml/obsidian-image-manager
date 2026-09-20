@@ -525,7 +525,7 @@
 
 .image-browser-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
 	grid-auto-rows: max-content;
 	align-content: start;
 	align-items: start;
@@ -586,7 +586,7 @@
 	}
 
 	.image-browser-grid {
-		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 		gap: 8px;
 	}
 
@@ -628,6 +628,22 @@
 .image-browser-card.is-selected {
 	border-color: var(--interactive-accent);
 	background-color: var(--background-modifier-hover);
+}
+
+.image-browser .image-browser-card-preview {
+	display: flex;
+	align-self: flex-start;
+	width: fit-content;
+	max-width: 100%;
+	margin: 8px 0 0;
+}
+
+.image-browser .image-browser-card-preview:focus-visible,
+.image-browser .remote-image-card-media:focus-visible,
+.image-browser .local-image-card-select:focus-within,
+.image-browser .remote-image-card-select:focus-within {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
 }
 
 .image-browser-card-img {

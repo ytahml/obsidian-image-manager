@@ -2,7 +2,11 @@ import { App, Modal, Notice, TFile } from "obsidian";
 import type ImageManagerPlugin from "../main";
 import { ImageScanner } from "../utils/image-scanner";
 import { formatFileSize } from "../utils/path-utils";
-import { applySelectionGesture } from "../utils/selection-range";
+import {
+    applySelectionGesture,
+    createCardSelectionHandler,
+    createSelectionUndo,
+} from "../utils/selection-range";
 import {
     filterLocalImagesByReferenceState,
     getLocalReferenceState,
@@ -278,6 +282,7 @@ export class ImageBrowserModal extends Modal {
     }
 
     private applyFilterAndSort() {
+        this.localSelectionAnchorPath = null;
         const keyword = this.searchInput?.value ?? "";
         let images = this.scanner.filterImages(this.allImages, { keyword });
         if (this.localScanState === "ready" && this.orphanPaths) {
@@ -338,6 +343,9 @@ export class ImageBrowserModal extends Modal {
                 selectLabel.addEventListener("click", (event) =>
                     event.stopPropagation(),
                 );
+                selectLabel.addEventListener("dblclick", (event) =>
+                    event.stopPropagation(),
+                );
                 const checkbox = selectLabel.createEl("input", {
                     attr: { type: "checkbox" },
                 });
@@ -367,7 +375,19 @@ export class ImageBrowserModal extends Modal {
                 cls: "image-browser-card-meta",
                 text: formatFileSize(file.stat.size),
             });
-            card.addEventListener("click", () =>
+            card.addEventListener(
+                "click",
+                createCardSelectionHandler({
+                    isSelected: () => this.selectedPaths.has(file.path),
+                    onSelectionChange: (checked, shiftKey) =>
+                        this.applyLocalSelectionGesture(
+                            file.path,
+                            checked,
+                            shiftKey,
+                        ),
+                }),
+            );
+            const openPreview = () =>
                 new ImagePreviewModal(
                     this.app,
                     {
@@ -387,7 +407,19 @@ export class ImageBrowserModal extends Modal {
                     },
                     file,
                     this,
-                ).open(),
+                ).open();
+            card.addEventListener("dblclick", openPreview);
+            const preview = card.createEl("button", {
+                cls: "image-browser-card-preview",
+                text: t("modal.imageBrowser.remotePreview"),
+                attr: { type: "button" },
+            });
+            preview.addEventListener("click", (event) => {
+                event.stopPropagation();
+                if (event.detail <= 1) openPreview();
+            });
+            preview.addEventListener("dblclick", (event) =>
+                event.stopPropagation(),
             );
         }
     }
@@ -453,7 +485,8 @@ export class ImageBrowserModal extends Modal {
         path: string,
         checked: boolean,
         shiftKey: boolean,
-    ): void {
+    ): () => void {
+        const previousAnchor = this.localSelectionAnchorPath;
         const eligiblePaths = this.getCurrentLocalEligiblePaths();
         const result = applySelectionGesture({
             orderedIds: this.filteredImages.map((file) => file.path),
@@ -464,10 +497,23 @@ export class ImageBrowserModal extends Modal {
             checked,
             shiftKey,
         });
+        const undoSelection = createSelectionUndo(
+            this.selectedPaths,
+            result.selectedIds,
+        );
         this.selectedPaths = result.selectedIds;
         this.localSelectionAnchorPath = result.anchorId;
         this.syncLocalSelectionControls();
         this.updateDeleteToolbar();
+        return () => {
+            const eligible = this.getCurrentLocalEligiblePaths();
+            this.selectedPaths = undoSelection(this.selectedPaths, (id) =>
+                eligible.has(id),
+            );
+            this.localSelectionAnchorPath = previousAnchor;
+            this.syncLocalSelectionControls();
+            this.updateDeleteToolbar();
+        };
     }
 
     private selectCurrentLocalResults(): void {
