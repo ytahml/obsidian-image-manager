@@ -27,6 +27,12 @@ For private questions, contact **<orchidsword@163.com>**. If you find the plugin
 
 ---
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
+
+---
+
 ## Feature Overview
 
 | Feature | Status |

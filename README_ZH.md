@@ -27,6 +27,12 @@ Obsidian 图片管理插件 — 覆盖图片从粘贴/拖放开始，到命名�
 
 ---
 
+## 协作贡献
+
+欢迎参与贡献。贡献流程请查看 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+---
+
 Wiki 格式不利于统一管理图片路径和引用，因此更推荐使用标准 Markdown 图片引用格式：
 
 ![zh-使用wiki格式的弊端.png](images/zh-使用wiki格式的弊端.png)
