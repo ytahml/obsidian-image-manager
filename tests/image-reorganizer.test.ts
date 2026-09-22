@@ -49,6 +49,14 @@ function createVault(
     const contents = new Map(Object.entries(initialContent));
     const folders = new Map<string, TFolder>();
     const rename = vi.fn(async (target: TFile, newPath: string) => {
+        if (
+            orderedFiles.some(
+                (candidate) =>
+                    candidate !== target && candidate.path === newPath,
+            )
+        ) {
+            throw new Error(`Path already exists: ${newPath}`);
+        }
         setFilePath(target, newPath);
     });
     const process = vi.fn(
@@ -157,6 +165,54 @@ describe("ImageReorganizer", () => {
         },
     );
 
+    it("moves a shared image once using the last target note destination", async () => {
+        const noteA = file("notes/a/A.md");
+        const noteB = file("notes/b/B.md");
+        const image = file("old/shared.png");
+        const source = "![](../../old/shared.png)";
+        const { app, contents, rename } = createVault([noteA, noteB, image], {
+            [noteA.path]: source,
+            [noteB.path]: source,
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeFolder("notes", "markdown"),
+        ).resolves.toMatchObject({ moved: 1, skipped: 0 });
+        expect(rename).toHaveBeenCalledTimes(1);
+        expect(image.path).toBe("notes/b/attachments/shared.png");
+        expect(contents.get(noteA.path)).toBe(
+            "![](../b/attachments/shared.png)",
+        );
+        expect(contents.get(noteB.path)).toBe("![](attachments/shared.png)");
+    });
+
+    it("does not treat an angle-bracket remote URL as a local image", async () => {
+        const note = file("notes/current.md");
+        const image = file("old/image.png");
+        const source = "![](<https://example.com/image.png>)";
+        const { app, contents, rename, process } = createVault([note, image], {
+            [note.path]: source,
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).resolves.toEqual({ moved: 0, skipped: 0 });
+        expect(image.path).toBe("old/image.png");
+        expect(contents.get(note.path)).toBe(source);
+        expect(rename).not.toHaveBeenCalled();
+        expect(process).not.toHaveBeenCalled();
+    });
+
     it("fails closed for an ambiguous short Markdown reference", async () => {
         const note = file("notes/current.md");
         const first = file("one/image.jpg");
@@ -261,6 +317,273 @@ describe("ImageReorganizer", () => {
         expect(contents.get(note.path)).toBe(
             "![封面](attachments/中文%20image.png)",
         );
+    });
+
+    it("rechecks a target path that becomes occupied during directory creation", async () => {
+        const note = file("notes/current.md");
+        const image = file("old/image.png");
+        const orderedFiles = [note, image];
+        const { app, contents } = createVault(orderedFiles, {
+            [note.path]: "![](../old/image.png)",
+        });
+        const collision = file("notes/attachments/image.png");
+        const createFolder = vi.spyOn(app.vault, "createFolder");
+        const originalCreateFolder = createFolder
+            .getMockImplementation()!
+            .bind(app.vault);
+        createFolder.mockImplementation(async (path: string) => {
+            const folder = await originalCreateFolder(path);
+            if (!orderedFiles.includes(collision)) orderedFiles.push(collision);
+            return folder;
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).resolves.toEqual({ moved: 1, skipped: 0 });
+        expect(image.path).toBe("notes/attachments/image-1.png");
+        expect(contents.get(note.path)).toBe("![](attachments/image-1.png)");
+    });
+
+    it("aborts before moving when another affected note changes", async () => {
+        const note = file("notes/current.md");
+        const shared = file("notes/shared.md");
+        const image = file("old/image.png");
+        const source = "![](../old/image.png)";
+        const { app, contents, rename, process } = createVault(
+            [note, shared, image],
+            {
+                [note.path]: source,
+                [shared.path]: source,
+            },
+        );
+        const cachedRead = vi.spyOn(app.vault, "cachedRead");
+        let currentReads = 0;
+        cachedRead.mockImplementation(async (target: TFile) => {
+            if (target === note && ++currentReads === 2) {
+                contents.set(shared.path, `${source}\nconcurrent edit`);
+            }
+            return contents.get(target.path) ?? "";
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).rejects.toThrow(/changed during reorganization/i);
+        expect(image.path).toBe("old/image.png");
+        expect(rename).not.toHaveBeenCalled();
+        expect(process).not.toHaveBeenCalled();
+    });
+
+    it("aborts before moving when a scanned note gains a reference", async () => {
+        const note = file("notes/current.md");
+        const unrelated = file("notes/unrelated.md");
+        const image = file("old/image.png");
+        const source = "![](../old/image.png)";
+        const { app, contents, rename, process } = createVault(
+            [note, unrelated, image],
+            {
+                [note.path]: source,
+                [unrelated.path]: "# Unrelated",
+            },
+        );
+        const cachedRead = vi.spyOn(app.vault, "cachedRead");
+        let currentReads = 0;
+        cachedRead.mockImplementation(async (target: TFile) => {
+            if (target === note && ++currentReads === 2) {
+                contents.set(unrelated.path, source);
+            }
+            return contents.get(target.path) ?? "";
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).rejects.toMatchObject({ code: "concurrent-change" });
+        expect(image.path).toBe("old/image.png");
+        expect(rename).not.toHaveBeenCalled();
+        expect(process).not.toHaveBeenCalled();
+    });
+
+    it("classifies a note read failure at the mutation barrier as a concurrent change", async () => {
+        const note = file("notes/current.md");
+        const image = file("old/image.png");
+        const source = "![](../old/image.png)";
+        const { app, rename, process } = createVault([note, image], {
+            [note.path]: source,
+        });
+        const cachedRead = vi.spyOn(app.vault, "cachedRead");
+        let currentReads = 0;
+        cachedRead.mockImplementation(async (target: TFile) => {
+            if (target === note && ++currentReads === 2) {
+                throw new Error("File no longer exists");
+            }
+            return source;
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).rejects.toMatchObject({ code: "concurrent-change" });
+        expect(image.path).toBe("old/image.png");
+        expect(rename).not.toHaveBeenCalled();
+        expect(process).not.toHaveBeenCalled();
+    });
+
+    it("counts a folder note whose moved Wiki reference text is unchanged", async () => {
+        const note = file("notes/current.md");
+        const image = file("old/image.png");
+        const source = "![[image.png]]";
+        const { app, contents } = createVault([note, image], {
+            [note.path]: source,
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings({ skipWikiRefsOnReorganize: false }),
+            targetDirectory,
+        );
+
+        await expect(reorganizer.reorganizeFolder("notes")).resolves.toEqual({
+            moved: 1,
+            skipped: 0,
+            notes: 1,
+        });
+        expect(image.path).toBe("notes/attachments/image.png");
+        expect(contents.get(note.path)).toBe(source);
+    });
+
+    it("counts a folder note changed only by reference conversion", async () => {
+        const note = file("notes/current.md");
+        const image = file("notes/attachments/image.png");
+        const { app, contents, rename } = createVault([note, image], {
+            [note.path]: "![[attachments/image.png]]",
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings({ skipWikiRefsOnReorganize: false }),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeFolder("notes", "markdown"),
+        ).resolves.toEqual({ moved: 0, skipped: 0, notes: 1 });
+        expect(contents.get(note.path)).toBe("![](attachments/image.png)");
+        expect(rename).not.toHaveBeenCalled();
+    });
+
+    it("rolls back completed moves when a later rename fails", async () => {
+        const note = file("notes/current.md");
+        const first = file("old/first.png");
+        const second = file("old/second.png");
+        const source = ["![](../old/first.png)", "![](../old/second.png)"].join(
+            "\n",
+        );
+        const { app, contents, rename, process } = createVault(
+            [note, first, second],
+            { [note.path]: source },
+        );
+        let renameCalls = 0;
+        rename.mockImplementation(async (target: TFile, newPath: string) => {
+            renameCalls++;
+            if (renameCalls === 2) throw new Error("rename failed");
+            setFilePath(target, newPath);
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).rejects.toMatchObject({ code: "execution-failed" });
+        expect(first.path).toBe("old/first.png");
+        expect(second.path).toBe("old/second.png");
+        expect(contents.get(note.path)).toBe(source);
+        expect(process).not.toHaveBeenCalled();
+        expect(rename).toHaveBeenCalledTimes(3);
+    });
+
+    it("rolls back moves and prior note writes when a later write fails", async () => {
+        const note = file("notes/current.md");
+        const shared = file("notes/shared.md");
+        const image = file("old/image.png");
+        const source = "![](../old/image.png)";
+        const { app, contents, rename, process } = createVault(
+            [note, shared, image],
+            {
+                [note.path]: source,
+                [shared.path]: source,
+            },
+        );
+        let processCalls = 0;
+        process.mockImplementation(
+            async (target: TFile, update: (content: string) => string) => {
+                processCalls++;
+                if (processCalls === 2) throw new Error("write failed");
+                contents.set(
+                    target.path,
+                    update(contents.get(target.path) ?? ""),
+                );
+            },
+        );
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).rejects.toMatchObject({ code: "execution-failed" });
+        expect(image.path).toBe("old/image.png");
+        expect(contents.get(note.path)).toBe(source);
+        expect(contents.get(shared.path)).toBe(source);
+        expect(rename).toHaveBeenCalledTimes(2);
+        expect(process).toHaveBeenCalledTimes(3);
+    });
+
+    it("reports an incomplete rollback instead of ordinary failure", async () => {
+        const note = file("notes/current.md");
+        const first = file("old/first.png");
+        const second = file("old/second.png");
+        const { app, rename } = createVault([note, first, second], {
+            [note.path]: [
+                "![](../old/first.png)",
+                "![](../old/second.png)",
+            ].join("\n"),
+        });
+        let renameCalls = 0;
+        rename.mockImplementation(async (target: TFile, newPath: string) => {
+            renameCalls++;
+            if (renameCalls >= 2) throw new Error("rename failed");
+            setFilePath(target, newPath);
+        });
+        const reorganizer = new ImageReorganizer(
+            app,
+            settings(),
+            targetDirectory,
+        );
+
+        await expect(
+            reorganizer.reorganizeNote(note, "markdown"),
+        ).rejects.toMatchObject({ code: "rollback-failed" });
     });
 
     it("keeps the original Wiki format when conversion is disabled", async () => {

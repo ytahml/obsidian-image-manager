@@ -11,11 +11,25 @@ import {
 } from "./local-image-resolution";
 import { joinPath, encodePathSegments } from "./path-utils";
 import { RefConverter } from "./ref-converter";
-import { isRemoteImageReference } from "./upload-reference";
 
 export interface ReorganizeResult {
     moved: number;
     skipped: number;
+}
+
+export type ReorganizationErrorCode =
+    | "concurrent-change"
+    | "execution-failed"
+    | "rollback-failed";
+
+export class ReorganizationError extends Error {
+    constructor(
+        readonly code: ReorganizationErrorCode,
+        message: string,
+    ) {
+        super(message);
+        this.name = "ReorganizationError";
+    }
 }
 
 interface BoundReference {
@@ -26,13 +40,39 @@ interface BoundReference {
 interface PlannedMove {
     file: TFile;
     originalPath: string;
+    targetPath: string;
     finalPath: string;
 }
 
-interface NoteReferenceSnapshot {
+interface NoteContentSnapshot {
     file: TFile;
     content: string;
-    references: Array<{ reference: ImageReference; originalImagePath: string }>;
+}
+
+interface NoteReferenceSnapshot extends NoteContentSnapshot {
+    references: BoundReference[];
+    isTarget: boolean;
+    skipped: number;
+    convertFormat?: ReferenceFormat;
+}
+
+interface OtherNoteSnapshots {
+    affectedNotes: NoteReferenceSnapshot[];
+    barrierNotes: NoteContentSnapshot[];
+}
+
+interface ReorganizationPlan {
+    targetNotes: NoteReferenceSnapshot[];
+    affectedNotes: NoteReferenceSnapshot[];
+    barrierNotes: NoteContentSnapshot[];
+    moves: Map<string, PlannedMove>;
+    skipped: number;
+}
+
+interface NoteWriteJournalEntry {
+    file: TFile;
+    originalContent: string;
+    updatedContent: string;
 }
 
 export class ImageReorganizer {
@@ -65,105 +105,8 @@ export class ImageReorganizer {
         noteFile: TFile,
         convertFormat?: ReferenceFormat,
     ): Promise<ReorganizeResult> {
-        const content = await this.app.vault.cachedRead(noteFile);
-        const refs = this.refConverter.parseReferences(content);
-        const imageLookup = this.createImageLookup();
-        const boundReferences: BoundReference[] = [];
-        let skipped = 0;
-
-        for (const ref of refs) {
-            if (isRemoteImageReference(ref.path)) continue;
-            if (
-                this.settings.skipWikiRefsOnReorganize &&
-                ref.format === "wiki"
-            ) {
-                skipped++;
-                continue;
-            }
-
-            const resolution = resolveLocalFileReference(
-                this.app,
-                noteFile,
-                ref.path,
-                ref.format,
-                imageLookup,
-            );
-            if (resolution.status !== "resolved") {
-                skipped++;
-                continue;
-            }
-            boundReferences.push({ reference: ref, file: resolution.file });
-        }
-
-        const moves = this.planMoves(noteFile, boundReferences);
-        const movedPaths = new Set(
-            Array.from(moves.values())
-                .filter((move) => move.originalPath !== move.finalPath)
-                .map((move) => move.originalPath),
-        );
-        const otherNotes = await this.bindOtherNoteReferences(
-            noteFile,
-            movedPaths,
-            imageLookup,
-        );
-
-        // Do not start moving files if the source note changed while the plan was built.
-        if ((await this.app.vault.cachedRead(noteFile)) !== content) {
-            return { moved: 0, skipped: skipped + boundReferences.length };
-        }
-
-        let moved = 0;
-        for (const move of moves.values()) {
-            if (move.originalPath === move.finalPath) continue;
-            const targetDir = move.finalPath.substring(
-                0,
-                move.finalPath.lastIndexOf("/"),
-            );
-            await this.ensureDirectory(targetDir);
-            await this.app.vault.rename(move.file, move.finalPath);
-            moved++;
-        }
-
-        const currentReplacements = boundReferences.map(
-            ({ reference, file }) => {
-                const move = moves.get(this.originalPathFor(file, moves));
-                const finalPath = move?.finalPath ?? file.path;
-                return {
-                    reference,
-                    text: this.buildReference(
-                        reference,
-                        finalPath,
-                        noteFile,
-                        convertFormat ?? reference.format,
-                    ),
-                };
-            },
-        );
-        await this.writeSnapshot(noteFile, content, currentReplacements);
-
-        for (const snapshot of otherNotes) {
-            const replacements = snapshot.references.map(
-                ({ reference, originalImagePath }) => {
-                    const move = moves.get(originalImagePath)!;
-                    return {
-                        reference,
-                        text: this.buildReference(
-                            reference,
-                            move.finalPath,
-                            snapshot.file,
-                            reference.format,
-                        ),
-                    };
-                },
-            );
-            await this.writeSnapshot(
-                snapshot.file,
-                snapshot.content,
-                replacements,
-            );
-        }
-
-        return { moved, skipped };
+        const plan = await this.buildPlan([noteFile], convertFormat);
+        return this.executePlan(plan);
     }
 
     /** 整理文件夹内所有笔记引用的图片 */
@@ -180,24 +123,91 @@ export class ImageReorganizer {
                     file.path === folderPath ||
                     file.path.startsWith(prefix),
             );
+        const plan = await this.buildPlan(mdFiles, convertFormat);
+        const result = await this.executePlan(plan);
+        return {
+            ...result,
+            notes: this.countProcessedNotes(plan),
+        };
+    }
 
-        let totalMoved = 0;
-        let totalSkipped = 0;
-        let notesProcessed = 0;
+    private async buildPlan(
+        noteFiles: readonly TFile[],
+        convertFormat?: ReferenceFormat,
+    ): Promise<ReorganizationPlan> {
+        const imageLookup = this.createImageLookup();
+        const targetNotes: NoteReferenceSnapshot[] = [];
 
-        for (const mdFile of mdFiles) {
-            const result = await this.reorganizeNote(mdFile, convertFormat);
-            totalMoved += result.moved;
-            totalSkipped += result.skipped;
-            if (result.moved > 0 || result.skipped > 0) {
-                notesProcessed++;
+        for (const noteFile of noteFiles) {
+            targetNotes.push(
+                await this.bindTargetNote(noteFile, convertFormat, imageLookup),
+            );
+        }
+
+        const moves = this.planMoves(targetNotes);
+        const movedPaths = new Set(
+            Array.from(moves.values())
+                .filter((move) => move.originalPath !== move.finalPath)
+                .map((move) => move.originalPath),
+        );
+        const targetPaths = new Set(targetNotes.map((note) => note.file.path));
+        const otherNotes = await this.bindOtherNoteReferences(
+            targetPaths,
+            movedPaths,
+            imageLookup,
+        );
+
+        return {
+            targetNotes,
+            affectedNotes: [...targetNotes, ...otherNotes.affectedNotes],
+            barrierNotes: [...targetNotes, ...otherNotes.barrierNotes],
+            moves,
+            skipped: targetNotes.reduce(
+                (total, note) => total + note.skipped,
+                0,
+            ),
+        };
+    }
+
+    private async bindTargetNote(
+        noteFile: TFile,
+        convertFormat: ReferenceFormat | undefined,
+        imageLookup: LocalFileLookup,
+    ): Promise<NoteReferenceSnapshot> {
+        const content = await this.app.vault.cachedRead(noteFile);
+        const references: BoundReference[] = [];
+        let skipped = 0;
+
+        for (const reference of this.refConverter.parseReferences(content)) {
+            const resolution = resolveLocalFileReference(
+                this.app,
+                noteFile,
+                reference.path,
+                reference.format,
+                imageLookup,
+            );
+            if (resolution.status === "remote") continue;
+            if (
+                this.settings.skipWikiRefsOnReorganize &&
+                reference.format === "wiki"
+            ) {
+                skipped++;
+                continue;
             }
+            if (resolution.status !== "resolved") {
+                skipped++;
+                continue;
+            }
+            references.push({ reference, file: resolution.file });
         }
 
         return {
-            moved: totalMoved,
-            skipped: totalSkipped,
-            notes: notesProcessed,
+            file: noteFile,
+            content,
+            references,
+            isTarget: true,
+            skipped,
+            convertFormat,
         };
     }
 
@@ -208,52 +218,67 @@ export class ImageReorganizer {
     }
 
     private planMoves(
-        noteFile: TFile,
-        references: readonly BoundReference[],
+        targetNotes: readonly NoteReferenceSnapshot[],
     ): Map<string, PlannedMove> {
         const moves = new Map<string, PlannedMove>();
+
+        for (const note of targetNotes) {
+            for (let index = note.references.length - 1; index >= 0; index--) {
+                const file = note.references[index]!.file;
+                const targetDir = this.resolveImagePath(
+                    this.settings.imagePathTemplate || "attachments",
+                    note.file,
+                    file.name,
+                );
+                const targetPath = joinPath(targetDir, file.name);
+                const existing = moves.get(file.path);
+                if (existing) {
+                    existing.targetPath = targetPath;
+                    existing.finalPath = targetPath;
+                } else {
+                    moves.set(file.path, {
+                        file,
+                        originalPath: file.path,
+                        targetPath,
+                        finalPath: targetPath,
+                    });
+                }
+            }
+        }
+
         const reservedPaths = new Set<string>();
-
-        // Preserve the previous reverse-reference ordering for conflict suffix assignment.
-        for (let index = references.length - 1; index >= 0; index--) {
-            const file = references[index]!.file;
-            if (moves.has(file.path)) continue;
-
-            const targetDir = this.resolveImagePath(
-                this.settings.imagePathTemplate || "attachments",
-                noteFile,
-                file.name,
-            );
-            const targetPath = joinPath(targetDir, file.name);
-            const finalPath =
-                file.path === targetPath
-                    ? file.path
-                    : this.ensureUniquePath(targetPath, reservedPaths);
-            reservedPaths.add(finalPath);
-            moves.set(file.path, { file, originalPath: file.path, finalPath });
+        for (const move of moves.values()) {
+            move.finalPath =
+                move.originalPath === move.targetPath
+                    ? move.originalPath
+                    : this.ensureUniquePath(move.targetPath, reservedPaths);
+            reservedPaths.add(move.finalPath);
         }
 
         return moves;
     }
 
     private async bindOtherNoteReferences(
-        excludeNote: TFile,
+        excludedPaths: ReadonlySet<string>,
         movedPaths: ReadonlySet<string>,
         imageLookup: LocalFileLookup,
-    ): Promise<NoteReferenceSnapshot[]> {
-        if (movedPaths.size === 0) return [];
-        const snapshots: NoteReferenceSnapshot[] = [];
+    ): Promise<OtherNoteSnapshots> {
+        if (movedPaths.size === 0) {
+            return { affectedNotes: [], barrierNotes: [] };
+        }
+        const affectedNotes: NoteReferenceSnapshot[] = [];
+        const barrierNotes: NoteContentSnapshot[] = [];
         const mdFiles = this.app.vault
             .getMarkdownFiles()
-            .filter((file) => file.path !== excludeNote.path);
+            .filter((file) => !excludedPaths.has(file.path));
 
         for (const mdFile of mdFiles) {
             const content = await this.app.vault.cachedRead(mdFile);
-            const references: NoteReferenceSnapshot["references"] = [];
+            barrierNotes.push({ file: mdFile, content });
+            const references: BoundReference[] = [];
             for (const reference of this.refConverter.parseReferences(
                 content,
             )) {
-                if (isRemoteImageReference(reference.path)) continue;
                 const resolution = resolveLocalFileReference(
                     this.app,
                     mdFile,
@@ -267,25 +292,191 @@ export class ImageReorganizer {
                 ) {
                     references.push({
                         reference,
-                        originalImagePath: resolution.file.path,
+                        file: resolution.file,
                     });
                 }
             }
-            if (references.length > 0)
-                snapshots.push({ file: mdFile, content, references });
+            if (references.length > 0) {
+                affectedNotes.push({
+                    file: mdFile,
+                    content,
+                    references,
+                    isTarget: false,
+                    skipped: 0,
+                });
+            }
         }
 
-        return snapshots;
+        return { affectedNotes, barrierNotes };
     }
 
-    private originalPathFor(
+    private async executePlan(
+        plan: ReorganizationPlan,
+    ): Promise<ReorganizeResult> {
+        await this.prepareDirectories(plan.moves);
+        this.allocateFinalPaths(plan.moves);
+        await this.validateMutationBarrier(plan);
+
+        const reservedPaths = new Set(
+            Array.from(plan.moves.values()).map((move) => move.finalPath),
+        );
+        const completedMoves: PlannedMove[] = [];
+        const completedWrites: NoteWriteJournalEntry[] = [];
+        try {
+            for (const move of plan.moves.values()) {
+                if (move.originalPath === move.finalPath) continue;
+                const occupied = this.app.vault.getAbstractFileByPath(
+                    move.finalPath,
+                );
+                if (occupied && occupied !== move.file) {
+                    reservedPaths.delete(move.finalPath);
+                    move.finalPath = this.ensureUniquePath(
+                        move.targetPath,
+                        reservedPaths,
+                    );
+                    reservedPaths.add(move.finalPath);
+                }
+                await this.app.vault.rename(move.file, move.finalPath);
+                completedMoves.push(move);
+            }
+
+            for (const note of plan.affectedNotes) {
+                const write = await this.writeSnapshot(
+                    note.file,
+                    note.content,
+                    this.buildReplacements(note, plan.moves),
+                );
+                if (write) completedWrites.push(write);
+            }
+        } catch (error) {
+            const rollbackErrors = await this.rollbackExecution(
+                completedMoves,
+                completedWrites,
+            );
+            if (rollbackErrors.length > 0) {
+                throw new ReorganizationError(
+                    "rollback-failed",
+                    `Reorganization rollback was incomplete: ${rollbackErrors.join("; ")}`,
+                );
+            }
+            if (error instanceof ReorganizationError) throw error;
+            throw new ReorganizationError(
+                "execution-failed",
+                `Reorganization failed: ${this.errorMessage(error)}`,
+            );
+        }
+
+        return { moved: completedMoves.length, skipped: plan.skipped };
+    }
+
+    private async prepareDirectories(
+        moves: ReadonlyMap<string, PlannedMove>,
+    ): Promise<void> {
+        const directories = new Set<string>();
+        for (const move of moves.values()) {
+            if (move.originalPath === move.targetPath) continue;
+            directories.add(
+                move.targetPath.substring(0, move.targetPath.lastIndexOf("/")),
+            );
+        }
+        for (const directory of directories) {
+            await this.ensureDirectory(directory);
+        }
+    }
+
+    private allocateFinalPaths(moves: Map<string, PlannedMove>): void {
+        const reservedPaths = new Set<string>();
+        for (const move of moves.values()) {
+            move.finalPath =
+                move.originalPath === move.targetPath
+                    ? move.originalPath
+                    : this.ensureUniquePath(move.targetPath, reservedPaths);
+            reservedPaths.add(move.finalPath);
+        }
+    }
+
+    private async validateMutationBarrier(
+        plan: ReorganizationPlan,
+    ): Promise<void> {
+        for (const note of plan.barrierNotes) {
+            let currentContent: string;
+            try {
+                if (
+                    this.app.vault.getAbstractFileByPath(note.file.path) !==
+                    note.file
+                ) {
+                    throw new Error("Note identity changed");
+                }
+                currentContent = await this.app.vault.cachedRead(note.file);
+            } catch {
+                throw new ReorganizationError(
+                    "concurrent-change",
+                    `Vault note changed during reorganization: ${note.file.path}`,
+                );
+            }
+            if (currentContent !== note.content) {
+                throw new ReorganizationError(
+                    "concurrent-change",
+                    `Vault content changed during reorganization: ${note.file.path}`,
+                );
+            }
+        }
+        for (const move of plan.moves.values()) {
+            if (
+                this.app.vault.getAbstractFileByPath(move.originalPath) !==
+                move.file
+            ) {
+                throw new ReorganizationError(
+                    "concurrent-change",
+                    `Image changed during reorganization: ${move.originalPath}`,
+                );
+            }
+        }
+    }
+
+    private buildReplacements(
+        snapshot: NoteReferenceSnapshot,
+        moves: ReadonlyMap<string, PlannedMove>,
+    ): Array<{ reference: ImageReference; text: string }> {
+        return snapshot.references.map(({ reference, file }) => {
+            const move = this.moveForFile(file, moves);
+            const finalPath = move?.finalPath ?? file.path;
+            return {
+                reference,
+                text: this.buildReference(
+                    reference,
+                    finalPath,
+                    snapshot.file,
+                    snapshot.isTarget
+                        ? (snapshot.convertFormat ?? reference.format)
+                        : reference.format,
+                ),
+            };
+        });
+    }
+
+    private moveForFile(
         file: TFile,
         moves: ReadonlyMap<string, PlannedMove>,
-    ): string {
-        for (const [originalPath, move] of moves) {
-            if (move.file === file) return originalPath;
+    ): PlannedMove | undefined {
+        for (const move of moves.values()) {
+            if (move.file === file) return move;
         }
-        return file.path;
+        return undefined;
+    }
+
+    private countProcessedNotes(plan: ReorganizationPlan): number {
+        return plan.targetNotes.filter(
+            (note) =>
+                note.skipped > 0 ||
+                note.references.some(({ file }) => {
+                    const move = this.moveForFile(file, plan.moves);
+                    return move && move.originalPath !== move.finalPath;
+                }) ||
+                this.buildReplacements(note, plan.moves).some(
+                    ({ reference, text }) => text !== reference.fullMatch,
+                ),
+        ).length;
     }
 
     private buildReference(
@@ -373,38 +564,105 @@ export class ImageReorganizer {
             reference: ImageReference;
             text: string;
         }>,
-    ): Promise<void> {
-        if (
-            replacements.every(
-                ({ reference, text }) => reference.fullMatch === text,
-            )
-        )
-            return;
-
-        await this.app.vault.process(file, (currentContent) => {
-            if (currentContent !== originalContent) return currentContent;
-            let updated = currentContent;
-            const ordered = [...replacements].sort(
-                (a, b) => b.reference.col - a.reference.col,
-            );
-            for (const { reference, text } of ordered) {
-                if (text === reference.fullMatch) continue;
-                if (
-                    updated.slice(
-                        reference.col,
-                        reference.col + reference.fullMatch.length,
-                    ) !== reference.fullMatch
-                ) {
-                    return currentContent;
-                }
-                updated =
-                    updated.substring(0, reference.col) +
-                    text +
-                    updated.substring(
-                        reference.col + reference.fullMatch.length,
-                    );
+    ): Promise<NoteWriteJournalEntry | null> {
+        let updatedContent = originalContent;
+        const ordered = [...replacements].sort(
+            (a, b) => b.reference.col - a.reference.col,
+        );
+        for (const { reference, text } of ordered) {
+            if (text === reference.fullMatch) continue;
+            if (
+                updatedContent.slice(
+                    reference.col,
+                    reference.col + reference.fullMatch.length,
+                ) !== reference.fullMatch
+            ) {
+                throw new ReorganizationError(
+                    "concurrent-change",
+                    `Reference changed during reorganization: ${file.path}`,
+                );
             }
-            return updated;
+            updatedContent =
+                updatedContent.substring(0, reference.col) +
+                text +
+                updatedContent.substring(
+                    reference.col + reference.fullMatch.length,
+                );
+        }
+        if (updatedContent === originalContent) return null;
+
+        let applied = false;
+        let conflict = false;
+        await this.app.vault.process(file, (currentContent) => {
+            if (currentContent !== originalContent) {
+                conflict = true;
+                return currentContent;
+            }
+            applied = true;
+            return updatedContent;
         });
+        if (conflict || !applied) {
+            throw new ReorganizationError(
+                "concurrent-change",
+                `Vault content changed during reorganization: ${file.path}`,
+            );
+        }
+        return { file, originalContent, updatedContent };
+    }
+
+    private async rollbackExecution(
+        completedMoves: readonly PlannedMove[],
+        completedWrites: readonly NoteWriteJournalEntry[],
+    ): Promise<string[]> {
+        const errors: string[] = [];
+
+        for (let index = completedMoves.length - 1; index >= 0; index--) {
+            const move = completedMoves[index]!;
+            try {
+                const occupied = this.app.vault.getAbstractFileByPath(
+                    move.originalPath,
+                );
+                if (occupied && occupied !== move.file) {
+                    errors.push(`original path occupied: ${move.originalPath}`);
+                    continue;
+                }
+                if (move.file.path !== move.originalPath) {
+                    await this.app.vault.rename(move.file, move.originalPath);
+                }
+            } catch (error) {
+                errors.push(
+                    `image ${move.originalPath}: ${this.errorMessage(error)}`,
+                );
+            }
+        }
+
+        for (let index = completedWrites.length - 1; index >= 0; index--) {
+            const write = completedWrites[index]!;
+            let restored = false;
+            let conflict = false;
+            try {
+                await this.app.vault.process(write.file, (currentContent) => {
+                    if (currentContent !== write.updatedContent) {
+                        conflict = true;
+                        return currentContent;
+                    }
+                    restored = true;
+                    return write.originalContent;
+                });
+                if (conflict || !restored) {
+                    errors.push(`note changed: ${write.file.path}`);
+                }
+            } catch (error) {
+                errors.push(
+                    `note ${write.file.path}: ${this.errorMessage(error)}`,
+                );
+            }
+        }
+
+        return errors;
+    }
+
+    private errorMessage(error: unknown): string {
+        return error instanceof Error ? error.message : String(error);
     }
 }

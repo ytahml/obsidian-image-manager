@@ -62,6 +62,23 @@ describe("local image resolution", () => {
         );
     });
 
+    it("classifies an angle-bracket remote Markdown destination before lookup", () => {
+        const note = file("notes/current.md", "notes");
+        const local = file("assets/photo.png");
+        const resolve = vi.fn(() => local);
+
+        expect(
+            resolveLocalFileReference(
+                app(resolve),
+                note,
+                "<https://example.com/photo.png>",
+                "markdown",
+                createLocalFileLookup([local]),
+            ),
+        ).toEqual({ status: "remote" });
+        expect(resolve).not.toHaveBeenCalled();
+    });
+
     it("falls back to an explicit source-relative path", () => {
         const note = file("notes/daily/current.md", "notes/daily");
         const image = file("notes/assets/photo.png");
@@ -75,6 +92,25 @@ describe("local image resolution", () => {
                 createLocalFileLookup([image]),
             ),
         ).toEqual({ status: "resolved", file: image });
+    });
+
+    it("reports conflicting Vault-root and source-relative paths as ambiguous", () => {
+        const note = file("notes/current.md", "notes");
+        const vaultRoot = file("assets/photo.png");
+        const sourceRelative = file("notes/assets/photo.png");
+
+        expect(
+            resolveLocalFileReference(
+                app(),
+                note,
+                "assets/photo.png",
+                "markdown",
+                createLocalFileLookup([vaultRoot, sourceRelative]),
+            ),
+        ).toEqual({
+            status: "ambiguous",
+            candidates: [vaultRoot, sourceRelative],
+        });
     });
 
     it("uses a basename fallback only when exactly one candidate exists", () => {

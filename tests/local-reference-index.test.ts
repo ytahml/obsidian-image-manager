@@ -235,6 +235,21 @@ describe("local reference index", () => {
         expect(index.indeterminate).toEqual([first, second]);
     });
 
+    it("protects conflicting Vault-root and source-relative candidates", async () => {
+        const note = file("notes/example.md", "md");
+        const vaultRoot = file("assets/chart.png", "png");
+        const sourceRelative = file("notes/assets/chart.png", "png");
+        const app = appWith({ [note.path]: "![](assets/chart.png)" }, [
+            note,
+            vaultRoot,
+            sourceRelative,
+        ]);
+
+        const index = await buildLocalReferenceIndex(app, ["png"]);
+        expect(index.occurrencesByImagePath).toEqual(new Map());
+        expect(index.indeterminate).toEqual([vaultRoot, sourceRelative]);
+    });
+
     it("protects every same-name candidate when a short link is ambiguous", async () => {
         const note = file("notes/example.md", "md");
         const first = file("one/chart.png", "png");

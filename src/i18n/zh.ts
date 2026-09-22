@@ -131,6 +131,10 @@ export const zh: Record<string, string> = {
     "notice.reorganizeDone":
         "已整理 {note} 篇笔记，移动 {moved} 张图片，跳过 {skipped} 张",
     "notice.reorganizeFailed": "整理失败：{error}",
+    "notice.reorganizeConcurrent":
+        "检测到受影响的笔记或图片发生变化，已中止整理，未保留图片移动。",
+    "notice.reorganizeRollbackFailed":
+        "整理失败且自动回滚未完整完成，请检查受影响的笔记和图片后再重试。",
     "settings.useMarkdownFormat": "使用 Markdown 标准格式",
     "settings.useMarkdownFormatDesc":
         "开启后，粘贴图片使用标准 Markdown 格式（![alt](image.png)），整理图片时将 Wiki 格式转为 Markdown；关闭后，粘贴图片使用 Obsidian 默认的 Wiki 格式（![[image.png]]）",

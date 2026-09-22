@@ -8,7 +8,6 @@ import {
     type LocalFileResolution,
 } from "../utils/local-image-resolution";
 import { readNoteContentForAction } from "../utils/note-content";
-import { isRemoteImageReference } from "../utils/upload-reference";
 
 export interface LocalNoteImageReference {
     reference: ImageReference;
@@ -41,7 +40,6 @@ export async function collectLocalNoteImages(
     const lookup = createLocalFileLookup(app.vault.getFiles());
     const references = refConverter
         .parseReferences(content)
-        .filter((reference) => !isRemoteImageReference(reference.path))
         .map((reference) => ({
             reference,
             resolution: resolveLocalImageReference(
@@ -51,6 +49,7 @@ export async function collectLocalNoteImages(
                 reference.format,
                 lookup,
             ),
-        }));
+        }))
+        .filter((item) => item.resolution.status !== "remote");
     return { content, references };
 }

@@ -144,6 +144,10 @@ export const en: Record<string, string> = {
     "notice.reorganizeDone":
         "Reorganized {note} note(s), moved {moved} image(s), skipped {skipped}",
     "notice.reorganizeFailed": "Reorganize failed: {error}",
+    "notice.reorganizeConcurrent":
+        "Reorganization stopped because an affected note or image changed. No image move was kept.",
+    "notice.reorganizeRollbackFailed":
+        "Reorganization failed and automatic rollback was incomplete. Review the affected notes and images before retrying.",
     "settings.useMarkdownFormat": "Use Markdown standard format",
     "settings.useMarkdownFormatDesc":
         "When enabled, pasted images use standard Markdown format (![alt](image.png)) and reorganizing converts Wiki to Markdown. When disabled, pasted images use Obsidian default Wiki format (![[image.png]])",

@@ -2,6 +2,7 @@ import { normalizePath, TFile } from "obsidian";
 import type { App } from "obsidian";
 import type { ReferenceFormat } from "../types";
 import { decodePathSegments } from "./path-utils";
+import { isRemoteImageReference } from "./upload-reference";
 
 export type LocalReferenceSemantics = ReferenceFormat | "url" | "literal";
 
@@ -11,6 +12,7 @@ export interface LocalFileLookup {
 }
 
 export type LocalFileResolution =
+    | { status: "remote" }
     | { status: "resolved"; file: TFile }
     | { status: "missing" }
     | { status: "ambiguous"; candidates: readonly TFile[] };
@@ -44,6 +46,7 @@ export function resolveLocalFileReference(
 ): LocalFileResolution {
     const target = normalizeLinkTarget(rawTarget, semantics);
     if (!target) return { status: "missing" };
+    if (isRemoteImageReference(target)) return { status: "remote" };
 
     const linked = app.metadataCache?.getFirstLinkpathDest(target, source.path);
     if (linked instanceof TFile) {
@@ -51,10 +54,18 @@ export function resolveLocalFileReference(
         if (eligible) return { status: "resolved", file: eligible };
     }
 
+    const explicitMatches = new Map<string, TFile>();
     for (const path of explicitCandidatePaths(source, target)) {
         const file = lookup.byPath.get(path);
-        if (file) return { status: "resolved", file };
+        if (file) explicitMatches.set(file.path, file);
     }
+    const explicit = Array.from(explicitMatches.values()).sort((a, b) =>
+        a.path.localeCompare(b.path),
+    );
+    if (explicit.length === 1)
+        return { status: "resolved", file: explicit[0]! };
+    if (explicit.length > 1)
+        return { status: "ambiguous", candidates: explicit };
 
     const filename = target.split("/").pop() ?? target;
     const sameName = lookup.byName.get(filename) ?? [];

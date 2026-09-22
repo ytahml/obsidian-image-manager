@@ -1,11 +1,14 @@
-import type { App, TFile } from 'obsidian';
-import type { ImageHostingConfig, ImageReference } from '../types';
-import type { RefConverter } from '../utils/ref-converter';
-import { collectLocalNoteImages } from './note-images';
-import { summarizeUploadError } from './upload-error';
-import { UploadQueue, type QueueProgress } from './upload-queue';
-import type { UploadOperationResult, UploadService } from './upload-service';
-import type { PreparedUploadReference, UploadReferenceManager } from './upload-reference-manager';
+import type { App, TFile } from "obsidian";
+import type { ImageHostingConfig, ImageReference } from "../types";
+import type { RefConverter } from "../utils/ref-converter";
+import { collectLocalNoteImages } from "./note-images";
+import { summarizeUploadError } from "./upload-error";
+import { UploadQueue, type QueueProgress } from "./upload-queue";
+import type { UploadOperationResult, UploadService } from "./upload-service";
+import type {
+    PreparedUploadReference,
+    UploadReferenceManager,
+} from "./upload-reference-manager";
 
 export interface ImageUploadResult {
     operation: UploadOperationResult;
@@ -14,7 +17,7 @@ export interface ImageUploadResult {
 }
 
 export interface NoteUploadFailure {
-    kind: 'missing-file' | 'ambiguous-file' | 'upload-failed';
+    kind: "missing-file" | "ambiguous-file" | "upload-failed";
     fileName: string;
     error?: string;
     referenceCount: number;
@@ -55,13 +58,13 @@ export class ExplicitUploadWorkflow {
         private readonly app: App,
         private readonly uploadService: UploadService,
         private readonly refConverter: RefConverter,
-        private readonly uploadReferences: UploadReferenceManager
+        private readonly uploadReferences: UploadReferenceManager,
     ) {}
 
     async uploadImage(
         file: TFile,
         hosting: ImageHostingConfig,
-        replaceVaultReferences: boolean
+        replaceVaultReferences: boolean,
     ): Promise<ImageUploadResult> {
         const operation = await this.uploadService.uploadFile(file, hosting);
         if (!operation.success || !operation.url) {
@@ -71,7 +74,11 @@ export class ExplicitUploadWorkflow {
         const prepared = await this.uploadReferences.prepare(file);
         const reference = prepared.render(operation.url);
         const replacedReferences = replaceVaultReferences
-            ? await this.uploadReferences.replaceVaultReferences(file, operation.url, prepared)
+            ? await this.uploadReferences.replaceVaultReferences(
+                  file,
+                  operation.url,
+                  prepared,
+              )
             : 0;
         return { operation, reference, replacedReferences };
     }
@@ -79,16 +86,23 @@ export class ExplicitUploadWorkflow {
     async uploadNote(
         note: TFile,
         hosting: ImageHostingConfig,
-        onProgress?: (progress: NoteUploadProgress) => void
+        onProgress?: (progress: NoteUploadProgress) => void,
     ): Promise<NoteUploadResult> {
-        const { content, references } = await collectLocalNoteImages(this.app, note, this.refConverter);
+        const { content, references } = await collectLocalNoteImages(
+            this.app,
+            note,
+            this.refConverter,
+        );
         const failures: NoteUploadFailure[] = [];
         const groups = new Map<string, ResolvedImageGroup>();
 
         for (const item of references) {
-            if (item.resolution.status !== 'resolved') {
+            if (item.resolution.status !== "resolved") {
                 failures.push({
-                    kind: item.resolution.status === 'ambiguous' ? 'ambiguous-file' : 'missing-file',
+                    kind:
+                        item.resolution.status === "ambiguous"
+                            ? "ambiguous-file"
+                            : "missing-file",
                     fileName: item.reference.path,
                     referenceCount: 1,
                 });
@@ -105,12 +119,19 @@ export class ExplicitUploadWorkflow {
         let completedImages = 0;
 
         for (const group of resolvedGroups) {
-            onProgress?.({ completedImages, totalImages: resolvedGroups.length, current: group.file.name });
+            onProgress?.({
+                completedImages,
+                totalImages: resolvedGroups.length,
+                current: group.file.name,
+            });
             try {
-                const operation = await this.uploadService.uploadFile(group.file, hosting);
+                const operation = await this.uploadService.uploadFile(
+                    group.file,
+                    hosting,
+                );
                 if (!operation.success || !operation.url) {
                     failures.push({
-                        kind: 'upload-failed',
+                        kind: "upload-failed",
                         fileName: group.file.name,
                         error: summarizeUploadError(operation.error),
                         referenceCount: group.references.length,
@@ -119,50 +140,68 @@ export class ExplicitUploadWorkflow {
                     uploaded.push({
                         ...group,
                         url: operation.url,
-                        prepared: await this.uploadReferences.prepare(group.file),
+                        prepared: await this.uploadReferences.prepare(
+                            group.file,
+                        ),
                     });
                 }
             } catch (error) {
                 failures.push({
-                    kind: 'upload-failed',
+                    kind: "upload-failed",
                     fileName: group.file.name,
-                    error: summarizeUploadError(error instanceof Error ? error.message : undefined),
+                    error: summarizeUploadError(
+                        error instanceof Error ? error.message : undefined,
+                    ),
                     referenceCount: group.references.length,
                 });
             }
             completedImages++;
-            onProgress?.({ completedImages, totalImages: resolvedGroups.length, current: group.file.name });
+            onProgress?.({
+                completedImages,
+                totalImages: resolvedGroups.length,
+                current: group.file.name,
+            });
         }
 
-        const replacements = uploaded.reduce<Array<{ reference: ImageReference; text: string }>>(
-            (all, group) => {
-                for (const reference of group.references) {
-                    all.push({
-                        reference,
-                        text: group.prepared.render(
-                            group.url,
-                            reference.altText || group.file.name.replace(/\.[^.]+$/, '')
-                        ),
-                    });
-                }
-                return all;
-            },
-            []
-        ).sort((a, b) => b.reference.col - a.reference.col);
+        const replacements = uploaded
+            .reduce<Array<{ reference: ImageReference; text: string }>>(
+                (all, group) => {
+                    for (const reference of group.references) {
+                        all.push({
+                            reference,
+                            text: group.prepared.render(
+                                group.url,
+                                reference.altText ||
+                                    group.file.name.replace(/\.[^.]+$/, ""),
+                            ),
+                        });
+                    }
+                    return all;
+                },
+                [],
+            )
+            .sort((a, b) => b.reference.col - a.reference.col);
 
         let newContent = content;
         for (const replacement of replacements) {
             const ref = replacement.reference;
-            newContent = newContent.substring(0, ref.col) + replacement.text +
+            newContent =
+                newContent.substring(0, ref.col) +
+                replacement.text +
                 newContent.substring(ref.col + ref.fullMatch.length);
         }
 
         if (replacements.length > 0) {
             await this.app.vault.process(note, () => newContent);
             for (const group of uploaded) {
-                await this.uploadReferences.replaceVaultReferences(group.file, group.url, group.prepared, {
-                    skipFile: note,
-                });
+                await this.uploadReferences.replaceVaultReferences(
+                    group.file,
+                    group.url,
+                    group.prepared,
+                    {
+                        skipFile: note,
+                    },
+                );
             }
         }
 
@@ -177,7 +216,7 @@ export class ExplicitUploadWorkflow {
     async uploadBatch(
         files: TFile[],
         hosting: ImageHostingConfig,
-        onProgress?: (progress: QueueProgress) => void
+        onProgress?: (progress: QueueProgress) => void,
     ): Promise<BatchUploadResult> {
         const queue = new UploadQueue(this.uploadService);
         queue.addFiles(files);
