@@ -75,6 +75,8 @@ ClipboardEvent/DragEvent
 - Markdown → Wiki 的内部转换器只保留文件名；当前用户命令只公开 Wiki → Markdown。
 - alt 等于文件 basename 时避免生成冗余 Wiki alt；Markdown 输出保留可理解的 alt。
 
+会移动文件、改写引用或上传文件的本地工作流共享来源感知解析语义：Markdown 目标先解包尖括号并逐段容错解码，再统一分类 remote；Wiki 保持宿主字面路径。优先使用 `metadataCache.getFirstLinkpathDest(target, source.path)`；无权威结果时必须收集并按路径去重明确的 Vault-root 与来源目录相对候选，只有一个命中才可解析，多个命中返回歧义。只有明确候选均未命中且 basename 在 eligible lookup 中唯一时才允许兼容回退，不能依赖 `vault.getFiles()` 顺序任选首项。Wiki → Markdown 转换对 remote、缺失或歧义引用保持原文，并按实际转换/跳过数量报告。只读 `LocalReferenceIndex` 在歧义时继续保护全部候选。
+
 远程引用索引不只依赖 `RefConverter`；它还有独立 URL 扫描能力，详见远程文档。
 
 ## Canvas 压缩与格式
@@ -169,13 +171,12 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 - 活动笔记读取 Editor 内存文本，避免未保存内容丢失。
 - 非活动笔记使用 Vault `read`。
 - Markdown 本地路径先完整容错解码并去除尖括号，再用 Obsidian linkpath 语义解析。
-- 聚合未解析引用、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要。
+- 聚合缺失引用、同名歧义、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要；歧义引用不发起上传，也不替换当前或其他笔记。
 - 排除所有 URL scheme、protocol-relative、data 与 blob 引用；同一 `TFile.path` 在显式笔记上传中只上传一次，每处引用仍独立保留 alt。
 
 上传后替换：
 
-- 只匹配本地文件名或 Vault 路径。
-- 跳过所有 URL scheme、protocol-relative、data 与 blob 引用。
+- 遍历其他笔记时复用共享来源感知解析器；只有引用唯一解析到本次上传的同一 `TFile.path` 才替换，remote、缺失、歧义和解析到其他同名文件的引用保持原文。
 - 当前 Editor 已更新时，遍历其他笔记必须跳过当前文件。
 - 上传 URL 中 Unicode 可读化只发生在生成 Markdown 引用的边界。
 - 当前笔记的全部成功替换先一次写回，成功后再更新其他笔记；显式流程只返回结构化结果，Notice 和进度属于 `main.ts` UI adapter。
@@ -214,11 +215,12 @@ managed 自动上传在本地未压缩而 `compressBeforeUpload=true` 时重新�
 
 `ImageReorganizer`：
 
-- 反向遍历引用。
-- 跳过远程 URL。
-- 按 `skipWikiRefsOnReorganize` 决定 Wiki 是否参与。
-- 根据路径模板和 base 计算目标，冲突时添加数字后缀。
-- 移动或转换后更新当前笔记；有移动时更新其他笔记。
-- `reorganizeConvertFormat=true` 时目标为 Markdown；false 时保持原格式。
+- 单笔记和文件夹命令都先建立完整批次计划：按来源笔记语义绑定目标引用、对待移动 `TFile` 去重，并预绑定 Vault 中其他确实指向这些文件的引用；缺失或歧义计入 skipped，不移动、不改写。
+- remote 引用由共享解析器在 Markdown 解包后识别并跳过；按 `skipWikiRefsOnReorganize` 决定本地 Wiki 是否参与。
+- 同一图片在一个批次内只移动一次；目标按目标笔记遍历顺序确定。先创建目录，再基于实时占用和批次 reserved paths 重算后缀，并记录真实 `oldPath → finalPath`。
+- mutation barrier 紧邻首次 rename：为待移动图片扫描的全部 Markdown（包括规划时尚未引用图片的笔记）保留快照，并与目标笔记、源图片身份一起重验；内容变化、删除或读取失败都归类为并发冲突，中止整个单笔记或文件夹批次，保证零图片移动。
+- barrier 后按预绑定文件身份更新当前和其他笔记，不再按 basename 猜测。文本替换从后往前，写回返回 applied/unchanged/conflict，不能静默跳过后报告成功。
+- rename 或写回失败时记录执行 journal，逆序回滚已移动图片，并仅在笔记仍等于插件刚写入内容时恢复原文；回滚不完整必须报告 partial failure。Obsidian 不提供跨文件原子事务，因此零移动保证止于 mutation barrier，barrier 后依赖受保护回滚。
+- 文件夹结果把发生移动、跳过或纯引用格式转换的目标笔记都计入 processed notes；`reorganizeConvertFormat=true` 时目标为 Markdown，false 时保持原格式。
 
 不要把“使用 Wiki 粘贴”误解为支持用户命令 Markdown → Wiki。

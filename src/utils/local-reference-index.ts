@@ -1,5 +1,8 @@
-import { TFile, normalizePath, type App } from "obsidian";
-import { decodePathSegments } from "./path-utils";
+import { TFile, type App } from "obsidian";
+import {
+    createLocalFileLookup,
+    resolveLocalFileReference,
+} from "./local-image-resolution";
 import { isRemoteImageReference } from "./upload-reference";
 
 export type LocalReferenceKind =
@@ -54,13 +57,7 @@ export async function buildLocalReferenceIndex(
     const images = files.filter((file) =>
         supported.has(file.extension.toLowerCase()),
     );
-    const byPath = new Map(images.map((file) => [file.path, file]));
-    const byName = new Map<string, TFile[]>();
-    for (const image of images) {
-        const entries = byName.get(image.name) ?? [];
-        entries.push(image);
-        byName.set(image.name, entries);
-    }
+    const imageLookup = createLocalFileLookup(images);
 
     const occurrencesByImagePath = new Map<
         string,
@@ -102,22 +99,20 @@ export async function buildLocalReferenceIndex(
                 target,
                 line: lineAt(text, candidate.index),
             } satisfies LocalReferenceOccurrence;
-            const resolved = resolveTarget(
+            const resolution = resolveLocalFileReference(
                 app,
                 source,
                 target,
-                byPath,
-                byName,
                 candidate.semantics,
+                imageLookup,
             );
-            const image = resolved.length === 1 ? resolved[0] : undefined;
-            if (image) {
+            if (resolution.status === "resolved") {
                 const occurrences =
-                    occurrencesByImagePath.get(image.path) ?? [];
+                    occurrencesByImagePath.get(resolution.file.path) ?? [];
                 occurrences.push(occurrence);
-                occurrencesByImagePath.set(image.path, occurrences);
-            } else {
-                for (const image of resolved)
+                occurrencesByImagePath.set(resolution.file.path, occurrences);
+            } else if (resolution.status === "ambiguous") {
+                for (const image of resolution.candidates)
                     indeterminate.set(image.path, image);
             }
         }
@@ -354,41 +349,6 @@ function collectCanvasCandidates(text: string): ReferenceCandidate[] | null {
     } catch {
         return null;
     }
-}
-
-function resolveTarget(
-    app: App,
-    source: TFile,
-    target: string,
-    byPath: ReadonlyMap<string, TFile>,
-    byName: ReadonlyMap<string, TFile[]>,
-    semantics: TargetSemantics,
-): TFile[] {
-    const linkTarget =
-        semantics === "markdown" || semantics === "url"
-            ? decodePathSegments(target)
-            : target;
-    const metadataCache = app.metadataCache;
-    const linked = metadataCache?.getFirstLinkpathDest(linkTarget, source.path);
-    if (linked instanceof TFile && byPath.has(linked.path)) return [linked];
-
-    const candidates = new Set<string>();
-    if (linkTarget.startsWith("/"))
-        candidates.add(normalizePath(linkTarget.slice(1)));
-    else {
-        candidates.add(normalizePath(linkTarget));
-        const parent =
-            source.parent?.path ??
-            source.path.slice(0, source.path.lastIndexOf("/"));
-        candidates.add(
-            normalizePath([parent, linkTarget].filter(Boolean).join("/")),
-        );
-    }
-    for (const path of candidates) {
-        const file = byPath.get(path);
-        if (file) return [file];
-    }
-    return byName.get(linkTarget.split("/").pop() ?? linkTarget) ?? [];
 }
 
 function splitWikiTarget(value: string): string {
