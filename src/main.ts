@@ -379,9 +379,16 @@ export default class ImageManagerPlugin extends Plugin {
             return;
         }
 
-        const converted = this.refConverter.convertAllReferences(content, targetFormat, file);
-        await this.app.vault.process(file, () => converted);
-        new Notice(t('notice.convertSuccess', { count: String(refCount) }));
+        const result = this.refConverter.convertAllReferences(content, targetFormat, file);
+        if (result.converted > 0) {
+            await this.app.vault.process(file, () => result.content);
+        }
+        new Notice(result.skipped > 0
+            ? t('notice.convertPartial', {
+                count: String(result.converted),
+                skipped: String(result.skipped),
+            })
+            : t('notice.convertSuccess', { count: String(result.converted) }));
     }
 
     private async convertEntireVault() {
@@ -389,23 +396,31 @@ export default class ImageManagerPlugin extends Plugin {
         const targetFormat = 'markdown';
 
         let totalConverted = 0;
+        let totalSkipped = 0;
         let filesChanged = 0;
 
         for (const file of mdFiles) {
             const content = await this.app.vault.cachedRead(file);
             const counts = this.refConverter.countReferences(content);
-            const refCount = counts.wiki;
+            if (counts.wiki === 0) continue;
 
-            if (refCount === 0) continue;
-
-            const converted = this.refConverter.convertAllReferences(content, targetFormat, file);
-            await this.app.vault.process(file, () => converted);
-            totalConverted += refCount;
-            filesChanged++;
+            const result = this.refConverter.convertAllReferences(content, targetFormat, file);
+            if (result.converted > 0) {
+                await this.app.vault.process(file, () => result.content);
+                filesChanged++;
+            }
+            totalConverted += result.converted;
+            totalSkipped += result.skipped;
         }
 
-        if (filesChanged === 0) {
+        if (totalConverted === 0 && totalSkipped === 0) {
             new Notice(t('notice.noRefsToConvert'));
+        } else if (totalSkipped > 0) {
+            new Notice(t('notice.convertVaultPartial', {
+                files: String(filesChanged),
+                count: String(totalConverted),
+                skipped: String(totalSkipped),
+            }));
         } else {
             new Notice(t('notice.convertVaultSuccess', { files: String(filesChanged), count: String(totalConverted) }));
         }
@@ -527,9 +542,12 @@ export default class ImageManagerPlugin extends Plugin {
                 }
                 if (result.failures.length > 0) {
                     const firstFailure = result.failures[0]!;
-                    const error = firstFailure.kind === 'missing-file'
-                        ? t('notice.noteUploadFileMissing')
-                        : firstFailure.error ?? t('notice.unknownError');
+                    let error = firstFailure.error ?? t('notice.unknownError');
+                    if (firstFailure.kind === 'missing-file') {
+                        error = t('notice.noteUploadFileMissing');
+                    } else if (firstFailure.kind === 'ambiguous-file') {
+                        error = t('notice.noteUploadFileAmbiguous');
+                    }
                     new Notice(t('notice.noteUploadPartial', {
                         success: String(result.successfulReferences),
                         total: String(result.totalReferences),
@@ -663,14 +681,21 @@ export default class ImageManagerPlugin extends Plugin {
             return;
         }
 
-        const converted = this.refConverter.convertAllReferences(content, targetFormat, file);
-        if (converted === content) {
+        const result = this.refConverter.convertAllReferences(content, targetFormat, file);
+        if (result.converted === 0 && result.skipped === 0) {
             new Notice(t('notice.noRefsToConvert'));
             return;
         }
 
-        await this.app.vault.process(file, () => converted);
-        new Notice(t('notice.convertSuccess', { count: String(totalCount) }));
+        if (result.converted > 0) {
+            await this.app.vault.process(file, () => result.content);
+        }
+        new Notice(result.skipped > 0
+            ? t('notice.convertPartial', {
+                count: String(result.converted),
+                skipped: String(result.skipped),
+            })
+            : t('notice.convertSuccess', { count: String(result.converted) }));
     }
 
     private handleImagePaste(evt: ClipboardEvent, editor: import('obsidian').Editor, file: TFile | null): boolean {

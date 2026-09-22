@@ -103,7 +103,11 @@ export const zh: Record<string, string> = {
     "notice.compressFailed": "图片压缩失败",
     "notice.noRefsToConvert": "未找到可转换的图片引用",
     "notice.convertSuccess": "当前笔记已转换 {count} 处引用",
+    "notice.convertPartial":
+        "当前笔记已转换 {count} 处引用，跳过 {skipped} 处无法安全解析的引用",
     "notice.convertVaultSuccess": "已在 {files} 个文件中转换 {count} 处引用",
+    "notice.convertVaultPartial":
+        "已在 {files} 个文件中转换 {count} 处引用，跳过 {skipped} 处无法安全解析的引用",
     "notice.noHostingConfig": "未配置图床，请在设置中添加图床配置。",
     "notice.uploading": "正在上传图片…",
     "notice.uploadSuccess": "上传成功！图片引用已复制到剪贴板。",
@@ -114,6 +118,8 @@ export const zh: Record<string, string> = {
     "notice.noteUploadPartial":
         "笔记上传完成：{success}/{total} 成功，{failed} 个失败。首个失败：{file} — {error}",
     "notice.noteUploadFileMissing": "未找到本地图片文件",
+    "notice.noteUploadFileAmbiguous":
+        "存在多个同名本地图片，无法安全确定引用目标",
     "notice.noteUploadNoImages": "笔记中未找到本地图片引用。",
     "notice.noImagesToUpload": "未找到可上传的图片。",
     "notice.batchUploadStart": "开始批量上传 {count} 张图片…",

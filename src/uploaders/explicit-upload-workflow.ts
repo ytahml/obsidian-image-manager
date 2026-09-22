@@ -14,7 +14,7 @@ export interface ImageUploadResult {
 }
 
 export interface NoteUploadFailure {
-    kind: 'missing-file' | 'upload-failed';
+    kind: 'missing-file' | 'ambiguous-file' | 'upload-failed';
     fileName: string;
     error?: string;
     referenceCount: number;
@@ -86,17 +86,18 @@ export class ExplicitUploadWorkflow {
         const groups = new Map<string, ResolvedImageGroup>();
 
         for (const item of references) {
-            if (!item.file) {
+            if (item.resolution.status !== 'resolved') {
                 failures.push({
-                    kind: 'missing-file',
+                    kind: item.resolution.status === 'ambiguous' ? 'ambiguous-file' : 'missing-file',
                     fileName: item.reference.path,
                     referenceCount: 1,
                 });
                 continue;
             }
-            const existing = groups.get(item.file.path);
+            const file = item.resolution.file;
+            const existing = groups.get(file.path);
             if (existing) existing.references.push(item.reference);
-            else groups.set(item.file.path, { file: item.file, references: [item.reference] });
+            else groups.set(file.path, { file, references: [item.reference] });
         }
 
         const resolvedGroups = Array.from(groups.values());

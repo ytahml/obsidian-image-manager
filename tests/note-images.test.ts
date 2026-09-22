@@ -87,7 +87,7 @@ describe('note image upload references', () => {
         const result = await collectLocalNoteImages(app, note, refConverter);
 
         expect(result.references).toHaveLength(1);
-        expect(result.references[0]?.file).toBe(image);
+        expect(result.references[0]?.resolution).toEqual({ status: 'resolved', file: image });
         expect(getFirstLinkpathDest).toHaveBeenCalledWith('assets/中文 image.png', note.path);
         expect(read).not.toHaveBeenCalled();
     });
@@ -101,11 +101,29 @@ describe('note image upload references', () => {
             },
             vault: {
                 getAbstractFileByPath: vi.fn(),
-                getFiles: vi.fn(() => []),
+                getFiles: vi.fn(() => [image]),
             },
         } as unknown as App;
 
-        expect(resolveLocalImageReference(app, note, '<assets/my%20image.png>')).toBe(image);
+        expect(resolveLocalImageReference(app, note, '<assets/my%20image.png>')).toEqual({
+            status: 'resolved',
+            file: image,
+        });
+    });
+
+    it('reports duplicate basenames as ambiguous instead of choosing one', () => {
+        const note = createFile('notes/current.md', 'notes');
+        const first = createFile('one/image.png', 'one');
+        const second = createFile('two/image.png', 'two');
+        const app = {
+            metadataCache: { getFirstLinkpathDest: vi.fn(() => null) },
+            vault: { getFiles: vi.fn(() => [second, first]) },
+        } as unknown as App;
+
+        expect(resolveLocalImageReference(app, note, 'image.png')).toEqual({
+            status: 'ambiguous',
+            candidates: [first, second],
+        });
     });
 
     it('excludes every remote scheme, protocol-relative URL, data URL and blob URL', async () => {

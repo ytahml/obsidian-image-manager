@@ -75,6 +75,8 @@ ClipboardEvent/DragEvent
 - Markdown → Wiki 的内部转换器只保留文件名；当前用户命令只公开 Wiki → Markdown。
 - alt 等于文件 basename 时避免生成冗余 Wiki alt；Markdown 输出保留可理解的 alt。
 
+会移动文件、改写引用或上传文件的本地工作流共享来源感知解析语义：Markdown 目标先解包尖括号并逐段容错解码，Wiki 保持宿主字面路径；优先使用 `metadataCache.getFirstLinkpathDest(target, source.path)`，再验证明确的 Vault-root 和来源目录相对路径。只有 basename 候选唯一时才允许兼容回退；多个同名候选必须报告歧义并失败关闭，不能依赖 `vault.getFiles()` 顺序任选首项。Wiki → Markdown 转换对缺失或歧义引用保持原文，并按实际转换/跳过数量报告。只读 `LocalReferenceIndex` 在歧义时继续保护全部同名候选。
+
 远程引用索引不只依赖 `RefConverter`；它还有独立 URL 扫描能力，详见远程文档。
 
 ## Canvas 压缩与格式
@@ -169,7 +171,7 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 - 活动笔记读取 Editor 内存文本，避免未保存内容丢失。
 - 非活动笔记使用 Vault `read`。
 - Markdown 本地路径先完整容错解码并去除尖括号，再用 Obsidian linkpath 语义解析。
-- 聚合未解析引用、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要。
+- 聚合缺失引用、同名歧义、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要；歧义引用不发起上传，也不替换当前或其他笔记。
 - 排除所有 URL scheme、protocol-relative、data 与 blob 引用；同一 `TFile.path` 在显式笔记上传中只上传一次，每处引用仍独立保留 alt。
 
 上传后替换：
@@ -214,11 +216,11 @@ managed 自动上传在本地未压缩而 `compressBeforeUpload=true` 时重新�
 
 `ImageReorganizer`：
 
-- 反向遍历引用。
-- 跳过远程 URL。
-- 按 `skipWikiRefsOnReorganize` 决定 Wiki 是否参与。
-- 根据路径模板和 base 计算目标，冲突时添加数字后缀。
-- 移动或转换后更新当前笔记；有移动时更新其他笔记。
+- 移动前按来源笔记语义解析当前引用，并预先绑定其他笔记中确实指向待移动 `TFile` 的引用；缺失或同名歧义计入 skipped，不移动、不改写。
+- 跳过远程 URL；按 `skipWikiRefsOnReorganize` 决定 Wiki 是否参与。
+- 根据路径模板和 base 计算目标，冲突时添加数字后缀，并为每个原始路径记录实际最终路径。
+- 当前笔记和其他笔记只按预绑定文件身份及 `oldPath → finalPath` 记录更新，不在移动后按 basename 猜测目标。
+- 文本替换从后往前；写回时重验读取快照和原始引用位置，并发内容变化时失败关闭而不覆盖新内容。
 - `reorganizeConvertFormat=true` 时目标为 Markdown；false 时保持原格式。
 
 不要把“使用 Wiki 粘贴”误解为支持用户命令 Markdown → Wiki。

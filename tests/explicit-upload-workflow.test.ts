@@ -178,4 +178,46 @@ describe('ExplicitUploadWorkflow', () => {
         await expect(workflow.uploadNote(note, hosting())).rejects.toThrow('write failed');
         expect(replaceVaultReferences).not.toHaveBeenCalled();
     });
+
+    it('does not upload or replace an ambiguous same-name note image', async () => {
+        const note = file('notes/current.md');
+        const first = file('one/photo.png');
+        const second = file('two/photo.png');
+        const match = '![photo](photo.png)';
+        const uploadFile = vi.fn();
+        const process = vi.fn();
+        const replaceVaultReferences = vi.fn();
+        const app = {
+            workspace: { getActiveViewOfType: vi.fn(() => null) },
+            metadataCache: { getFirstLinkpathDest: vi.fn(() => null) },
+            vault: {
+                read: vi.fn(async () => match),
+                getFiles: vi.fn(() => [second, first]),
+                process,
+            },
+        } as unknown as App;
+        const workflow = new ExplicitUploadWorkflow(
+            app,
+            { uploadFile } as unknown as UploadService,
+            { parseReferences: vi.fn(() => [reference(match, 'photo.png', 'photo', 0)]) } as unknown as RefConverter,
+            {
+                prepare: vi.fn(),
+                replaceVaultReferences,
+            } as unknown as UploadReferenceManager
+        );
+
+        await expect(workflow.uploadNote(note, hosting())).resolves.toEqual({
+            totalReferences: 1,
+            successfulReferences: 0,
+            uploadedImages: 0,
+            failures: [{
+                kind: 'ambiguous-file',
+                fileName: 'photo.png',
+                referenceCount: 1,
+            }],
+        });
+        expect(uploadFile).not.toHaveBeenCalled();
+        expect(process).not.toHaveBeenCalled();
+        expect(replaceVaultReferences).not.toHaveBeenCalled();
+    });
 });

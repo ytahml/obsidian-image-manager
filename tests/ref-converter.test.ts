@@ -4,16 +4,24 @@ import { TFile, TFolder, type App } from "obsidian";
 vi.mock("obsidian", () => ({
     TFile: class {},
     TFolder: class {},
+    normalizePath: (path: string) =>
+        path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, ""),
 }));
 
 import { RefConverter } from "../src/utils/ref-converter";
 
 function createConverter(
     files: Array<{ name: string; path: string }> = [],
+    resolveLink: (path: string, sourcePath: string) => TFile | null = () =>
+        null,
 ): RefConverter {
+    const vaultFiles = files.map((input) => Object.assign(new TFile(), input));
     const app = {
         vault: {
-            getFiles: () => files,
+            getFiles: () => vaultFiles,
+        },
+        metadataCache: {
+            getFirstLinkpathDest: resolveLink,
         },
     } as unknown as App;
     return new RefConverter(app);
@@ -99,13 +107,17 @@ describe("RefConverter", () => {
                 "![photo](assets/photo.png)",
                 "wiki",
             ),
-        ).toBe("![[photo.png]]");
+        ).toEqual({ content: "![[photo.png]]", converted: 1, skipped: 0 });
         expect(
             converter.convertAllReferences(
                 "![Cover](assets/photo.png)",
                 "wiki",
             ),
-        ).toBe("![[photo.png|Cover]]");
+        ).toEqual({
+            content: "![[photo.png|Cover]]",
+            converted: 1,
+            skipped: 0,
+        });
     });
 
     it("resolves Wiki filenames and converts them relative to the note", () => {
@@ -120,7 +132,11 @@ describe("RefConverter", () => {
                 "markdown",
                 note,
             ),
-        ).toBe("![Cover](../../assets/my%20photo.png)");
+        ).toEqual({
+            content: "![Cover](../../assets/my%20photo.png)",
+            converted: 1,
+            skipped: 0,
+        });
     });
 
     it("converts multiple references without corrupting later offsets", () => {
@@ -129,11 +145,36 @@ describe("RefConverter", () => {
                 "A ![one](a.png) B ![b](b.png)",
                 "wiki",
             ),
-        ).toBe("A ![[a.png|one]] B ![[b.png]]");
+        ).toEqual({
+            content: "A ![[a.png|one]] B ![[b.png]]",
+            converted: 2,
+            skipped: 0,
+        });
     });
 
     it("leaves references unchanged when already in the target format", () => {
         const source = "![[image.png|caption]]";
-        expect(converter.convertAllReferences(source, "wiki")).toBe(source);
+        expect(converter.convertAllReferences(source, "wiki")).toEqual({
+            content: source,
+            converted: 0,
+            skipped: 0,
+        });
+    });
+
+    it("keeps an ambiguous Wiki reference unchanged instead of choosing the first basename", () => {
+        converter = createConverter([
+            { name: "image.png", path: "one/image.png" },
+            { name: "image.png", path: "two/image.png" },
+        ]);
+        const note = createNote("notes/current.md", "notes");
+        const source = "![[image.png|caption]]";
+
+        expect(
+            converter.convertAllReferences(source, "markdown", note),
+        ).toEqual({
+            content: source,
+            converted: 0,
+            skipped: 1,
+        });
     });
 });

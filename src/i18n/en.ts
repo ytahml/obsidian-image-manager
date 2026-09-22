@@ -110,8 +110,12 @@ export const en: Record<string, string> = {
     "notice.compressFailed": "Image compression failed",
     "notice.noRefsToConvert": "No image references found to convert",
     "notice.convertSuccess": "Converted {count} reference(s) in current note",
+    "notice.convertPartial":
+        "Converted {count} reference(s) in the current note; skipped {skipped} reference(s) that could not be resolved safely",
     "notice.convertVaultSuccess":
         "Converted {count} reference(s) across {files} file(s)",
+    "notice.convertVaultPartial":
+        "Converted {count} reference(s) across {files} file(s); skipped {skipped} reference(s) that could not be resolved safely",
     "notice.noHostingConfig":
         "No image hosting configured. Please add one in settings.",
     "notice.uploading": "Uploading image...",
@@ -125,6 +129,8 @@ export const en: Record<string, string> = {
     "notice.noteUploadPartial":
         "Note upload finished: {success}/{total} succeeded; {failed} failed. First failure: {file} — {error}",
     "notice.noteUploadFileMissing": "Local image file was not found",
+    "notice.noteUploadFileAmbiguous":
+        "Multiple local images have this name, so the reference target cannot be determined safely",
     "notice.noteUploadNoImages":
         "No local image references found in this note.",
     "notice.noImagesToUpload": "No images found to upload.",
