@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.0.5
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Fixed same-name local image reorganization by resolving references from each source note and matching the exact Vault file identity; remote, missing, and ambiguous references now fail closed ([PR #54](https://github.com/ytahml/obsidian-image-manager/pull/54), [Issue #53](https://github.com/ytahml/obsidian-image-manager/issues/53)).
+- Reorganization now plans the complete note/folder batch, recalculates destinations after directory creation, validates every scanned note immediately before the first move, and performs protected rollback after execution failures.
+- Upload replacement now updates only references that resolve to the uploaded file, while folder results correctly count moved, skipped, and format-only note changes.
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 按来源笔记解析引用并匹配准确的 Vault 文件身份，修复同名本地图片整理错误；远程、缺失和歧义引用现在都会安全跳过（[PR #54](https://github.com/ytahml/obsidian-image-manager/pull/54)、[Issue #53](https://github.com/ytahml/obsidian-image-manager/issues/53)）。
+- 整理流程现在为整篇笔记或文件夹建立统一批次计划，在创建目录后重算目标，并在首次移动前校验所有扫描笔记；执行失败后进行受保护回滚。
+- 上传替换只更新明确解析到本次上传文件的引用，文件夹结果也会正确统计图片移动、跳过和纯格式转换的笔记。
+
+---
+
 ## 2.0.4
 
 ### 🇺🇸 English
