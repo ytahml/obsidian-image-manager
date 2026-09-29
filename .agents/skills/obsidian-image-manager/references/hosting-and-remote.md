@@ -14,6 +14,7 @@ UploadQueue      范围上传的 3 worker、逐项身份/结果与完成进度
 upload-scope.ts   全库/递归文件夹/文章笔记范围、图片去重与源版本快照
 ExplicitUploadWorkflow  单图、范围显式上传及分阶段结构化汇总
 UploadReferenceManager  上传引用准备、渲染与普通 Vault 替换
+UploadLocalCleanup      显式上传按模式偏好与 fresh 引用检查回收本地副本
 upload-path.ts   原生图床共享路径模板
 public-url.ts    公共 URL base 规范化与拼接
 ```
@@ -44,7 +45,9 @@ public-url.ts    公共 URL base 规范化与拼接
 
 `UploadPlan` 保存源 TFile、路径、mtime/size。队列结果始终绑定源快照，不能按服务商 `originalPath`（可能仅文件名）或完成顺序找文件。上传前、重试前及采用结果/写回时重验身份与版本。每篇笔记一次聚合处理成功图片，打开的笔记通过当前 Editor 写回，其他笔记通过 `vault.process` 比较快照；分歧/冲突保留原文。单篇失败不阻断其他独立笔记，不承诺跨文件事务或“先当前笔记再其他笔记”。
 
-汇总分别报告上传成功/失败、成功但未采用的源结果、更新笔记/引用/范围外笔记数，以及扫描跳过、笔记冲突/读写失败。显式上传始终保留本地文件，禁止重叠显式上传；managed/delegated 自动上传保留原有事务路径。
+汇总分别报告上传成功/失败、成功但未采用的源结果、更新笔记/引用/范围外笔记数，以及扫描跳过、笔记冲突/读写失败。显式上传共用当前模式的 `managedKeepLocalCopy` / `delegatedKeepLocalCopy`，不受粘贴自动上传开关门控，禁止重叠显式上传；managed/delegated 自动上传保留原有事务路径。
+
+`UploadLocalCleanup` 在操作开始捕获模式与保留偏好。关闭保留时，只有成功且至少一处引用实际写回的源图片才可回收；本次引用写回存在任何冲突/失败时保守保留全部候选。未开启替换、零替换、未采用的源结果均保留。回收前重验模式/偏好、源身份/版本与生命周期保护，并做两次全库孤立扫描；扫描期间文件集/版本、打开 Editor 集合/绑定/内容发生变化或多个 Editor 分歧则保留。最终仅调用 `fileManager.trashFile()`，不删除目录。`localCopies` 独立报告回收、保留/跳过及检查/操作失败数量，不能把回收失败当作上传失败。
 
 重试只在统一编排层发生。`UploadQueue` 启动 3 个 worker，并为每文件向 Service 配置最多 3 次重试。队列保存失败项，完成进度包含成功和失败。成功 listener 只在上传成功后发布；失败不发布远程会话失效。
 

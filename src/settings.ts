@@ -34,10 +34,6 @@ export function setActivePastePreference(
     settings[PASTE_PREFERENCE_FIELDS[settings.localManagementMode][key]] = value;
 }
 
-export function shouldDisableKeepLocalCopy(settings: ImageManagerPlugin['settings']): boolean {
-    return !getActivePastePreference(settings, 'autoUploadOnPaste');
-}
-
 export class ImageManagerSettingTab extends PluginSettingTab {
     plugin: ImageManagerPlugin;
 
@@ -373,8 +369,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
             .setName(t('settings.keepLocalCopy'))
             .setDesc(t('settings.keepLocalCopyDesc'))
             .addToggle((toggle) =>
-                toggle.setDisabled(shouldDisableKeepLocalCopy(this.plugin.settings))
-                    .setValue(this.keepLocalCopy()).onChange(async (value) => {
+                toggle.setValue(this.keepLocalCopy()).onChange(async (value) => {
                     this.setKeepLocalCopy(value);
                     await this.plugin.saveSettings();
                 })

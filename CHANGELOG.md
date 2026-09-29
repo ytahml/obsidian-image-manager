@@ -6,12 +6,13 @@
 
 #### New features
 
-- Upload local images referenced by Markdown notes in the whole vault, a recursive folder, or a single note, with optional replacement of successful uploads across all Markdown notes ([PR #56](https://github.com/ytahml/obsidian-image-manager/pull/56), [Issue #55](https://github.com/ytahml/obsidian-image-manager/issues/55)). Shared images are uploaded once; local files are always retained.
+- Upload local images referenced by Markdown notes in the whole vault, a recursive folder, or a single note, with optional replacement of successful uploads across all Markdown notes ([PR #56](https://github.com/ytahml/obsidian-image-manager/pull/56), [Issue #55](https://github.com/ytahml/obsidian-image-manager/issues/55)). Shared images are uploaded once; local files follow the current Managed/Delegated mode's **Keep local copy** setting.
 - Upload and Wiki-to-Markdown conversion each have one scope command, defaulting to the whole vault. Note/folder context menus target the clicked item; upload opens a preselected dialog and conversion runs directly.
 
 #### Fixes and compatibility
 
 - Protect reference updates with source-version checks, live editor content, and snapshot-checked writes; report upload results separately from reference conflicts and failures.
+- Manual single-image and scoped uploads now share the current mode's **Keep local copy** setting with paste auto-upload. When retention is off, only successfully uploaded and replaced images that pass fresh unreferenced-file checks are moved to the Obsidian trash; conflicts, remaining references, and changed sources are retained. Cleanup results are reported separately, and the setting remains editable when paste auto-upload is off.
 - Fixed root-folder reorganization and asynchronous dialog completion handling.
 - Removed duplicate command IDs `upload-note-images`, `convert-reference-format-vault`, and `convert-to-md`. Rebind existing shortcuts to `batch-upload` or `convert-reference-format`.
 - Requires Obsidian 1.13.0 or later (unchanged).
@@ -20,12 +21,13 @@
 
 #### 新功能
 
-- 支持按全库、递归文件夹或单篇文章上传 Markdown 笔记引用的本地图片，并可选择将成功图片在全库 Markdown 中的引用替换为图床 URL（[PR #56](https://github.com/ytahml/obsidian-image-manager/pull/56)、[Issue #55](https://github.com/ytahml/obsidian-image-manager/issues/55)）。共享图片只上传一次，始终保留本地文件。
+- 支持按全库、递归文件夹或单篇文章上传 Markdown 笔记引用的本地图片，并可选择将成功图片在全库 Markdown 中的引用替换为图床 URL（[PR #56](https://github.com/ytahml/obsidian-image-manager/pull/56)、[Issue #55](https://github.com/ytahml/obsidian-image-manager/issues/55)）。共享图片只上传一次，本地文件遵循当前 Managed/Delegated 模式的**保留本地副本**设置。
 - 上传与 Wiki 图片转 Markdown 各保留一个范围命令，默认全库。文章/文件夹右键针对被点击目标：上传打开预选范围弹窗，转换直接执行。
 
 #### 修复与兼容性
 
 - 使用源版本校验、实时编辑器内容和受快照保护的写回，避免覆盖并发修改；分别报告上传结果、引用冲突与读写失败。
+- 手动单图和范围上传与粘贴自动上传共用当前模式的**保留本地副本**设置。关闭保留时，只有成功上传并替换引用、且最新检查确认无引用的图片会移入 Obsidian 回收站；存在冲突、剩余引用或源文件变化时保留。回收结果独立汇报，粘贴自动上传关闭时也可编辑该设置。
 - 修复根目录图片整理和弹窗异步完成处理。
 - 移除重复命令 ID `upload-note-images`、`convert-reference-format-vault` 和 `convert-to-md`；已有快捷键需重新绑定到 `batch-upload` 或 `convert-reference-format`。
 - 最低 Obsidian 版本仍为 1.13.0。

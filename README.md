@@ -277,11 +277,11 @@ Use **Upload referenced images** from the command palette, or the same upload ac
 
 1. Choose all Markdown notes in the vault, a folder including subfolders, or one article.
 2. Choose the hosting configuration and whether to replace local references. Review the unique-image count and skipped items before uploading.
-3. When replacement is enabled, **all Markdown notes referencing the same successfully uploaded image are updated, even outside the chosen scope**. Local image files are always kept.
+3. When replacement is enabled, **all Markdown notes referencing the same successfully uploaded image are updated, even outside the chosen scope**. Local files follow **Keep local copy** for the current Managed/Delegated mode. When off, only successfully uploaded and replaced images with no remaining references after rescanning are moved to the Obsidian trash; files are kept when replacement is off, conflicts occur, or safety checks fail.
 
 Scope selects notes, not attachment directories. Attachments stored elsewhere are included; unreferenced images and existing remote URLs are excluded. This replaces the older behavior of uploading every image file in the vault. Use single-image upload for an unreferenced image. Markdown images and Wiki embeds are supported; Canvas, HTML and frontmatter rewriting are not included.
 
-Results distinguish upload success/failure, reference updates, and conflicts/read/write failures. Concurrent edits are preserved; a successful upload does not guarantee every reference was updated. Closing the progress window does not cancel requests already started.
+Results distinguish upload success/failure, reference updates, conflicts/read/write failures, and local trash/retention/cleanup failures. Concurrent edits are preserved; a successful upload does not guarantee every reference was updated. Closing the progress window does not cancel requests already started.
 
 Only implemented commands are registered. Duplicate scope-specific upload and Wiki-to-Markdown commands have been consolidated into one entry for each operation. If you had a hotkey bound to `upload-note-images`, `convert-reference-format-vault`, or `convert-to-md`, rebind it to **Upload referenced images** or **Convert Wiki images to Markdown**.
 
@@ -289,7 +289,7 @@ Only implemented commands are registered. Duplicate scope-specific upload and Wi
 
 - **Local Image Management Mode** — Choose **Managed** (this plugin owns local paste/drop handling) or **Delegated** (Obsidian or an external attachment manager owns local handling)
 - **Auto Upload on Paste** — Automatically upload to default hosting on paste/drag & drop; Managed and Delegated modes save this preference independently
-- **Keep Local Copy** — Whether to keep the local file after paste auto-upload; Managed and Delegated modes save this preference independently
+- **Keep Local Copy** — Shared by paste auto-upload, manual single-image upload, and scoped upload; Managed and Delegated modes save this preference independently. Editable even when paste auto-upload is off. Manual uploads only recycle eligible images, not empty folders.
 
 Switching modes hides settings that do not apply to the selected paste/drop owner without resetting them. Shared path settings remain visible because explicit image reorganization uses them in both modes. In **Delegated** mode, automatic upload waits until it can uniquely match the created attachment with this paste/drop's newly inserted reference. It replaces only that exact reference and keeps the local file when the transaction becomes ambiguous or changes while an upload is in flight. This is a best-effort handoff based on public Obsidian events; it does not guarantee that an external attachment manager has completed all later processing.
 

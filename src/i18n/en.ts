@@ -9,15 +9,16 @@ export const en: Record<string, string> = {
     "upload.hosting": "Image hosting",
     "upload.replace": "Replace local image references",
     "upload.replaceHelp": "Also update references to these successfully uploaded images in ALL Markdown notes outside the selected scope.",
-    "upload.keepLocal": "Local image files are always kept. This operation does not delete files.",
+    "upload.keepLocal": "Local files follow Keep local copy for the current mode. When off, only successfully uploaded and replaced images with no remaining references after rescanning are trashed. Files are kept when replacement is off or conflicts occur.",
     "upload.scanning": "Reading local references…",
     "upload.summary": "{notes} notes · {images} unique images · {skipped} references/notes skipped",
     "upload.start": "Upload",
     "upload.running": "Uploading and updating references…",
     "upload.runningHelp": "Closing this window does not cancel requests. A completion notice will report uploads and reference updates separately.",
-    "upload.failed": "Could not complete the operation. Local files have been kept; some uploads or reference updates may already have completed.",
+    "upload.failed": "Could not complete the operation. Some uploads, reference updates, or local trash operations may already have completed.",
     "upload.busy": "An explicit upload is already running. Please wait for it to finish.",
-    "upload.result": "Uploads: {success} succeeded, {failed} failed, {unused} successful results not fully adopted. References: {refs} updated across {notes} notes ({outside} outside scope). Skipped during scanning: {skipped}; note conflicts/read/write failures: {conflicts}. Local files kept.",
+    "upload.result": "Uploads: {success} succeeded, {failed} failed, {unused} successful results not fully adopted. References: {refs} updated across {notes} notes ({outside} outside scope). Skipped during scanning: {skipped}; note conflicts/read/write failures: {conflicts}. Local files: {trashed} trashed, {retained} retained/skipped, {cleanupFailed} cleanup checks/operations failed.",
+    "upload.cleanupResult": "Local files: {trashed} trashed, {retained} retained/skipped, {cleanupFailed} cleanup checks/operations failed.",
     "convert.scopeHelp": "Convert Wiki image references in Markdown notes within the selected scope. Images are not moved or deleted.",
     "convert.start": "Convert",
     "convert.running": "Converting Wiki image references…",
@@ -46,7 +47,7 @@ export const en: Record<string, string> = {
     "settings.autoCompressDesc": "Automatically compress images when inserting",
     "settings.localManagementMode": "New image paste/drop handling",
     "settings.localManagementModeDesc":
-        "Only controls who creates new attachments; manual reorganization and upload commands remain available",
+        "Controls who creates new attachments and selects that mode's upload and local-copy preferences; manual reorganization and upload commands remain available",
     "settings.localManagementMode.managed": "Managed by Image Manager",
     "settings.localManagementMode.delegated":
         "Delegated to Obsidian or another plugin",
@@ -548,7 +549,7 @@ export const en: Record<string, string> = {
         "Wait for Obsidian or another plugin to create the attachment, then hand it off for upload; this preference applies only to delegated mode",
     "settings.keepLocalCopy": "Keep local copy",
     "settings.keepLocalCopyDesc":
-        "Used only for paste auto-upload; when off, the attachment is trashed after confirming no local references remain and its empty folder is cleaned up",
+        "Saved per managed/delegated mode and shared by paste auto-upload, single-image upload, and scoped upload. When off, only uploaded and replaced images with no references after rescanning are trashed. Manual uploads do not remove empty folders.",
     "notice.autoUploading": "Uploading image to hosting...",
     "notice.autoUploadSuccess": "Image uploaded, reference updated",
     "notice.autoUploadFailed":

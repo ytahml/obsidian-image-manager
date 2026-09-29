@@ -28,6 +28,7 @@ import {
     ReorganizationError,
 } from "./utils/image-reorganizer";
 import { UploadService } from "./uploaders/upload-service";
+import { UploadLocalCleanup } from "./uploaders/upload-local-cleanup";
 import { ExplicitUploadWorkflow } from "./uploaders/explicit-upload-workflow";
 import { UploadReferenceManager } from "./uploaders/upload-reference-manager";
 import { setLocale, t } from "./i18n";
@@ -86,6 +87,7 @@ export default class ImageManagerPlugin extends Plugin {
             this.uploadService,
             this.refConverter,
             this.uploadReferences,
+            new UploadLocalCleanup(this.app, () => this.settings, () => this.getIndeterminateImagePaths()),
         );
         this.batchRename = new BatchRename(this.app, this.settings);
         this.indeterminateImages = new IndeterminateImageRegistry<TFile>({
@@ -401,6 +403,8 @@ export default class ImageManagerPlugin extends Plugin {
                         unused: String(result.unusedImages), notes: String(result.updatedNotes),
                         refs: String(result.replacedReferences), outside: String(result.outsideScopeNotes),
                         skipped: String(result.skipped.length), conflicts: String(result.failures.length),
+                        trashed: String(result.localCopies.trashed), retained: String(result.localCopies.retained),
+                        cleanupFailed: String(result.localCopies.failed),
                     }), 15000);
                 } finally { progress.hide(); }
             },
@@ -428,6 +432,10 @@ export default class ImageManagerPlugin extends Plugin {
                     }),
                     5000,
                 );
+                new Notice(t("upload.cleanupResult", {
+                    trashed: String(result.localCopies.trashed), retained: String(result.localCopies.retained),
+                    cleanupFailed: String(result.localCopies.failed),
+                }));
                 await navigator.clipboard.writeText(result.reference);
                 if (result.replacedReferences > 0) {
                     new Notice(

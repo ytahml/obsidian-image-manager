@@ -30,15 +30,15 @@
 | `enableImageBrowser` | true | ribbon 与 browser command |
 | `managedAutoUploadOnPaste` | false | managed 粘贴后自动上传 |
 | `delegatedAutoUploadOnPaste` | false | delegated 粘贴后接力上传 |
-| `managedKeepLocalCopy` | false | managed 自动上传后是否保留本地文件 |
-| `delegatedKeepLocalCopy` | false | delegated 自动上传后是否保留本地文件 |
+| `managedKeepLocalCopy` | false | managed 模式的粘贴自动上传与显式上传是否保留本地文件 |
+| `delegatedKeepLocalCopy` | false | delegated 模式的粘贴自动上传与显式上传是否保留本地文件 |
 | `remoteDeleteHistory` | `[]` | 最近 200 条脱敏诊断 |
 
 加载设置使用 `Object.assign({}, DEFAULT_SETTINGS, loaded)` 兼容旧 data，不能修改默认值对象；新增字段必须提供默认值和必要规范化。浏览器排序偏好只接受支持的字段与 `asc`/`desc`，缺失或无效值回退为名称/升序。
 
 ## 本地管理与图床接力
 
-`localManagementMode` 只决定自动 paste/drop 的本地管理权。managed/delegated 分别保存自动上传和本地副本偏好，切换线路只改变当前读取哪组偏好，不重置任一组值。旧 `autoUploadOnPaste` / `keepLocalCopy` 加载时分别复制到两条线路，然后不再持久化旧字段。
+`localManagementMode` 决定自动 paste/drop 的本地管理权，并选择包括显式上传在内的本地副本偏好。managed/delegated 分别保存自动上传和本地副本偏好，切换线路只改变当前读取哪组偏好，不重置任一组值。旧 `autoUploadOnPaste` / `keepLocalCopy` 加载时分别复制到两条线路，然后不再持久化旧字段。
 
 `managedPasteReferenceFormat` 只影响 managed 初始引用，`reorganizeConvertFormat` 只影响显式整理。手动上传与自动上传均不受这两个格式设置门控。
 
@@ -54,7 +54,7 @@ Obsidian 1.13 声明式设置页在 delegated 下隐藏命名、命名提示、m
 - 普通单字段设置优先使用 `control` 自动绑定；需要副作用、即时草稿校验或动态复杂 UI 时使用 `setControlValue()` 或 `render`。
 - 语言、本地管理模式和图床列表变化后调用 `update()`，重新生成本地化文案、禁用状态或动态列表结构。
 - delegated 模式不生成 managed 专属控件；隐藏只影响设置页投影，不删除、重置或迁移其持久化值。
-- 自动上传关闭时禁用“保留本地副本”；切换线路后根据该线路保存的偏好重新渲染。
+- “保留本地副本”也用于手动单图与范围上传，不能因粘贴自动上传关闭而禁用；切换线路后根据该线路保存的偏好重新渲染。
 
 新增设置步骤：
 
@@ -146,7 +146,7 @@ Modal 分为固定基础区和 capability 门控正文：
 
 两个弹窗共享 `NoteTargetPicker` 的目标枚举，但不共享业务表单或执行逻辑；范围选择通过 `note-scope.ts` 统一。执行回调使用 `async`/`try-catch-finally`，兼容 ES2017 类型库，不依赖 `Promise.finally()`；成功、Promise 拒绝或同步抛错后均收尾，已经关闭的弹窗不会重复关闭。
 
-替换提示必须明确会更新**全库**同一图片引用，包括范围外笔记；始终保留本地文件。未选有效目标、无图片或无启用图床时不可确认。执行时冻结图床及本次偏好，移除配置控件防重复提交。关闭窗口不等于取消已开始请求。完成通知分别显示上传成功/失败/未采用、更新笔记/引用/范围外笔记，以及冲突/读写失败，不宣称全库原子成功。
+替换提示必须明确会更新**全库**同一图片引用，包括范围外笔记；本地文件遵循当前模式的“保留本地副本”设置。关闭保留时，只有成功替换且再次扫描无引用的图片会移入回收站；未开启替换、存在冲突或检查失败时保留。未选有效目标、无图片或无启用图床时不可确认。执行时冻结图床及本次偏好，移除配置控件防重复提交。关闭窗口不等于取消已开始请求。完成通知分别显示上传成功/失败/未采用、更新笔记/引用/范围外笔记、冲突/读写失败，以及本地回收/保留或跳过/回收检查或操作失败，不宣称全库原子成功。单图上传同样报告本地回收结果；操作异常不能笼统宣称本地文件全部保留。
 
 ## Modal 通用约束
 

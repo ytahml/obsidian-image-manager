@@ -26,6 +26,7 @@ export interface BatchReferenceResult {
     updatedNotes: number;
     replacedReferences: number;
     outsideScopeNotes: number;
+    replacedSourcePaths: Set<string>;
     failures: Array<{ notePath: string; reason: 'conflict' | 'read-or-write-failed' }>;
 }
 
@@ -63,7 +64,7 @@ export class UploadReferenceManager {
         uploads: readonly UploadedReference[],
         scopeNotes: ReadonlySet<string>,
     ): Promise<BatchReferenceResult> {
-        const result: BatchReferenceResult = { updatedNotes: 0, replacedReferences: 0, outsideScopeNotes: 0, failures: [] };
+        const result: BatchReferenceResult = { updatedNotes: 0, replacedReferences: 0, outsideScopeNotes: 0, replacedSourcePaths: new Set(), failures: [] };
         if (!uploads.length) return result;
         const app = this.options.app;
         const byPath = new Map(uploads.map(upload => [upload.source.path, upload]));
@@ -93,6 +94,7 @@ export class UploadReferenceManager {
                 if (status === 'applied') {
                     result.updatedNotes++;
                     result.replacedReferences += count;
+                    for (const upload of used) result.replacedSourcePaths.add(upload.source.path);
                     if (!scopeNotes.has(snapshot.path)) result.outsideScopeNotes++;
                 }
             } catch {

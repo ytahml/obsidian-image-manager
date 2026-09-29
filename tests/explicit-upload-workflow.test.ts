@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('obsidian', () => ({ MarkdownView: class MarkdownView {}, TFile: class TFile {}, normalizePath: (path: string) => path.replace(/^\/+|\/+$/g, '') }));
 import { MarkdownView, TFile, type App, type WorkspaceLeaf } from 'obsidian';
-import type { ImageHostingConfig } from '../src/types';
+import { DEFAULT_SETTINGS, type ImageHostingConfig } from '../src/types';
+import { UploadLocalCleanup } from '../src/uploaders/upload-local-cleanup';
 import { RefConverter } from '../src/utils/ref-converter';
 import { ExplicitUploadWorkflow } from '../src/uploaders/explicit-upload-workflow';
 import type { UploadService } from '../src/uploaders/upload-service';
@@ -18,20 +19,143 @@ function fixture() {
     const files = [image, second, note, outside];
     const contents = new Map([[note.path, '![first](assets/photo.png)\n![[assets/photo.png|second]]'], [outside.path, '![[assets/photo.png]]\n![[other/photo.png]]']]);
     const leaves: WorkspaceLeaf[] = [];
+    const settings = { ...DEFAULT_SETTINGS, managedKeepLocalCopy: true, delegatedKeepLocalCopy: true };
+    const indeterminate = new Set<string>();
+    const trashFile = vi.fn(async (f: TFile) => { files.splice(files.indexOf(f), 1); });
+    const cachedRead = vi.fn(async (f: TFile) => contents.get(f.path)!);
     const process = vi.fn(async (f: TFile, update: (value: string) => string) => { contents.set(f.path, update(contents.get(f.path)!)); });
     const app = {
+        fileManager: { trashFile },
         workspace: { getActiveViewOfType: () => null, getLeavesOfType: () => leaves },
         metadataCache: { getFirstLinkpathDest: (path: string) => files.find(f => f.path === path) ?? null },
         vault: { getFiles: () => files, getMarkdownFiles: () => [note, outside],
             getAbstractFileByPath: (path: string) => files.find(f => f.path === path),
-            read: async (f: TFile) => contents.get(f.path)!, process },
+            read: async (f: TFile) => contents.get(f.path)!, process, cachedRead },
     } as unknown as App;
     const converter = new RefConverter(app);
     const manager = new UploadReferenceManager({ app, refConverter: converter, getDefaultTemplate: () => '', getImageInfo: async () => ({ width: 10, height: 20 }) });
     const uploadFile = vi.fn(async (f: TFile) => ({ success: true, url: `https://cdn/${f.path}`, originalPath: f.name, attempts: 1, hostingId: 'h', hostingType: 'custom' as const }));
-    const workflow = new ExplicitUploadWorkflow(app, { uploadFile } as unknown as UploadService, converter, manager);
-    return { app, converter, workflow, image, second, note, outside, contents, process, uploadFile, leaves };
+    const cleanup = new UploadLocalCleanup(app, () => settings, () => indeterminate);
+    const workflow = new ExplicitUploadWorkflow(app, { uploadFile } as unknown as UploadService, converter, manager, cleanup);
+    return { app, converter, workflow, image, second, note, outside, contents, process, uploadFile, leaves, settings, indeterminate, trashFile, cachedRead, files };
 }
+
+describe('explicit upload local-copy policy', () => {
+    it.each(['managed', 'delegated'] as const)('uses %s keep-local preference for batch and single-image uploads', async mode => {
+        for (const keep of [true, false]) {
+            for (const single of [true, false]) {
+                const f = fixture();
+                f.settings.localManagementMode = mode;
+                f.settings.managedKeepLocalCopy = mode === 'managed' ? keep : !keep;
+                f.settings.delegatedKeepLocalCopy = mode === 'delegated' ? keep : !keep;
+                const result = single ? await f.workflow.uploadImage(f.image, hosting, true) :
+                    await f.workflow.uploadPlan(await f.workflow.createPlan({ kind: 'note', path: f.note.path }, ['png']), hosting, { replaceReferences: true });
+                expect(f.trashFile).toHaveBeenCalledTimes(keep ? 0 : 1);
+                if (!keep) expect(f.trashFile).toHaveBeenCalledWith(f.image);
+                expect(result.localCopies).toEqual({ trashed: keep ? 0 : 1, retained: keep ? 1 : 0, failed: 0 });
+                expect(f.files).toContain(f.second);
+            }
+        }
+    });
+    it('does not recycle when replacement is off or no reference was replaced', async () => {
+        const f = fixture();
+        f.settings.managedKeepLocalCopy = false;
+        await f.workflow.uploadImage(f.image, hosting, false);
+        await f.workflow.uploadPlan(await f.workflow.createPlan({ kind: 'vault' }, ['png']), hosting, { replaceReferences: false });
+        f.contents.clear();
+        f.contents.set(f.note.path, ''); f.contents.set(f.outside.path, '');
+        await f.workflow.uploadImage(f.image, hosting, true);
+        expect(f.trashFile).not.toHaveBeenCalled();
+    });
+    it.each(['keep', 'mode', 'source'] as const)('retains files if %s changes during upload', async change => {
+        const f = fixture();
+        f.settings.managedKeepLocalCopy = false;
+        f.settings.delegatedKeepLocalCopy = false;
+        f.uploadFile.mockImplementation(async image => {
+            if (change === 'keep') f.settings.managedKeepLocalCopy = true;
+            if (change === 'mode') f.settings.localManagementMode = 'delegated';
+            if (change === 'source') image.stat.mtime++;
+            return { success: true, url: 'https://cdn/photo.png', originalPath: image.name, attempts: 1, hostingId: 'h', hostingType: 'custom' };
+        });
+        await f.workflow.uploadImage(f.image, hosting, true);
+        expect(f.trashFile).not.toHaveBeenCalled();
+    });
+    it.each(['<img src="assets/photo.png">', '[link](assets/photo.png)', '---\nimage: assets/photo.png\n---', '![[photo.png]]'])('protects remaining broad or ambiguous references: %s', async remaining => {
+        const f = fixture();
+        f.settings.managedKeepLocalCopy = false;
+        f.contents.set(f.outside.path, remaining);
+        await f.workflow.uploadImage(f.image, hosting, true);
+        expect(f.trashFile).not.toHaveBeenCalled();
+    });
+    it.each(['{"nodes":[{"type":"file","file":"assets/photo.png"}]}', '{broken'])('protects Canvas references or unreadable Canvas', async canvas => {
+        const f = fixture();
+        f.settings.managedKeepLocalCopy = false;
+        const board = file('board.canvas'); f.files.push(board); f.contents.set(board.path, canvas);
+        await f.workflow.uploadImage(f.image, hosting, true);
+        expect(f.trashFile).not.toHaveBeenCalled();
+    });
+    it('does not recycle after conflicting writes even when the local reference disappeared', async () => {
+        const f = fixture();
+        f.settings.managedKeepLocalCopy = false;
+        f.process.mockImplementation(async (note, update) => { f.contents.set(note.path, update(note === f.note ? 'user edit' : f.contents.get(note.path)!)); });
+        await f.workflow.uploadImage(f.image, hosting, true);
+        expect(f.trashFile).not.toHaveBeenCalled();
+    });
+    it('separates trash failures from upload success', async () => {
+        const f = fixture();
+        f.settings.managedKeepLocalCopy = false;
+        f.trashFile.mockRejectedValue(new Error('trash unavailable'));
+        const result = await f.workflow.uploadImage(f.image, hosting, true);
+        expect(result.operation.success).toBe(true);
+        expect(result.localCopies).toEqual({ trashed: 0, retained: 1, failed: 1 });
+    });
+    it('only recycles successfully uploaded and replaced images in a partial batch', async () => {
+        const f = fixture(); f.settings.managedKeepLocalCopy = false;
+        f.uploadFile.mockImplementation(async image => {
+            if (image === f.second) throw new Error('upload failed');
+            return { success: true, url: 'https://cdn/photo.png', originalPath: image.name, attempts: 1, hostingId: 'h', hostingType: 'custom' };
+        });
+        const result = await f.workflow.uploadPlan(await f.workflow.createPlan({ kind: 'vault' }, ['png']), hosting, { replaceReferences: true });
+        expect(result).toMatchObject({ successfulImages: 1, failedImages: 1, localCopies: { trashed: 1, retained: 1, failed: 0 } });
+        expect(f.trashFile).toHaveBeenCalledExactlyOnceWith(f.image);
+    });
+    it('uses live editors rather than stale saved local references for cleanup', async () => {
+        const f = fixture(); f.settings.managedKeepLocalCopy = false;
+        let text = f.contents.get(f.note.path)!;
+        const editor = { getValue: () => text, offsetToPos: () => ({ line: 0, ch: 0 }), replaceRange: (value: string) => { text = value; } };
+        f.leaves.push({ view: Object.assign(new MarkdownView({} as WorkspaceLeaf), { file: f.note, editor }) } as unknown as WorkspaceLeaf);
+        await f.workflow.uploadImage(f.image, hosting, true);
+        expect(f.trashFile).toHaveBeenCalledExactlyOnceWith(f.image);
+        expect(f.contents.get(f.note.path)).toContain('assets/photo.png');
+    });
+    it.each(['reference', 'source', 'settings', 'lifecycle', 'read-failure', 'editor-conflict', 'note-version', 'file-set'] as const)('fails closed when %s changes at cleanup', async change => {
+        const f = fixture(); f.settings.managedKeepLocalCopy = false;
+        let reads = 0;
+        f.cachedRead.mockImplementation(async note => {
+            reads++;
+            // The second scan is fresh, and all identities/editors are checked again before trash.
+            if (reads === 3) {
+                if (change === 'reference') f.contents.set(f.outside.path, '![[assets/photo.png]]');
+                if (change === 'source') f.image.stat.mtime++;
+                if (change === 'settings') f.settings.managedKeepLocalCopy = true;
+                if (change === 'lifecycle') f.indeterminate.add(f.image.path);
+                if (change === 'read-failure') throw new Error('read failed');
+                if (change === 'note-version') f.note.stat.mtime++;
+                if (change === 'file-set') f.files.push(file('new.png'));
+                if (change === 'editor-conflict') {
+                    for (const content of ['![[assets/photo.png]]', 'different']) {
+                        const editor = { getValue: () => content };
+                        f.leaves.push({ view: Object.assign(new MarkdownView({} as WorkspaceLeaf), { file: f.note, editor }) } as unknown as WorkspaceLeaf);
+                    }
+                }
+            }
+            return f.contents.get(note.path)!;
+        });
+        await f.workflow.uploadImage(f.image, hosting, true);
+        expect(reads).toBeGreaterThanOrEqual(3);
+        expect(f.trashFile).not.toHaveBeenCalled();
+    });
+});
 
 describe('scoped explicit uploads', () => {
     it('uploads once and replaces every occurrence, including notes outside scope without touching same-name files', async () => {
