@@ -21,6 +21,16 @@ export class ConvertReferenceDialog extends Modal {
     onOpen(): void { this.closed = false; this.render(); }
     onClose(): void { this.closed = true; this.contentEl.empty(); }
 
+    private async execute(scope: NoteScope): Promise<void> {
+        try {
+            await this.actions.execute(scope);
+        } catch {
+            new Notice(t('convert.failed'));
+        } finally {
+            if (!this.closed) this.close();
+        }
+    }
+
     private render(): void {
         const root = this.contentEl;
         root.empty();
@@ -62,9 +72,7 @@ export class ConvertReferenceDialog extends Modal {
                 const scope = this.noteScope;
                 root.empty();
                 new Setting(root).setName(t('convert.running')).setHeading();
-                void this.actions.execute(scope)
-                    .catch(() => { new Notice(t('convert.failed')); })
-                    .finally(() => { if (!this.closed) this.close(); });
+                void this.execute(scope);
             }));
     }
 }

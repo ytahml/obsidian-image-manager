@@ -4,7 +4,7 @@ vi.mock('obsidian', () => {
     const root = { empty() {}, createEl: () => ({ setText() {} }) };
     return {
         Modal: class { contentEl = root; constructor(public app: unknown) {} open() {} close() {} },
-        FuzzySuggestModal: class {}, Notice: class {}, TFile: class {}, TFolder: class {},
+        FuzzySuggestModal: class {}, Notice: vi.fn(), TFile: class {}, TFolder: class {},
         Setting: class {
             setName() { return this; } setHeading() { return this; } setDesc() { return this; }
             addDropdown(callback: (value: unknown) => void) {
@@ -22,13 +22,13 @@ vi.mock('obsidian', () => {
         },
     };
 });
-import type { App } from 'obsidian';
+import { Notice, type App } from 'obsidian';
 import type { ImageHostingConfig } from '../src/types';
 import type { UploadPlan } from '../src/uploaders/upload-scope';
 import { BatchUploadDialog } from '../src/modals/batch-upload-dialog';
 const hosting = { id: 'h', enabled: true, name: 'Hosting' } as ImageHostingConfig;
 const plan = { scope: { kind: 'vault' }, notes: [], sources: [{}], skipped: [] } as unknown as UploadPlan;
-beforeEach(() => { ui.buttons.length = 0; ui.toggles.length = 0; ui.dropdowns.length = 0; });
+beforeEach(() => { vi.clearAllMocks(); ui.buttons.length = 0; ui.toggles.length = 0; ui.dropdowns.length = 0; });
 it('does not execute while preparing and confirms only once with the chosen replacement option', async () => {
     const execute = vi.fn(() => new Promise<void>(() => {}));
     const dialog = new BatchUploadDialog({} as App, { kind: 'vault' }, false, { getHostings: () => [hosting], prepare: async () => plan, execute });
@@ -43,6 +43,33 @@ it('does not execute while preparing and confirms only once with the chosen repl
     start.click(); start.click();
     expect(execute).toHaveBeenCalledTimes(1);
     expect(execute).toHaveBeenCalledWith(plan, hosting, true);
+});
+it.each(['success', 'rejection', 'throw'] as const)('closes after execution: %s', async outcome => {
+    const execute = vi.fn(() => {
+        if (outcome === 'throw') throw new Error('Failure');
+        return outcome === 'rejection' ? Promise.reject(new Error('Failure')) : Promise.resolve();
+    });
+    const dialog = new BatchUploadDialog({} as App, { kind: 'vault' }, false, { getHostings: () => [hosting], prepare: async () => plan, execute });
+    const close = vi.spyOn(dialog, 'close');
+    dialog.onOpen();
+    await Promise.resolve();
+    ui.buttons[1]!.click();
+    await Promise.resolve();
+    expect(close).toHaveBeenCalledOnce();
+    expect(Notice).toHaveBeenCalledTimes(outcome === 'success' ? 0 : 1);
+});
+it('does not close again when execution finishes after dismissal', async () => {
+    let finish!: () => void;
+    const execute = () => new Promise<void>(resolve => { finish = resolve; });
+    const dialog = new BatchUploadDialog({} as App, { kind: 'vault' }, false, { getHostings: () => [hosting], prepare: async () => plan, execute });
+    const close = vi.spyOn(dialog, 'close');
+    dialog.onOpen();
+    await Promise.resolve();
+    ui.buttons[1]!.click();
+    dialog.onClose();
+    finish();
+    await Promise.resolve();
+    expect(close).not.toHaveBeenCalled();
 });
 it('closing a prepared dialog performs no upload', async () => {
     const execute = vi.fn();

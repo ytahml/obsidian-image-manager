@@ -26,6 +26,16 @@ export class BatchUploadDialog extends Modal {
     onOpen(): void { this.closed = false; void this.render(); }
     onClose(): void { this.closed = true; this.generation++; this.contentEl.empty(); }
 
+    private async execute(plan: UploadPlan, hosting: ImageHostingConfig, replace: boolean): Promise<void> {
+        try {
+            await this.actions.execute(plan, hosting, replace);
+        } catch {
+            new Notice(t('upload.failed'));
+        } finally {
+            if (!this.closed) this.close();
+        }
+    }
+
     private render(): void {
         const generation = ++this.generation;
         const root = this.contentEl;
@@ -79,9 +89,7 @@ export class BatchUploadDialog extends Modal {
                     root.empty();
                     new Setting(root).setName(t('upload.running')).setHeading();
                     root.createEl('p', { text: t('upload.runningHelp') });
-                    void this.actions.execute(frozenPlan, frozenHosting, replace)
-                        .catch(() => { new Notice(t('upload.failed')); })
-                        .finally(() => { if (!this.closed) this.close(); });
+                    void this.execute(frozenPlan, frozenHosting, replace);
                 });
                 void this.actions.prepare(this.uploadScope).then(result => {
                     if (this.closed || generation !== this.generation) return;

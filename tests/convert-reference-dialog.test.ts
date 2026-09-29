@@ -7,7 +7,7 @@ vi.mock('obsidian', () => {
     const root = { empty() {}, createEl: () => ({}) };
     return {
         Modal: class { contentEl = root; constructor(public app: unknown) {} open() {} close() {} },
-        FuzzySuggestModal: class {}, Notice: class {}, TFile: class {}, TFolder: class {},
+        FuzzySuggestModal: class {}, Notice: vi.fn(), TFile: class {}, TFolder: class {},
         Setting: class {
             setName() { return this; } setHeading() { return this; } setDesc() { return this; }
             addDropdown(callback: (value: unknown) => void) {
@@ -21,10 +21,10 @@ vi.mock('obsidian', () => {
         },
     };
 });
-import type { App } from 'obsidian';
+import { Notice, type App } from 'obsidian';
 import { ConvertReferenceDialog } from '../src/modals/convert-reference-dialog';
 
-beforeEach(() => { ui.buttons.length = 0; ui.dropdowns.length = 0; });
+beforeEach(() => { vi.clearAllMocks(); ui.buttons.length = 0; ui.dropdowns.length = 0; });
 
 it('defaults to the vault and executes only once after confirmation', () => {
     const execute = vi.fn(() => new Promise<void>(() => {}));
@@ -37,6 +37,33 @@ it('defaults to the vault and executes only once after confirmation', () => {
     start.click(); start.click();
     expect(execute).toHaveBeenCalledOnce();
     expect(execute).toHaveBeenCalledWith({ kind: 'vault' });
+});
+
+it.each(['success', 'rejection', 'throw'] as const)('closes after execution: %s', async outcome => {
+    const execute = vi.fn(() => {
+        if (outcome === 'throw') throw new Error('Failure');
+        return outcome === 'rejection' ? Promise.reject(new Error('Failure')) : Promise.resolve();
+    });
+    const dialog = new ConvertReferenceDialog({} as App, { kind: 'vault' }, { execute });
+    const close = vi.spyOn(dialog, 'close');
+    dialog.onOpen();
+    ui.buttons[1]!.click();
+    await Promise.resolve();
+    expect(close).toHaveBeenCalledOnce();
+    expect(Notice).toHaveBeenCalledTimes(outcome === 'success' ? 0 : 1);
+});
+
+it('does not close again when execution finishes after dismissal', async () => {
+    let finish!: () => void;
+    const execute = () => new Promise<void>(resolve => { finish = resolve; });
+    const dialog = new ConvertReferenceDialog({} as App, { kind: 'vault' }, { execute });
+    const close = vi.spyOn(dialog, 'close');
+    dialog.onOpen();
+    ui.buttons[1]!.click();
+    dialog.onClose();
+    finish();
+    await Promise.resolve();
+    expect(close).not.toHaveBeenCalled();
 });
 
 it('does not execute on cancel and disables an empty note target', () => {
