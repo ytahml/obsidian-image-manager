@@ -18,7 +18,11 @@ export const en: Record<string, string> = {
     "upload.failed": "Could not complete the operation. Local files have been kept; some uploads or reference updates may already have completed.",
     "upload.busy": "An explicit upload is already running. Please wait for it to finish.",
     "upload.result": "Uploads: {success} succeeded, {failed} failed, {unused} successful results not fully adopted. References: {refs} updated across {notes} notes ({outside} outside scope). Skipped during scanning: {skipped}; note conflicts/read/write failures: {conflicts}. Local files kept.",
-    "upload.folderCommand": "Upload images referenced by notes in this folder",
+    "convert.scopeHelp": "Convert Wiki image references in Markdown notes within the selected scope. Images are not moved or deleted.",
+    "convert.start": "Convert",
+    "convert.running": "Converting Wiki image references…",
+    "convert.failed": "Could not complete the conversion. Conflicting or failed notes were left unchanged.",
+    "convert.busy": "A Wiki image conversion is already running. Please wait for it to finish.",
     // Settings
     "settings.title": "Markdown Image Manager Settings",
     "settings.language": "Language",
@@ -103,15 +107,12 @@ export const en: Record<string, string> = {
     // Commands
     "command.browseImages": "Browse images",
     "command.compressImage": "Compress current image",
-    "command.convertReference": "Convert Wiki images to Markdown (current note)",
-    "command.convertReferenceVault": "Convert Wiki images to Markdown (entire vault)",
+    "command.convertReference": "Convert Wiki images to Markdown",
     "command.uploadToHosting": "Upload image to hosting",
-    "command.uploadNoteImages": "Upload note images to hosting",
-    "command.batchUpload": "Upload referenced images (choose note scope)",
+    "command.batchUpload": "Upload referenced images",
     "command.findOrphans": "Find orphan images",
     "command.renameImage": "Rename image (update references)",
     "command.reorganizeImages": "Reorganize images",
-    "command.convertToMd": "Convert Wiki images to Markdown (compatible shortcut)",
 
     // Ribbon
     "ribbon.tooltip": "Markdown Image Manager",
@@ -127,13 +128,7 @@ export const en: Record<string, string> = {
         "Image is already well-compressed, no changes made",
     "notice.compressFailed": "Image compression failed",
     "notice.noRefsToConvert": "No image references found to convert",
-    "notice.convertSuccess": "Converted {count} reference(s) in current note",
-    "notice.convertPartial":
-        "Converted {count} reference(s) in the current note; skipped {skipped} reference(s) that could not be resolved safely",
-    "notice.convertVaultSuccess":
-        "Converted {count} reference(s) across {files} file(s)",
-    "notice.convertVaultPartial":
-        "Converted {count} reference(s) across {files} file(s); skipped {skipped} reference(s) that could not be resolved safely",
+    "notice.convertScopeResult": "Converted {count} reference(s) across {notes} note(s). Skipped {skipped}; note conflicts/read/write failures: {conflicts}.",
     "notice.noHostingConfig":
         "No image hosting configured. Please add one in settings.",
     "notice.uploading": "Uploading image...",

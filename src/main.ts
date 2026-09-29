@@ -3,7 +3,6 @@ import {
     Plugin,
     TAbstractFile,
     TFile,
-    TFolder,
     SuggestModal,
 } from "obsidian";
 import {
@@ -19,7 +18,10 @@ import { RefConverter } from "./utils/ref-converter";
 import { ImageOptimizer } from "./utils/image-optimizer";
 import { ImageScanner } from "./utils/image-scanner";
 import { BatchUploadDialog } from "./modals/batch-upload-dialog";
+import { ConvertReferenceDialog } from "./modals/convert-reference-dialog";
 import type { UploadScope } from "./uploaders/upload-scope";
+import type { NoteScope } from "./utils/note-scope";
+import { ScopedReferenceConversion } from "./utils/scoped-reference-conversion";
 import { BatchRename } from "./utils/batch-rename";
 import {
     ImageReorganizer,
@@ -41,6 +43,7 @@ import { IndeterminateImageRegistry } from "./lifecycle/indeterminate-image-regi
 import { ConfirmDialog } from "./modals/confirm-dialog";
 import { ManagedPastePipeline } from "./lifecycle/managed-paste-pipeline";
 import { createImageCommands } from "./commands";
+import { createImageFileMenuItems } from "./file-menu";
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -51,6 +54,7 @@ export default class ImageManagerPlugin extends Plugin {
     uploadService: UploadService;
     private uploadReferences: UploadReferenceManager;
     private explicitUploads: ExplicitUploadWorkflow;
+    private referenceConversion: ScopedReferenceConversion;
     private delegatedHandoff: ObsidianDelegatedHandoff;
     private isReorganizing = false;
     private renameRepairCoordinator: ExternalRenameRepairCoordinator<TFile>;
@@ -62,6 +66,7 @@ export default class ImageManagerPlugin extends Plugin {
         setLocale(this.settings.locale);
 
         this.refConverter = new RefConverter(this.app);
+        this.referenceConversion = new ScopedReferenceConversion(this.app, this.refConverter);
         this.imageOptimizer = new ImageOptimizer(this.app);
         this.uploadService = new UploadService(this.app, () => this.settings);
         this.uploadReferences = new UploadReferenceManager({
@@ -153,10 +158,8 @@ export default class ImageManagerPlugin extends Plugin {
             browserEnabled: () => this.settings.enableImageBrowser,
             browse: () => new ImageBrowserModal(this.app, this).open(),
             compress: file => this.compressCurrentImage(file),
-            convertNote: file => this.convertNoteToFormat(file, "markdown"),
-            convertVault: () => this.convertEntireVault(),
+            convertScope: () => this.openReferenceConversion(),
             uploadImage: () => this.uploadCurrentImage(),
-            uploadNote: file => this.uploadNoteImages(file),
             uploadScope: () => this.batchUpload(),
             findOrphans: () => new OrphanImagesModal(this.app, this).open(),
             rename: file => this.renameImage(file),
@@ -219,45 +222,19 @@ export default class ImageManagerPlugin extends Plugin {
         // Right-click menu: image management
         this.registerEvent(
             this.app.workspace.on("file-menu", (menu, file) => {
-                if (file instanceof TFolder) {
-                    menu.addSeparator();
-                    menu.addItem(item => item.setTitle(`Markdown Image Manager: ${t("upload.folderCommand")}`)
-                        .setIcon("upload").onClick(() => this.batchUpload({ kind: "folder", path: file.path })));
-
-                    menu.addItem((item) => {
-                        item.setTitle(
-                            `Markdown Image Manager: ${t("command.reorganizeImages")}`,
-                        )
-                            .setIcon("image-file")
-                            .onClick(() => this.reorganizeFolder(file.path));
-                    });
-                } else if (file instanceof TFile && file.extension === "md") {
-                    menu.addSeparator();
-                    menu.addItem((item) => {
-                        item.setTitle(
-                            `Markdown Image Manager: ${t("command.uploadNoteImages")}`,
-                        )
-                            .setIcon("upload")
-                            .onClick(() => {
-                                void this.uploadNoteImages(file);
-                            });
-                    });
-                    menu.addItem((item) => {
-                        item.setTitle(
-                            `Markdown Image Manager: ${t("command.reorganizeImages")}`,
-                        )
-                            .setIcon("image-file")
-                            .onClick(() => this.reorganizeNote(file));
-                    });
-                    menu.addItem((item) => {
-                        item.setTitle(
-                            `Markdown Image Manager: ${t("command.convertToMd")}`,
-                        )
-                            .setIcon("file-text")
-                            .onClick(() =>
-                                this.convertNoteToFormat(file, "markdown"),
-                            );
-                    });
+                const items = createImageFileMenuItems(file, {
+                    upload: scope => this.batchUpload(scope),
+                    convert: scope => this.convertReferences(scope),
+                    reorganizeNote: note => { void this.reorganizeNote(note); },
+                    reorganizeFolder: path => { void this.reorganizeFolder(path); },
+                });
+                if (!items.length) return;
+                menu.addSeparator();
+                for (const entry of items) {
+                    menu.addItem(item => item
+                        .setTitle(`Markdown Image Manager: ${t(entry.titleKey)}`)
+                        .setIcon(entry.icon)
+                        .onClick(entry.run));
                 }
             }),
         );
@@ -342,49 +319,32 @@ export default class ImageManagerPlugin extends Plugin {
         }
     }
 
-    private async convertEntireVault() {
-        const mdFiles = this.app.vault.getMarkdownFiles();
-        const targetFormat = "markdown";
+    private openReferenceConversion(): void {
+        new ConvertReferenceDialog(this.app, { kind: "vault" }, {
+            execute: scope => this.convertReferences(scope),
+        }).open();
+    }
 
-        let totalConverted = 0;
-        let totalSkipped = 0;
-        let filesChanged = 0;
-
-        for (const file of mdFiles) {
-            const content = await this.app.vault.cachedRead(file);
-            const counts = this.refConverter.countReferences(content);
-            if (counts.wiki === 0) continue;
-
-            const result = this.refConverter.convertAllReferences(
-                content,
-                targetFormat,
-                file,
-            );
-            if (result.converted > 0) {
-                await this.app.vault.process(file, () => result.content);
-                filesChanged++;
-            }
-            totalConverted += result.converted;
-            totalSkipped += result.skipped;
+    private async convertReferences(scope: NoteScope): Promise<void> {
+        if (this.referenceConversion.isBusy) {
+            new Notice(t("convert.busy"));
+            return;
         }
-
-        if (totalConverted === 0 && totalSkipped === 0) {
-            new Notice(t("notice.noRefsToConvert"));
-        } else if (totalSkipped > 0) {
-            new Notice(
-                t("notice.convertVaultPartial", {
-                    files: String(filesChanged),
-                    count: String(totalConverted),
-                    skipped: String(totalSkipped),
-                }),
-            );
-        } else {
-            new Notice(
-                t("notice.convertVaultSuccess", {
-                    files: String(filesChanged),
-                    count: String(totalConverted),
-                }),
-            );
+        try {
+            const result = await this.referenceConversion.convert(scope);
+            if (result.convertedReferences === 0 && result.skippedReferences === 0 &&
+                result.conflicts === 0 && result.failedNotes === 0) {
+                new Notice(t("notice.noRefsToConvert"));
+                return;
+            }
+            new Notice(t("notice.convertScopeResult", {
+                notes: String(result.convertedNotes),
+                count: String(result.convertedReferences),
+                skipped: String(result.skippedReferences),
+                conflicts: String(result.conflicts + result.failedNotes),
+            }));
+        } catch {
+            new Notice(t("convert.failed"));
         }
     }
 
@@ -494,10 +454,6 @@ export default class ImageManagerPlugin extends Plugin {
                 }),
             );
         }
-    }
-
-    private uploadNoteImages(file: TFile): void {
-        this.batchUpload({ kind: "note", path: file.path });
     }
 
     private renameImage(file: TFile) {
@@ -647,44 +603,6 @@ export default class ImageManagerPlugin extends Plugin {
             onConfirm,
         }).open();
         return true;
-    }
-
-    private async convertNoteToFormat(
-        file: TFile,
-        targetFormat: "wiki" | "markdown",
-    ) {
-        const content = await this.app.vault.cachedRead(file);
-        const counts = this.refConverter.countReferences(content);
-        const totalCount = counts.markdown + counts.wiki;
-
-        if (totalCount === 0) {
-            new Notice(t("notice.noRefsToConvert"));
-            return;
-        }
-
-        const result = this.refConverter.convertAllReferences(
-            content,
-            targetFormat,
-            file,
-        );
-        if (result.converted === 0 && result.skipped === 0) {
-            new Notice(t("notice.noRefsToConvert"));
-            return;
-        }
-
-        if (result.converted > 0) {
-            await this.app.vault.process(file, () => result.content);
-        }
-        new Notice(
-            result.skipped > 0
-                ? t("notice.convertPartial", {
-                      count: String(result.converted),
-                      skipped: String(result.skipped),
-                  })
-                : t("notice.convertSuccess", {
-                      count: String(result.converted),
-                  }),
-        );
     }
 
     private handleImagePaste(

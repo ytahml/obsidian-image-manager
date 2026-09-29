@@ -2,8 +2,9 @@ import type { App, TFile } from 'obsidian';
 import type { RefConverter } from '../utils/ref-converter';
 import { createLocalFileLookup, resolveLocalFileReference } from '../utils/local-image-resolution';
 import { readNoteContentForAction } from '../utils/note-content';
+import { getNotesInScope, type NoteScope } from '../utils/note-scope';
 
-export type UploadScope = { kind: 'vault' } | { kind: 'folder' | 'note'; path: string };
+export type UploadScope = NoteScope;
 export interface UploadSource {
     file: TFile;
     path: string;
@@ -29,10 +30,7 @@ export function isUploadSourceCurrent(app: App, source: UploadSource): boolean {
 export async function createUploadPlan(
     app: App, converter: RefConverter, scope: UploadScope, extensions: readonly string[],
 ): Promise<UploadPlan> {
-    const folder = scope.kind === 'folder' ? scope.path.replace(/^\/+|\/+$/g, '') : '';
-    const notes = app.vault.getMarkdownFiles().filter(note =>
-        scope.kind === 'vault' || (scope.kind === 'note' ? note.path === scope.path :
-            folder === '' || note.path.startsWith(`${folder}/`)));
+    const notes = getNotesInScope(app, scope);
     const plan: UploadPlan = { scope, notes, sources: [], skipped: [] };
     const lookup = createLocalFileLookup(app.vault.getFiles());
     const seen = new Set<string>();

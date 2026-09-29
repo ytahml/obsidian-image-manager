@@ -8,10 +8,8 @@ export interface ImageCommandActions {
     browserEnabled: () => boolean;
     browse: () => void;
     compress: FileAction;
-    convertNote: FileAction;
-    convertVault: () => void | Promise<void>;
+    convertScope: () => void;
     uploadImage: FileAction;
-    uploadNote: FileAction;
     uploadScope: () => void;
     findOrphans: () => void;
     rename: FileAction;
@@ -36,14 +34,11 @@ export function createImageCommands(actions: ImageCommandActions): Command[] {
             return true;
         } },
         fileCommand('compress-current-image', 'command.compressImage', actions.isImage, actions.compress),
-        fileCommand('convert-reference-format', 'command.convertReference', markdown, actions.convertNote),
-        { id: 'convert-reference-format-vault', name: t('command.convertReferenceVault'), callback: () => { void actions.convertVault(); } },
+        { id: 'convert-reference-format', name: t('command.convertReference'), callback: actions.convertScope },
         fileCommand('upload-to-hosting', 'command.uploadToHosting', actions.isImage, actions.uploadImage),
-        fileCommand('upload-note-images', 'command.uploadNoteImages', markdown, actions.uploadNote),
         { id: 'batch-upload', name: t('command.batchUpload'), callback: actions.uploadScope },
         { id: 'find-orphan-images', name: t('command.findOrphans'), callback: actions.findOrphans },
         fileCommand('rename-image', 'command.renameImage', actions.isImage, actions.rename),
         fileCommand('reorganize-images', 'command.reorganizeImages', markdown, actions.reorganize),
-        fileCommand('convert-to-md', 'command.convertToMd', markdown, actions.convertNote),
     ];
 }

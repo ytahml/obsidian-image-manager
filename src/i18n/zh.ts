@@ -18,7 +18,11 @@ export const zh: Record<string, string> = {
     "upload.failed": "操作未能完成。本地文件已保留；部分上传或引用更新可能已经完成。",
     "upload.busy": "已有显式上传正在进行，请等待完成。",
     "upload.result": "上传成功 {success} 张，失败 {failed} 张，成功结果未完全采用 {unused} 张。更新 {notes} 篇笔记的 {refs} 处引用（范围外 {outside} 篇）。扫描跳过 {skipped} 项，笔记冲突/读写失败 {conflicts} 项。本地文件已保留。",
-    "upload.folderCommand": "上传此文件夹笔记引用的图片",
+    "convert.scopeHelp": "转换所选范围内 Markdown 笔记中的 Wiki 图片引用，不移动或删除图片文件。",
+    "convert.start": "转换",
+    "convert.running": "正在转换 Wiki 图片引用…",
+    "convert.failed": "转换未能完成，发生冲突或失败的笔记已保留原文。",
+    "convert.busy": "已有 Wiki 图片转换正在进行，请等待完成。",
     // 设置
     "settings.title": "图片管理设置",
     "settings.language": "语言",
@@ -97,15 +101,12 @@ export const zh: Record<string, string> = {
     // 命令
     "command.browseImages": "浏览图片",
     "command.compressImage": "压缩当前图片",
-    "command.convertReference": "Wiki 图片转 Markdown（当前笔记）",
-    "command.convertReferenceVault": "Wiki 图片转 Markdown（整个仓库）",
+    "command.convertReference": "Wiki 图片转 Markdown",
     "command.uploadToHosting": "上传图片到图床",
-    "command.uploadNoteImages": "上传笔记图片到图床",
-    "command.batchUpload": "上传笔记引用的图片（选择范围）",
+    "command.batchUpload": "上传笔记引用的图片",
     "command.findOrphans": "查找孤立图片",
     "command.renameImage": "重命名图片（同步更新引用）",
     "command.reorganizeImages": "整理图片资源",
-    "command.convertToMd": "Wiki 图片转 Markdown（兼容快捷入口）",
 
     // 侧边栏
     "ribbon.tooltip": "图片管理",
@@ -120,12 +121,7 @@ export const zh: Record<string, string> = {
     "notice.compressNoGain": "图片已经足够小，未做更改",
     "notice.compressFailed": "图片压缩失败",
     "notice.noRefsToConvert": "未找到可转换的图片引用",
-    "notice.convertSuccess": "当前笔记已转换 {count} 处引用",
-    "notice.convertPartial":
-        "当前笔记已转换 {count} 处引用，跳过 {skipped} 处无法安全解析的引用",
-    "notice.convertVaultSuccess": "已在 {files} 个文件中转换 {count} 处引用",
-    "notice.convertVaultPartial":
-        "已在 {files} 个文件中转换 {count} 处引用，跳过 {skipped} 处无法安全解析的引用",
+    "notice.convertScopeResult": "已在 {notes} 篇笔记中转换 {count} 处引用；跳过 {skipped} 处，笔记冲突/读写失败 {conflicts} 项。",
     "notice.noHostingConfig": "未配置图床，请在设置中添加图床配置。",
     "notice.uploading": "正在上传图片…",
     "notice.uploadSuccess": "上传成功！图片引用已复制到剪贴板。",

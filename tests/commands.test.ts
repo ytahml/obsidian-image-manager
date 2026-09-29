@@ -8,24 +8,21 @@ function fixture() {
     let enabled = true;
     const actions: ImageCommandActions = {
         getActiveFile: () => file, isImage: value => value.extension === 'png', browserEnabled: () => enabled,
-        browse: vi.fn(), compress: vi.fn(), convertNote: vi.fn(), convertVault: vi.fn(), uploadImage: vi.fn(),
-        uploadNote: vi.fn(), uploadScope: vi.fn(), findOrphans: vi.fn(), rename: vi.fn(), reorganize: vi.fn(),
+        browse: vi.fn(), compress: vi.fn(), convertScope: vi.fn(), uploadImage: vi.fn(),
+        uploadScope: vi.fn(), findOrphans: vi.fn(), rename: vi.fn(), reorganize: vi.fn(),
     };
     return { actions, commands: createImageCommands(actions), setFile: (value: TFile | null) => { file = value; }, disable: () => { enabled = false; } };
 }
-it('registers exactly the eleven implemented IDs, retaining both conversion aliases', () => {
+it('registers exactly the eight implemented IDs without legacy scope aliases', () => {
     const f = fixture();
-    expect(f.commands.map(c => c.id).sort()).toEqual(['browse-images', 'compress-current-image', 'convert-reference-format', 'convert-reference-format-vault', 'upload-to-hosting', 'upload-note-images', 'batch-upload', 'find-orphan-images', 'rename-image', 'reorganize-images', 'convert-to-md'].sort());
+    expect(f.commands.map(c => c.id).sort()).toEqual(['browse-images', 'compress-current-image', 'convert-reference-format', 'upload-to-hosting', 'batch-upload', 'find-orphan-images', 'rename-image', 'reorganize-images'].sort());
 });
-it('checks context without executing actions and routes both conversion commands to the same operation', () => {
+it('opens both unified scope commands without requiring an active file', () => {
     const f = fixture();
-    const aliases = f.commands.filter(c => ['convert-to-md', 'convert-reference-format'].includes(c.id));
-    for (const command of aliases) expect(command.checkCallback?.(true)).toBe(false);
-    f.setFile(Object.assign(new TFile(), { path: 'a.md', extension: 'md' }));
-    for (const command of aliases) expect(command.checkCallback?.(true)).toBe(true);
-    expect(f.actions.convertNote).not.toHaveBeenCalled();
-    for (const command of aliases) command.checkCallback?.(false);
-    expect(f.actions.convertNote).toHaveBeenCalledTimes(2);
+    f.commands.find(c => c.id === 'convert-reference-format')!.callback?.();
+    f.commands.find(c => c.id === 'batch-upload')!.callback?.();
+    expect(f.actions.convertScope).toHaveBeenCalledOnce();
+    expect(f.actions.uploadScope).toHaveBeenCalledOnce();
 });
 it('enforces image/browser gates and every registered command has an executable route', () => {
     const f = fixture();

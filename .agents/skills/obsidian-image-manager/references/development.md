@@ -25,7 +25,7 @@ Vitest 测试应覆盖可观察行为与高风险协议，而不是源码字符�
 - 本地 orphan fresh 校验、skip/fail 和回收站边界。
 - UploadService 窄默认值 getter、原生 objectKey/Custom URL-only、重试、失败摘要。
 - UploadReferenceManager 的尺寸按需读取、模板回退和按笔记安全批量写回；ExplicitUploadWorkflow 的三种笔记范围、去重、跨范围引用更新、Editor/Vault 冲突保护、源身份/版本验证与分阶段失败汇总。
-- 命令定义仅包含已实现的 11 个稳定 ID；上下文检查无执行副作用，两个当前笔记转换 ID 共用实现，迁移/恢复本地引用占位不注册。
+- 命令定义仅包含已实现的 8 个 ID；上传和 Wiki 图片转换各只有一个范围入口且默认全库，被移除的三个重复 ID 不再注册，迁移/恢复本地引用占位不注册。文件菜单测试必须验证使用被点击文章/文件夹，而不是活动笔记。
 - OSS/Qiniu/S3 canonical signing、特殊字符、公开 URL 与连接测试。
 - Provider cursor、文件夹 scope、错误脱敏。
 - browse/preview/thumbnail session 的聚合、缓存、并发和 late response。
@@ -166,7 +166,7 @@ Obsidian 内置更新可能剥离 Markdown 目录。普通 rename 事件等待�
 ## 故障定位
 
 - 插件不加载：检查插件目录中的 `main.js`、manifest id `md-image-manager` 和 build 结果。
-- 命令不出现：检查 active file 条件、Markdown gate、browser enable 和 reload。
+- 命令不出现：范围上传和 Wiki 图片转换不依赖活动文件；其他入口检查 active file 条件、Markdown/image gate、browser enable 和 reload。旧 `upload-note-images`、`convert-reference-format-vault`、`convert-to-md` 快捷键需重新绑定。
 - 设置不生效：检查 default、声明式 definition、await save 与 `update()` 刷新。
 - 上传失败：先测试连接，再核对 endpoint/region/bucket/public base；只输出安全摘要。
 - 远程扫描失败：按结构化 code 区分 config/auth/permission/not-found/rate-limit/network/parsing/server。

@@ -77,6 +77,8 @@ ClipboardEvent/DragEvent
 
 会移动文件、改写引用或上传文件的本地工作流共享来源感知解析语义：Markdown 目标先解包尖括号并逐段容错解码，再统一分类 remote；Wiki 保持宿主字面路径。优先使用 `metadataCache.getFirstLinkpathDest(target, source.path)`；无权威结果时必须收集并按路径去重明确的 Vault-root 与来源目录相对候选，只有一个命中才可解析，多个命中返回歧义。只有明确候选均未命中且 basename 在 eligible lookup 中唯一时才允许兼容回退，不能依赖 `vault.getFiles()` 顺序任选首项。Wiki → Markdown 转换对 remote、缺失或歧义引用保持原文，并按实际转换/跳过数量报告。只读 `LocalReferenceIndex` 在歧义时继续保护全部候选。
 
+范围转换命令只有 `convert-reference-format`：命令弹窗默认全库，也可选递归文件夹或文章；文章/文件夹右键直接转换被点击范围。三种范围通过 `note-scope.ts` 选择 Markdown 笔记，文件夹边界不能误包含相邻同名前缀。每篇笔记用 `readNoteSnapshot()` 读取实时 Editor 或 Vault 内容，再通过 `writeNoteSnapshot()` 重验 Editor 集合、内容、路径和文件身份；多个 Editor 分歧、并发修改、重命名、删除或读写失败保留原文。单篇失败不阻断其他笔记，不承诺跨文件原子事务。转换只处理 Wiki 图片，不移动或删除附件。
+
 远程引用索引不只依赖 `RefConverter`；它还有独立 URL 扫描能力，详见远程文档。
 
 ## Canvas 压缩与格式

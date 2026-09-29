@@ -47,8 +47,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 | Custom Upload Reference Template | ✅ Implemented |
 | Auto Upload on Paste | ✅ Implemented |
 | Image Lifecycle Management (Managed / Delegated) | ✅ Implemented |
-| Batch Upload Note Images | ✅ Implemented |
-| Batch Upload Entire Vault | ✅ Implemented |
+| Scoped Referenced-Image Upload (Vault / Folder / Note) | ✅ Implemented |
 | Orphan Image Detection & Cleanup | ✅ Implemented |
 | Image Rename (sync update all references) | ✅ Implemented |
 | Image Resource Organization (archive by template path) | ✅ Implemented |
@@ -274,7 +273,7 @@ Deletion requires selecting eligible objects, typing the exact selected count, a
 
 ### Upload images referenced by notes
 
-Use **Upload referenced images (choose note scope)** from the command palette, or the upload action on a note/folder's context menu:
+Use **Upload referenced images** from the command palette, or the same upload action on a note/folder's context menu. The command defaults to the entire vault; context-menu actions preselect the clicked note or recursive folder:
 
 1. Choose all Markdown notes in the vault, a folder including subfolders, or one article.
 2. Choose the hosting configuration and whether to replace local references. Review the unique-image count and skipped items before uploading.
@@ -284,7 +283,7 @@ Scope selects notes, not attachment directories. Attachments stored elsewhere ar
 
 Results distinguish upload success/failure, reference updates, and conflicts/read/write failures. Concurrent edits are preserved; a successful upload does not guarantee every reference was updated. Closing the progress window does not cancel requests already started.
 
-Only implemented commands are registered. The unimplemented migration command is removed; other published command IDs, including both current-note Wiki-to-Markdown shortcuts, remain compatible. Image/note actions appear only in the appropriate context.
+Only implemented commands are registered. Duplicate scope-specific upload and Wiki-to-Markdown commands have been consolidated into one entry for each operation. If you had a hotkey bound to `upload-note-images`, `convert-reference-format-vault`, or `convert-to-md`, rebind it to **Upload referenced images** or **Convert Wiki images to Markdown**.
 
 ### Auto Upload
 
@@ -322,18 +321,17 @@ The image browser manages both local images and remote objects from supported ho
 
 ### Upload to Image Hosting
 
-- **Single Upload**: Command palette → "Upload Image to Hosting"
-- **Note Images Upload**: Command palette → "Upload Note Images to Hosting" or right-click Markdown file
-- **Batch Upload**: Command palette → "Batch Upload All Images"
-- Auto copy reference to clipboard after successful upload
+- **Single upload**: Command palette → **Upload image to hosting**
+- **Referenced images**: Command palette → **Upload referenced images** (defaults to the entire vault), or right-click a Markdown note/folder to open the same dialog with that scope preselected
+- Successful single-image uploads copy the generated reference to the clipboard
 
 ### Reference Format Conversion (Wiki → Markdown)
 
-- **Current Note**: Command palette → "Convert Reference Format (Current Note)"
-- **Entire Vault**: Command palette → "Convert Reference Format (Entire Vault)"
-- **Convert to Markdown**: Command palette → "Convert Image Links to Markdown Format"
+- Command palette → **Convert Wiki images to Markdown**, then choose the entire vault (default), a recursive folder, or one note
+- Right-click a Markdown note or folder → **Convert Wiki images to Markdown** to run directly on the clicked scope
+- Open editors are converted from their live content; conflicting or concurrently changed notes are left unchanged and reported
 
-> **Note**: Only supports Wiki → Markdown conversion, reverse conversion is not supported.
+> **Note**: Conversion is one-way from Wiki images to Markdown. It does not move or delete images.
 
 ### Orphan Image Detection
 
@@ -353,8 +351,8 @@ The image browser manages both local images and remote objects from supported ho
 
 ### Right-click Menu
 
-- **Markdown Files**: Upload note images to hosting, organize image resources, convert to Markdown format
-- **Folders**: Organize image resources
+- **Markdown files**: Upload referenced images (preselected note), reorganize images, convert Wiki images to Markdown directly
+- **Folders**: Upload referenced images (preselected recursive folder), reorganize images, convert Wiki images to Markdown directly
 
 ![使用-右键菜单栏-en.png](images/使用-右键菜单栏-en.png)
 

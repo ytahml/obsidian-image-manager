@@ -4,7 +4,11 @@
 
 ## 当前状态
 
-本项目当前没有需要默认加载的设计草案。已完成设计保留在本目录并标记为“归档”；后续开发先读取 references，只有需求改变既有产品边界时才按需打开对应归档设计：
+当前有一份已实现并通过自动验证、等待真实 Obsidian 验收的契约：
+
+- [命令与右键范围入口](command-scopes.md)
+
+已完成设计保留在本目录并标记为“归档”；后续开发先读取 references，只有需求改变既有产品边界时才按需打开对应归档设计：
 
 - [本地图片生命周期](issue-36-local-image-workflow-ownership.md)
 - [远程对象管理](issue-17-remote-image-management.md)
