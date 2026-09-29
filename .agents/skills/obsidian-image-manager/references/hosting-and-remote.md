@@ -10,8 +10,9 @@ UploaderBase
 └── CustomUploader
 
 UploadService    文件/数据上传、重试与结构化结果
-UploadQueue      全库批量上传的 3 worker 与进度
-ExplicitUploadWorkflow  单图、笔记、全库显式上传及结构化汇总
+UploadQueue      范围上传的 3 worker、逐项身份/结果与完成进度
+upload-scope.ts   全库/递归文件夹/文章笔记范围、图片去重与源版本快照
+ExplicitUploadWorkflow  单图、范围显式上传及分阶段结构化汇总
 UploadReferenceManager  上传引用准备、渲染与普通 Vault 替换
 upload-path.ts   原生图床共享路径模板
 public-url.ts    公共 URL base 规范化与拼接
@@ -36,14 +37,18 @@ public-url.ts    公共 URL base 规范化与拼接
 
 `UploadService` 统一文件/数据上传、压缩载荷、重试和结构化结果；它只通过 getter 读取压缩、质量和上传路径三项默认值，不依赖完整插件设置。调用分工为：
 
-- `ExplicitUploadWorkflow`：当前图片、活动/指定笔记和全库批量上传。
+- `ExplicitUploadWorkflow`：当前图片，以及全库/递归文件夹/文章笔记范围上传。
 - managed/delegated 管线：粘贴自动上传，因为它们需要不同的事务身份与安全重验。
 
-笔记上传按解析出的 `TFile.path` 去重：同一图片只上传一次，但每处引用使用自己的 alt 生成替换文本。所有成功引用先一次写回当前笔记，写回成功后才替换其他笔记，降低当前笔记失败时的跨 Vault 部分更新范围。无法解析的引用和每张唯一图片的上传失败都进入结构化汇总。
+范围上传只注册统一的 `batch-upload` 命令，打开时默认全库；文章/文件夹右键打开同一弹窗并预选被点击范围。范围只选择 Markdown 笔记；收集可唯一解析且扩展名受支持的本地图片，按 `TFile.path` 去重，不限制附件所在目录、不上传孤立图片。每处引用保留自己的 alt。开启本次引用替换时，成功图片在全库 Markdown 的引用一起更新，包括范围外笔记；关闭时不改任何笔记。
 
-重试只在统一编排层发生。`UploadQueue` 启动 3 个 worker，并为每文件向 Service 配置最多 3 次重试。成功 listener 只在完整成功后发布；失败不发布远程会话失效。
+`UploadPlan` 保存源 TFile、路径、mtime/size。队列结果始终绑定源快照，不能按服务商 `originalPath`（可能仅文件名）或完成顺序找文件。上传前、重试前及采用结果/写回时重验身份与版本。每篇笔记一次聚合处理成功图片，打开的笔记通过当前 Editor 写回，其他笔记通过 `vault.process` 比较快照；分歧/冲突保留原文。单篇失败不阻断其他独立笔记，不承诺跨文件事务或“先当前笔记再其他笔记”。
 
-需要事务一致性的调用方可提供每次尝试前的异步验证。验证失败时 Service 在发出下一次请求前返回取消结果；普通手动、笔记和批量上传不提供该钩子，保持原重试策略。
+汇总分别报告上传成功/失败、成功但未采用的源结果、更新笔记/引用/范围外笔记数，以及扫描跳过、笔记冲突/读写失败。显式上传始终保留本地文件，禁止重叠显式上传；managed/delegated 自动上传保留原有事务路径。
+
+重试只在统一编排层发生。`UploadQueue` 启动 3 个 worker，并为每文件向 Service 配置最多 3 次重试。队列保存失败项，完成进度包含成功和失败。成功 listener 只在上传成功后发布；失败不发布远程会话失效。
+
+需要事务一致性的调用方可提供每次尝试前的异步验证。验证失败时 Service 在发出下一次请求前返回取消结果；显式单图和范围上传同样提供源身份/版本验证，不放宽既有重试上限。
 
 原生成功必须同时有 URL 与 objectKey；Custom 保持 URL-only。操作结果可包含 attempts、originalSize、uploadedSize、hostingId，但不写入 `data.json` 上传清单。
 

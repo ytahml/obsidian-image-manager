@@ -1,4 +1,28 @@
 export const en: Record<string, string> = {
+    "upload.title": "Upload referenced images",
+    "upload.scope": "Note scope",
+    "upload.vault": "Entire vault",
+    "upload.folder": "Folder (including subfolders)",
+    "upload.note": "Article",
+    "upload.scopeHelp": "Upload supported local images referenced by Markdown notes in this scope, even when attachments are stored elsewhere. Unreferenced files and remote URLs are excluded.",
+    "upload.selectTarget": "Choose target",
+    "upload.hosting": "Image hosting",
+    "upload.replace": "Replace local image references",
+    "upload.replaceHelp": "Also update references to these successfully uploaded images in ALL Markdown notes outside the selected scope.",
+    "upload.keepLocal": "Local image files are always kept. This operation does not delete files.",
+    "upload.scanning": "Reading local references…",
+    "upload.summary": "{notes} notes · {images} unique images · {skipped} references/notes skipped",
+    "upload.start": "Upload",
+    "upload.running": "Uploading and updating references…",
+    "upload.runningHelp": "Closing this window does not cancel requests. A completion notice will report uploads and reference updates separately.",
+    "upload.failed": "Could not complete the operation. Local files have been kept; some uploads or reference updates may already have completed.",
+    "upload.busy": "An explicit upload is already running. Please wait for it to finish.",
+    "upload.result": "Uploads: {success} succeeded, {failed} failed, {unused} successful results not fully adopted. References: {refs} updated across {notes} notes ({outside} outside scope). Skipped during scanning: {skipped}; note conflicts/read/write failures: {conflicts}. Local files kept.",
+    "convert.scopeHelp": "Convert Wiki image references in Markdown notes within the selected scope. Images are not moved or deleted.",
+    "convert.start": "Convert",
+    "convert.running": "Converting Wiki image references…",
+    "convert.failed": "Could not complete the conversion. Conflicting or failed notes were left unchanged.",
+    "convert.busy": "A Wiki image conversion is already running. Please wait for it to finish.",
     // Settings
     "settings.title": "Markdown Image Manager Settings",
     "settings.language": "Language",
@@ -83,23 +107,18 @@ export const en: Record<string, string> = {
     // Commands
     "command.browseImages": "Browse images",
     "command.compressImage": "Compress current image",
-    "command.convertReference": "Convert reference format (current note)",
-    "command.convertReferenceVault": "Convert reference format (entire vault)",
+    "command.convertReference": "Convert Wiki images to Markdown",
     "command.uploadToHosting": "Upload image to hosting",
-    "command.uploadNoteImages": "Upload note images to hosting",
-    "command.batchUpload": "Batch upload all images",
+    "command.batchUpload": "Upload referenced images",
     "command.findOrphans": "Find orphan images",
     "command.renameImage": "Rename image (update references)",
-    "command.migrateImages": "Migrate images to hosting",
     "command.reorganizeImages": "Reorganize images",
-    "command.convertToMd": "Convert image refs to Markdown format",
 
     // Ribbon
     "ribbon.tooltip": "Markdown Image Manager",
 
     // Notices
     "notice.notImplemented": "Not yet implemented",
-    "notice.migrateNotImplemented": "Image migration is not yet implemented.",
     "notice.unknownError": "Unknown error",
     "notice.imageSaveFailed": "Image save failed: {error}",
     "notice.noActiveEditor": "No active editor. Please open a note first.",
@@ -109,13 +128,7 @@ export const en: Record<string, string> = {
         "Image is already well-compressed, no changes made",
     "notice.compressFailed": "Image compression failed",
     "notice.noRefsToConvert": "No image references found to convert",
-    "notice.convertSuccess": "Converted {count} reference(s) in current note",
-    "notice.convertPartial":
-        "Converted {count} reference(s) in the current note; skipped {skipped} reference(s) that could not be resolved safely",
-    "notice.convertVaultSuccess":
-        "Converted {count} reference(s) across {files} file(s)",
-    "notice.convertVaultPartial":
-        "Converted {count} reference(s) across {files} file(s); skipped {skipped} reference(s) that could not be resolved safely",
+    "notice.convertScopeResult": "Converted {count} reference(s) across {notes} note(s). Skipped {skipped}; note conflicts/read/write failures: {conflicts}.",
     "notice.noHostingConfig":
         "No image hosting configured. Please add one in settings.",
     "notice.uploading": "Uploading image...",
@@ -536,10 +549,6 @@ export const en: Record<string, string> = {
     "settings.keepLocalCopy": "Keep local copy",
     "settings.keepLocalCopyDesc":
         "Used only for paste auto-upload; when off, the attachment is trashed after confirming no local references remain and its empty folder is cleaned up",
-    "command.restoreLocalRefs": "Restore local image references",
-    "command.restoreLocalRefsFolder": "Restore local image references (folder)",
-    "notice.restoreLocalDone": "Restored {count} reference(s) to local files",
-    "notice.restoreLocalFailed": "Failed to download: {error}",
     "notice.autoUploading": "Uploading image to hosting...",
     "notice.autoUploadSuccess": "Image uploaded, reference updated",
     "notice.autoUploadFailed":

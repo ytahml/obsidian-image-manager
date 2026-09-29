@@ -1,59 +1,34 @@
-import type { App, TFile } from "obsidian";
-import type { ImageHostingConfig, ImageReference } from "../types";
-import type { RefConverter } from "../utils/ref-converter";
-import { collectLocalNoteImages } from "./note-images";
-import { summarizeUploadError } from "./upload-error";
-import { UploadQueue, type QueueProgress } from "./upload-queue";
-import type { UploadOperationResult, UploadService } from "./upload-service";
-import type {
-    PreparedUploadReference,
-    UploadReferenceManager,
-} from "./upload-reference-manager";
+import type { App, TFile } from 'obsidian';
+import type { ImageHostingConfig } from '../types';
+import type { RefConverter } from '../utils/ref-converter';
+import { UploadQueue, type QueueProgress, type QueueResult } from './upload-queue';
+import type { UploadOperationResult, UploadService, UploadServiceOptions } from './upload-service';
+import type { BatchReferenceResult, UploadedReference, UploadReferenceManager } from './upload-reference-manager';
+import { createUploadPlan, isUploadSourceCurrent, snapshotUploadSource, type UploadPlan, type UploadScope } from './upload-scope';
 
 export interface ImageUploadResult {
     operation: UploadOperationResult;
     reference?: string;
     replacedReferences: number;
 }
-
-export interface NoteUploadFailure {
-    kind: "missing-file" | "ambiguous-file" | "upload-failed";
-    fileName: string;
-    error?: string;
-    referenceCount: number;
+export interface BatchUploadOptions {
+    replaceReferences: boolean;
+    referenceTemplate?: string;
+    upload?: UploadServiceOptions;
 }
-
-export interface NoteUploadProgress {
-    completedImages: number;
-    totalImages: number;
-    current: string;
-}
-
-export interface NoteUploadResult {
-    totalReferences: number;
-    successfulReferences: number;
-    uploadedImages: number;
-    failures: NoteUploadFailure[];
-}
-
-export interface BatchUploadResult {
+export interface BatchUploadResult extends BatchReferenceResult {
     totalImages: number;
     successfulImages: number;
-    operations: UploadOperationResult[];
+    failedImages: number;
+    unusedImages: number;
+    items: QueueResult[];
+    skipped: UploadPlan['skipped'];
 }
 
-interface ResolvedImageGroup {
-    file: TFile;
-    references: ImageReference[];
-}
-
-interface UploadedImageGroup extends ResolvedImageGroup {
-    url: string;
-    prepared: PreparedUploadReference;
-}
-
-/** Owns explicit single-image, note, and Vault upload workflows without UI effects. */
+/** Explicit upload commands share identity, queue and safe all-Vault writeback. */
 export class ExplicitUploadWorkflow {
+    private busy = false;
+    get isBusy(): boolean { return this.busy; }
     constructor(
         private readonly app: App,
         private readonly uploadService: UploadService,
@@ -61,171 +36,58 @@ export class ExplicitUploadWorkflow {
         private readonly uploadReferences: UploadReferenceManager,
     ) {}
 
-    async uploadImage(
-        file: TFile,
-        hosting: ImageHostingConfig,
-        replaceVaultReferences: boolean,
-    ): Promise<ImageUploadResult> {
-        const operation = await this.uploadService.uploadFile(file, hosting);
-        if (!operation.success || !operation.url) {
-            return { operation, replacedReferences: 0 };
-        }
-
-        const prepared = await this.uploadReferences.prepare(file);
-        const reference = prepared.render(operation.url);
-        const replacedReferences = replaceVaultReferences
-            ? await this.uploadReferences.replaceVaultReferences(
-                  file,
-                  operation.url,
-                  prepared,
-              )
-            : 0;
-        return { operation, reference, replacedReferences };
+    async uploadImage(file: TFile, hosting: ImageHostingConfig, replaceVaultReferences: boolean): Promise<ImageUploadResult> {
+        this.begin();
+        try {
+            const source = snapshotUploadSource(file);
+            const operation = await this.uploadService.uploadFile(file, hosting, {
+                beforeAttempt: () => isUploadSourceCurrent(this.app, source),
+            });
+            if (!operation.success || !operation.url || !isUploadSourceCurrent(this.app, source)) {
+                return { operation, replacedReferences: 0 };
+            }
+            const prepared = await this.uploadReferences.prepare(file);
+            const reference = prepared.render(operation.url);
+            const replacements = replaceVaultReferences ? await this.uploadReferences.replaceBatchReferences(
+                [{ source, url: operation.url, prepared }], new Set(),
+            ) : undefined;
+            return { operation, reference, replacedReferences: replacements?.replacedReferences ?? 0 };
+        } finally { this.busy = false; }
     }
 
-    async uploadNote(
-        note: TFile,
-        hosting: ImageHostingConfig,
-        onProgress?: (progress: NoteUploadProgress) => void,
-    ): Promise<NoteUploadResult> {
-        const { content, references } = await collectLocalNoteImages(
-            this.app,
-            note,
-            this.refConverter,
-        );
-        const failures: NoteUploadFailure[] = [];
-        const groups = new Map<string, ResolvedImageGroup>();
-
-        for (const item of references) {
-            if (item.resolution.status !== "resolved") {
-                failures.push({
-                    kind:
-                        item.resolution.status === "ambiguous"
-                            ? "ambiguous-file"
-                            : "missing-file",
-                    fileName: item.reference.path,
-                    referenceCount: 1,
-                });
-                continue;
-            }
-            const file = item.resolution.file;
-            const existing = groups.get(file.path);
-            if (existing) existing.references.push(item.reference);
-            else groups.set(file.path, { file, references: [item.reference] });
-        }
-
-        const resolvedGroups = Array.from(groups.values());
-        const uploaded: UploadedImageGroup[] = [];
-        let completedImages = 0;
-
-        for (const group of resolvedGroups) {
-            onProgress?.({
-                completedImages,
-                totalImages: resolvedGroups.length,
-                current: group.file.name,
-            });
-            try {
-                const operation = await this.uploadService.uploadFile(
-                    group.file,
-                    hosting,
-                );
-                if (!operation.success || !operation.url) {
-                    failures.push({
-                        kind: "upload-failed",
-                        fileName: group.file.name,
-                        error: summarizeUploadError(operation.error),
-                        referenceCount: group.references.length,
-                    });
-                } else {
-                    uploaded.push({
-                        ...group,
-                        url: operation.url,
-                        prepared: await this.uploadReferences.prepare(
-                            group.file,
-                        ),
-                    });
-                }
-            } catch (error) {
-                failures.push({
-                    kind: "upload-failed",
-                    fileName: group.file.name,
-                    error: summarizeUploadError(
-                        error instanceof Error ? error.message : undefined,
-                    ),
-                    referenceCount: group.references.length,
-                });
-            }
-            completedImages++;
-            onProgress?.({
-                completedImages,
-                totalImages: resolvedGroups.length,
-                current: group.file.name,
-            });
-        }
-
-        const replacements = uploaded
-            .reduce<Array<{ reference: ImageReference; text: string }>>(
-                (all, group) => {
-                    for (const reference of group.references) {
-                        all.push({
-                            reference,
-                            text: group.prepared.render(
-                                group.url,
-                                reference.altText ||
-                                    group.file.name.replace(/\.[^.]+$/, ""),
-                            ),
-                        });
-                    }
-                    return all;
-                },
-                [],
-            )
-            .sort((a, b) => b.reference.col - a.reference.col);
-
-        let newContent = content;
-        for (const replacement of replacements) {
-            const ref = replacement.reference;
-            newContent =
-                newContent.substring(0, ref.col) +
-                replacement.text +
-                newContent.substring(ref.col + ref.fullMatch.length);
-        }
-
-        if (replacements.length > 0) {
-            await this.app.vault.process(note, () => newContent);
-            for (const group of uploaded) {
-                await this.uploadReferences.replaceVaultReferences(
-                    group.file,
-                    group.url,
-                    group.prepared,
-                    {
-                        skipFile: note,
-                    },
-                );
-            }
-        }
-
-        return {
-            totalReferences: references.length,
-            successfulReferences: replacements.length,
-            uploadedImages: uploaded.length,
-            failures,
-        };
+    createPlan(scope: UploadScope, extensions: readonly string[]): Promise<UploadPlan> {
+        return createUploadPlan(this.app, this.refConverter, scope, extensions);
     }
 
-    async uploadBatch(
-        files: TFile[],
-        hosting: ImageHostingConfig,
-        onProgress?: (progress: QueueProgress) => void,
-    ): Promise<BatchUploadResult> {
-        const queue = new UploadQueue(this.uploadService);
-        queue.addFiles(files);
-        if (onProgress) queue.onProgressChange(onProgress);
-        const operations = await queue.start(hosting);
-        return {
-            totalImages: files.length,
-            successfulImages: operations.length,
-            operations,
-        };
+    async uploadPlan(plan: UploadPlan, hosting: ImageHostingConfig, options: BatchUploadOptions, onProgress?: (progress: QueueProgress) => void): Promise<BatchUploadResult> {
+        this.begin();
+        try {
+            const queue = new UploadQueue(this.uploadService);
+            queue.addSources(plan.sources);
+            if (onProgress) queue.onProgressChange(onProgress);
+            const items = await queue.startItems(hosting, options.upload, source => isUploadSourceCurrent(this.app, source));
+            const uploaded: UploadedReference[] = [];
+            const unused = new Set<string>();
+            for (const item of items) {
+                if (!item.operation.success || !item.operation.url) continue;
+                if (!isUploadSourceCurrent(this.app, item.source)) { unused.add(item.source.path); continue; }
+                if (!options.replaceReferences) continue;
+                try {
+                    uploaded.push({ source: item.source, url: item.operation.url,
+                        prepared: await this.uploadReferences.prepare(item.source.file, options.referenceTemplate) });
+                } catch { unused.add(item.source.path); }
+            }
+            const references = await this.uploadReferences.replaceBatchReferences(uploaded, new Set(plan.notes.map(note => note.path)));
+            for (const item of items) {
+                if (item.operation.success && !isUploadSourceCurrent(this.app, item.source)) unused.add(item.source.path);
+            }
+            const successfulImages = items.filter(item => item.operation.success && item.operation.url).length;
+            return { ...references, totalImages: items.length, successfulImages, failedImages: items.length - successfulImages,
+                unusedImages: unused.size, items, skipped: plan.skipped };
+        } finally { this.busy = false; }
+    }
+    private begin(): void {
+        if (this.busy) throw new Error('An explicit upload is already running');
+        this.busy = true;
     }
 }

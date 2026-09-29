@@ -47,8 +47,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 | Custom Upload Reference Template | ✅ Implemented |
 | Auto Upload on Paste | ✅ Implemented |
 | Image Lifecycle Management (Managed / Delegated) | ✅ Implemented |
-| Batch Upload Note Images | ✅ Implemented |
-| Batch Upload Entire Vault | ✅ Implemented |
+| Scoped Referenced-Image Upload (Vault / Folder / Note) | ✅ Implemented |
 | Orphan Image Detection & Cleanup | ✅ Implemented |
 | Image Rename (sync update all references) | ✅ Implemented |
 | Image Resource Organization (archive by template path) | ✅ Implemented |
@@ -255,7 +254,7 @@ src/
 - **Upload Path Template** — Supports `{year}`, `{month}`, `{day}`, `{filename}`, `{ext}`, `{hash}`, `{timestamp}`, `{sourceDir}`
 - **Public Access URL Base** — Base URL used to access uploaded objects; it can include a bucket or directory path. Required for Qiniu
 - **Custom Reference Template** — Optional upload-only template; `{fileUrl}` is required and file metadata or intrinsic dimensions can be included
-- **Auto Replace After Upload** — Automatically replace local references with hosting URL
+- **Auto Replace After Upload** — Replace references after single-image upload; also sets the initial replacement choice in the scoped upload dialog
 - **Remote Object Management** — Available for Aliyun OSS, Qiniu Kodo, and S3-compatible configurations; scanning remains explicit
 - **Management Prefix** — Limits remote scanning to a bucket prefix; an empty value means the current bucket root and requires confirmation
 - **Other Reference URL Bases** — One HTTP(S) base per line for recognizing CDN, legacy-domain, or alternate public URLs
@@ -271,6 +270,20 @@ Aliyun OSS, S3-compatible, and Qiniu remote browsing list objects only after an 
 Remote object management supports Aliyun OSS, S3-compatible storage, and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. OSS ListObjectsV2 incurs API request charges; private preview uses a 300-second V4 presigned URL, while public preview uses the configured public access URL base. Grant only `oss:ListObjects`, `oss:GetObject` for private previews, and `oss:DeleteObject` when deletion is required. Archive, Cold Archive, and Deep Cold Archive objects are not previewed automatically. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
 
 Deletion requires selecting eligible objects, typing the exact selected count, and acknowledging that cloud deletion cannot be undone. Selection count is not capped; requests still run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the configured scope again. The plugin keeps up to 200 redacted local diagnostic records of completed delete requests; they never participate in remote-existence, reference, or deletion decisions, and do not contain presigned preview URLs or credentials.
+
+### Upload images referenced by notes
+
+Use **Upload referenced images** from the command palette, or the same upload action on a note/folder's context menu. The command defaults to the entire vault; context-menu actions preselect the clicked note or recursive folder:
+
+1. Choose all Markdown notes in the vault, a folder including subfolders, or one article.
+2. Choose the hosting configuration and whether to replace local references. Review the unique-image count and skipped items before uploading.
+3. When replacement is enabled, **all Markdown notes referencing the same successfully uploaded image are updated, even outside the chosen scope**. Local image files are always kept.
+
+Scope selects notes, not attachment directories. Attachments stored elsewhere are included; unreferenced images and existing remote URLs are excluded. This replaces the older behavior of uploading every image file in the vault. Use single-image upload for an unreferenced image. Markdown images and Wiki embeds are supported; Canvas, HTML and frontmatter rewriting are not included.
+
+Results distinguish upload success/failure, reference updates, and conflicts/read/write failures. Concurrent edits are preserved; a successful upload does not guarantee every reference was updated. Closing the progress window does not cancel requests already started.
+
+Only implemented commands are registered. Duplicate scope-specific upload and Wiki-to-Markdown commands have been consolidated into one entry for each operation. If you had a hotkey bound to `upload-note-images`, `convert-reference-format-vault`, or `convert-to-md`, rebind it to **Upload referenced images** or **Convert Wiki images to Markdown**.
 
 ### Auto Upload
 
@@ -308,18 +321,17 @@ The image browser manages both local images and remote objects from supported ho
 
 ### Upload to Image Hosting
 
-- **Single Upload**: Command palette → "Upload Image to Hosting"
-- **Note Images Upload**: Command palette → "Upload Note Images to Hosting" or right-click Markdown file
-- **Batch Upload**: Command palette → "Batch Upload All Images"
-- Auto copy reference to clipboard after successful upload
+- **Single upload**: Command palette → **Upload image to hosting**
+- **Referenced images**: Command palette → **Upload referenced images** (defaults to the entire vault), or right-click a Markdown note/folder to open the same dialog with that scope preselected
+- Successful single-image uploads copy the generated reference to the clipboard
 
 ### Reference Format Conversion (Wiki → Markdown)
 
-- **Current Note**: Command palette → "Convert Reference Format (Current Note)"
-- **Entire Vault**: Command palette → "Convert Reference Format (Entire Vault)"
-- **Convert to Markdown**: Command palette → "Convert Image Links to Markdown Format"
+- Command palette → **Convert Wiki images to Markdown**, then choose the entire vault (default), a recursive folder, or one note
+- Right-click a Markdown note or folder → **Convert Wiki images to Markdown** to run directly on the clicked scope
+- Open editors are converted from their live content; conflicting or concurrently changed notes are left unchanged and reported
 
-> **Note**: Only supports Wiki → Markdown conversion, reverse conversion is not supported.
+> **Note**: Conversion is one-way from Wiki images to Markdown. It does not move or delete images.
 
 ### Orphan Image Detection
 
@@ -339,8 +351,8 @@ The image browser manages both local images and remote objects from supported ho
 
 ### Right-click Menu
 
-- **Markdown Files**: Upload note images to hosting, organize image resources, convert to Markdown format
-- **Folders**: Organize image resources
+- **Markdown files**: Upload referenced images (preselected note), reorganize images, convert Wiki images to Markdown directly
+- **Folders**: Upload referenced images (preselected recursive folder), reorganize images, convert Wiki images to Markdown directly
 
 ![使用-右键菜单栏-en.png](images/使用-右键菜单栏-en.png)
 

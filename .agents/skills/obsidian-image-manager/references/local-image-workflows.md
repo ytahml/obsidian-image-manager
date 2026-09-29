@@ -77,6 +77,8 @@ ClipboardEvent/DragEvent
 
 会移动文件、改写引用或上传文件的本地工作流共享来源感知解析语义：Markdown 目标先解包尖括号并逐段容错解码，再统一分类 remote；Wiki 保持宿主字面路径。优先使用 `metadataCache.getFirstLinkpathDest(target, source.path)`；无权威结果时必须收集并按路径去重明确的 Vault-root 与来源目录相对候选，只有一个命中才可解析，多个命中返回歧义。只有明确候选均未命中且 basename 在 eligible lookup 中唯一时才允许兼容回退，不能依赖 `vault.getFiles()` 顺序任选首项。Wiki → Markdown 转换对 remote、缺失或歧义引用保持原文，并按实际转换/跳过数量报告。只读 `LocalReferenceIndex` 在歧义时继续保护全部候选。
 
+范围转换命令只有 `convert-reference-format`：命令弹窗默认全库，也可选递归文件夹或文章；文章/文件夹右键直接转换被点击范围。三种范围通过 `note-scope.ts` 选择 Markdown 笔记，文件夹边界不能误包含相邻同名前缀。每篇笔记用 `readNoteSnapshot()` 读取实时 Editor 或 Vault 内容，再通过 `writeNoteSnapshot()` 重验 Editor 集合、内容、路径和文件身份；多个 Editor 分歧、并发修改、重命名、删除或读写失败保留原文。单篇失败不阻断其他笔记，不承诺跨文件原子事务。转换只处理 Wiki 图片，不移动或删除附件。
+
 远程引用索引不只依赖 `RefConverter`；它还有独立 URL 扫描能力，详见远程文档。
 
 ## Canvas 压缩与格式
@@ -168,8 +170,8 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 
 `collectLocalNoteImages`：
 
-- 活动笔记读取 Editor 内存文本，避免未保存内容丢失。
-- 非活动笔记使用 Vault `read`。
+- 读取所有打开的 Markdown leaf（包括非活动笔记）的 Editor 文本；同一笔记多个 Editor 不一致时失败关闭。
+- 未打开的笔记使用 Vault `read`。
 - Markdown 本地路径先完整容错解码并去除尖括号，再用 Obsidian linkpath 语义解析。
 - 聚合缺失引用、同名歧义、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要；歧义引用不发起上传，也不替换当前或其他笔记。
 - 排除所有 URL scheme、protocol-relative、data 与 blob 引用；同一 `TFile.path` 在显式笔记上传中只上传一次，每处引用仍独立保留 alt。
@@ -179,7 +181,9 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 - 遍历其他笔记时复用共享来源感知解析器；只有引用唯一解析到本次上传的同一 `TFile.path` 才替换，remote、缺失、歧义和解析到其他同名文件的引用保持原文。
 - 当前 Editor 已更新时，遍历其他笔记必须跳过当前文件。
 - 上传 URL 中 Unicode 可读化只发生在生成 Markdown 引用的边界。
-- 当前笔记的全部成功替换先一次写回，成功后再更新其他笔记；显式流程只返回结构化结果，Notice 和进度属于 `main.ts` UI adapter。
+- 显式范围上传由 `createUploadPlan()` 选择全库/递归文件夹/文章笔记，按源文件路径去重；确认后可选更新全库中同一成功图片的引用，范围外笔记也参与。
+- `replaceBatchReferences()` 每篇笔记聚合所有成功图片，重新解析最新内容；Editor 绑定/内容及源文件身份/版本必须仍有效，Vault 写回比较快照，冲突保留原文。单篇失败不阻断其他笔记；结构化结果区分上传与改写结果，Notice 属于 `main.ts`。不删除本地图片。
+- 原 `replaceVaultReferences()` 仍服务自动上传调用方的既有跨笔记流程；它不是显式范围上传的新写回路径，不得循环调用它代替批量安全写回。
 
 ## 自动上传与本地清理
 
@@ -215,6 +219,7 @@ managed 自动上传在本地未压缩而 `compressBeforeUpload=true` 时重新�
 
 `ImageReorganizer`：
 
+- 文件夹整理与转换/上传复用 `getNotesInScope()`；空路径和 `/` 都表示库根，首尾斜杠规范化，递归包含子目录但排除相邻前缀。根目录不能通过拼接 `//` 筛选而静默遗漏所有笔记。
 - 单笔记和文件夹命令都先建立完整批次计划：按来源笔记语义绑定目标引用、对待移动 `TFile` 去重，并预绑定 Vault 中其他确实指向这些文件的引用；缺失或歧义计入 skipped，不移动、不改写。
 - remote 引用由共享解析器在 Markdown 解包后识别并跳过；按 `skipWikiRefsOnReorganize` 决定本地 Wiki 是否参与。
 - 同一图片在一个批次内只移动一次；目标按目标笔记遍历顺序确定。先创建目录，再基于实时占用和批次 reserved paths 重算后缀，并记录真实 `oldPath → finalPath`。
