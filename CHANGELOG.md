@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.0.6
+
+### 🇺🇸 English
+
+#### New features
+
+- Upload local images referenced by Markdown notes in the whole vault, a recursive folder, or a single note, with optional replacement of successful uploads across all Markdown notes ([PR #56](https://github.com/ytahml/obsidian-image-manager/pull/56), [Issue #55](https://github.com/ytahml/obsidian-image-manager/issues/55)). Shared images are uploaded once; local files are always retained.
+- Upload and Wiki-to-Markdown conversion each have one scope command, defaulting to the whole vault. Note/folder context menus target the clicked item; upload opens a preselected dialog and conversion runs directly.
+
+#### Fixes and compatibility
+
+- Protect reference updates with source-version checks, live editor content, and snapshot-checked writes; report upload results separately from reference conflicts and failures.
+- Fixed root-folder reorganization and asynchronous dialog completion handling.
+- Removed duplicate command IDs `upload-note-images`, `convert-reference-format-vault`, and `convert-to-md`. Rebind existing shortcuts to `batch-upload` or `convert-reference-format`.
+- Requires Obsidian 1.13.0 or later (unchanged).
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 支持按全库、递归文件夹或单篇文章上传 Markdown 笔记引用的本地图片，并可选择将成功图片在全库 Markdown 中的引用替换为图床 URL（[PR #56](https://github.com/ytahml/obsidian-image-manager/pull/56)、[Issue #55](https://github.com/ytahml/obsidian-image-manager/issues/55)）。共享图片只上传一次，始终保留本地文件。
+- 上传与 Wiki 图片转 Markdown 各保留一个范围命令，默认全库。文章/文件夹右键针对被点击目标：上传打开预选范围弹窗，转换直接执行。
+
+#### 修复与兼容性
+
+- 使用源版本校验、实时编辑器内容和受快照保护的写回，避免覆盖并发修改；分别报告上传结果、引用冲突与读写失败。
+- 修复根目录图片整理和弹窗异步完成处理。
+- 移除重复命令 ID `upload-note-images`、`convert-reference-format-vault` 和 `convert-to-md`；已有快捷键需重新绑定到 `batch-upload` 或 `convert-reference-format`。
+- 最低 Obsidian 版本仍为 1.13.0。
+
+---
+
 ## 2.0.5
 
 ### 🇺🇸 English
