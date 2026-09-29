@@ -64,7 +64,7 @@ src/i18n/                   中英文词条与插值
 
 Vault 中 Markdown 文件变化会使远程引用索引 stale。delegated paste/drop 先冻结来源笔记引用基线，再通过事务差异把新 `TFile` 与唯一新增引用配对，同来源笔记效果串行；图片 rename 链按最终路径合并为一个串行修复批次，并受 delegated 活跃/近期保护门禁约束。整理期间由 `isReorganizing` 阻止修复器与内部移动冲突。
 
-`ManagedPastePipeline` 封装 managed 模式从命名、路径、压缩、落盘、引用插入到可选上传及安全回收的完整事务。`note-scope.ts` 为转换与上传提供同一笔记范围语义，附件收集仍只属于 `upload-scope.ts`。`ScopedReferenceConversion` 复用安全笔记快照读写；`UploadReferenceManager` 统一上传引用渲染及按笔记安全批量写回；`ExplicitUploadWorkflow` 返回不含 Notice/剪贴板副作用的单图与范围上传结构化结果。`main.ts` 只过滤事件输入、在 managed/delegated 之间分流并把结果投影到 Obsidian UI；资源整理继续通过插件公开的 `resolveImagePath()` 复用同一条路径规则。
+`ManagedPastePipeline` 封装 managed 模式从命名、路径、压缩、落盘、引用插入到可选上传及安全回收的完整事务。`note-scope.ts` 为转换与上传提供同一笔记范围语义，附件收集仍只属于 `upload-scope.ts`。`ScopedReferenceConversion` 复用安全笔记快照读写；`UploadReferenceManager` 统一上传引用渲染及按笔记安全批量写回；`ExplicitUploadWorkflow` 返回不含 Notice/剪贴板副作用的单图与范围上传结构化结果；`UploadLocalCleanup` 按当前模式本地副本偏好、实际引用替换结果及 fresh 孤立资格，通过回收站清理成功源并独立汇总。`main.ts` 只过滤事件输入、在 managed/delegated 之间分流并把结果投影到 Obsidian UI；资源整理继续通过插件公开的 `resolveImagePath()` 复用同一条路径规则。
 
 ## 核心类型
 

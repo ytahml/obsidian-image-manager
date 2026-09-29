@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const renderedToggles = vi.hoisted(() => new Map<string, { disabled: boolean; change: (value: boolean) => Promise<void> }>());
 vi.mock('obsidian', () => {
     class PluginSettingTab {
         app: unknown;
@@ -18,7 +19,28 @@ vi.mock('obsidian', () => {
     }
 
     class Modal {}
-    class Setting {}
+    const root = { empty() {}, addClass() {}, removeClass() {}, textContent: '', createDiv() { return this; } };
+    class Setting {
+        settingEl = root;
+        descEl = root;
+        name = '';
+        setName(value: string) { this.name = value; return this; }
+        setDesc() { return this; }
+        setHeading() { return this; }
+        addText() { return this; }
+        addButton() { return this; }
+        addToggle(callback: (toggle: unknown) => void) {
+            const toggle = {
+                disabled: false, change: async (_value: boolean) => {},
+                setDisabled(value: boolean) { this.disabled = value; return this; },
+                setValue() { return this; },
+                onChange(fn: (value: boolean) => Promise<void>) { this.change = fn; return this; },
+            };
+            callback(toggle);
+            renderedToggles.set(this.name, toggle);
+            return this;
+        }
+    }
     class DropdownComponent {}
     class TextComponent {}
 
@@ -37,8 +59,8 @@ import {
     getActivePastePreference,
     ImageManagerSettingTab,
     setActivePastePreference,
-    shouldDisableKeepLocalCopy,
 } from '../src/settings';
+import { Setting, type SettingGroup } from 'obsidian';
 import { setLocale, t } from '../src/i18n';
 import { DEFAULT_SETTINGS, type ImageManagerSettings } from '../src/types';
 
@@ -138,6 +160,21 @@ describe('Obsidian 1.13 declarative settings', () => {
         expect(update).toHaveBeenCalledTimes(2);
     });
 
+    it.each(['managed', 'delegated'] as const)('keeps %s local-copy control enabled with paste auto-upload off', async mode => {
+        const { plugin, tab } = createTab(mode);
+        plugin.settings.managedAutoUploadOnPaste = false;
+        plugin.settings.delegatedAutoUploadOnPaste = false;
+        const hosting = tab.getSettingDefinitions().find(item => 'name' in item && item.name === t('settings.imageHosting'));
+        if (!hosting || !('render' in hosting) || !hosting.render) throw new Error('Missing hosting settings');
+        hosting.render(new Setting({} as HTMLElement), {} as SettingGroup);
+        const toggle = renderedToggles.get(t('settings.keepLocalCopy'))!;
+        expect(toggle.disabled).toBe(false);
+        await toggle.change(true);
+        expect(mode === 'managed' ? plugin.settings.managedKeepLocalCopy : plugin.settings.delegatedKeepLocalCopy).toBe(true);
+        expect(mode === 'managed' ? plugin.settings.delegatedKeepLocalCopy : plugin.settings.managedKeepLocalCopy).toBe(false);
+        expect(plugin.saveSettings).toHaveBeenCalledOnce();
+    });
+
     it('preserves independent paste preferences when switching modes', async () => {
         const { plugin, tab } = createTab('managed');
         plugin.settings.managedAutoUploadOnPaste = false;
@@ -154,7 +191,7 @@ describe('Obsidian 1.13 declarative settings', () => {
         expect(plugin.settings.delegatedKeepLocalCopy).toBe(false);
     });
 
-    it('binds paste toggles to the active mode and derives the keep-local gate', () => {
+    it('binds upload preferences to the active mode independently of auto-upload', () => {
         const { plugin } = createTab('managed');
         plugin.settings.managedAutoUploadOnPaste = true;
         plugin.settings.managedKeepLocalCopy = false;
@@ -163,18 +200,15 @@ describe('Obsidian 1.13 declarative settings', () => {
 
         expect(getActivePastePreference(plugin.settings, 'autoUploadOnPaste')).toBe(true);
         expect(getActivePastePreference(plugin.settings, 'keepLocalCopy')).toBe(false);
-        expect(shouldDisableKeepLocalCopy(plugin.settings)).toBe(false);
         setActivePastePreference(plugin.settings, 'autoUploadOnPaste', false);
         expect(plugin.settings.managedAutoUploadOnPaste).toBe(false);
         expect(plugin.settings.delegatedAutoUploadOnPaste).toBe(false);
 
         plugin.settings.localManagementMode = 'delegated';
         expect(getActivePastePreference(plugin.settings, 'keepLocalCopy')).toBe(false);
-        expect(shouldDisableKeepLocalCopy(plugin.settings)).toBe(true);
         setActivePastePreference(plugin.settings, 'autoUploadOnPaste', true);
         expect(plugin.settings.delegatedAutoUploadOnPaste).toBe(true);
         expect(plugin.settings.managedAutoUploadOnPaste).toBe(false);
-        expect(shouldDisableKeepLocalCopy(plugin.settings)).toBe(false);
         setActivePastePreference(plugin.settings, 'keepLocalCopy', true);
         expect(plugin.settings.delegatedKeepLocalCopy).toBe(true);
         expect(plugin.settings.managedKeepLocalCopy).toBe(false);

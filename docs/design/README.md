@@ -4,16 +4,16 @@
 
 ## 当前状态
 
-当前有一份已实现并通过自动验证、等待真实 Obsidian 验收的契约：
+当前进行中的契约：
 
-- [命令与右键范围入口](command-scopes.md)
+- [命令与右键范围入口](command-scopes.md)：已实现并通过自动验证，等待真实 Obsidian 验收。
+- [按笔记范围上传图片](scoped-image-upload.md)：修订手动单图/范围上传的本地副本策略，等待本次真实验收。
 
 已完成设计保留在本目录并标记为“归档”；后续开发先读取 references，只有需求改变既有产品边界时才按需打开对应归档设计：
 
 - [本地图片生命周期](issue-36-local-image-workflow-ownership.md)
 - [远程对象管理](issue-17-remote-image-management.md)
 - [本地图片引用安全](local-reference-safety.md)
-- [按笔记范围上传图片](scoped-image-upload.md)
 
 ## 维护规则
 
