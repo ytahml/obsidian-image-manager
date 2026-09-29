@@ -11,6 +11,7 @@ import {
 } from "./local-image-resolution";
 import { joinPath, encodePathSegments } from "./path-utils";
 import { RefConverter } from "./ref-converter";
+import { getNotesInScope } from "./note-scope";
 
 export interface ReorganizeResult {
     moved: number;
@@ -114,15 +115,10 @@ export class ImageReorganizer {
         folderPath: string,
         convertFormat?: ReferenceFormat,
     ): Promise<ReorganizeResult & { notes: number }> {
-        const prefix = folderPath ? `${folderPath}/` : "";
-        const mdFiles = this.app.vault
-            .getMarkdownFiles()
-            .filter(
-                (file) =>
-                    !folderPath ||
-                    file.path === folderPath ||
-                    file.path.startsWith(prefix),
-            );
+        const mdFiles = getNotesInScope(this.app, {
+            kind: "folder",
+            path: folderPath,
+        });
         const plan = await this.buildPlan(mdFiles, convertFormat);
         const result = await this.executePlan(plan);
         return {

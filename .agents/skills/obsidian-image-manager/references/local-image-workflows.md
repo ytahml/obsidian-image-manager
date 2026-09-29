@@ -219,6 +219,7 @@ managed 自动上传在本地未压缩而 `compressBeforeUpload=true` 时重新�
 
 `ImageReorganizer`：
 
+- 文件夹整理与转换/上传复用 `getNotesInScope()`；空路径和 `/` 都表示库根，首尾斜杠规范化，递归包含子目录但排除相邻前缀。根目录不能通过拼接 `//` 筛选而静默遗漏所有笔记。
 - 单笔记和文件夹命令都先建立完整批次计划：按来源笔记语义绑定目标引用、对待移动 `TFile` 去重，并预绑定 Vault 中其他确实指向这些文件的引用；缺失或歧义计入 skipped，不移动、不改写。
 - remote 引用由共享解析器在 Markdown 解包后识别并跳过；按 `skipWikiRefsOnReorganize` 决定本地 Wiki 是否参与。
 - 同一图片在一个批次内只移动一次；目标按目标笔记遍历顺序确定。先创建目录，再基于实时占用和批次 reserved paths 重算后缀，并记录真实 `oldPath → finalPath`。

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("obsidian", () => ({
     TFile: class TFile {},
     TFolder: class TFolder {},
+    MarkdownView: class MarkdownView {},
     normalizePath: (path: string) =>
         path
             .replace(/\\/g, "/")
@@ -13,6 +14,8 @@ vi.mock("obsidian", () => ({
 import { TFile, TFolder, type App } from "obsidian";
 import { DEFAULT_SETTINGS, type ImageManagerSettings } from "../src/types";
 import { ImageReorganizer } from "../src/utils/image-reorganizer";
+import { RefConverter } from "../src/utils/ref-converter";
+import { ScopedReferenceConversion } from "../src/utils/scoped-reference-conversion";
 
 function file(path: string): TFile {
     const result = new TFile();
@@ -87,6 +90,7 @@ function createVault(
     };
     const app = {
         metadataCache,
+        workspace: { getLeavesOfType: () => [], getActiveViewOfType: () => null },
         vault: {
             getFiles: () => orderedFiles,
             getMarkdownFiles: () =>
@@ -97,6 +101,7 @@ function createVault(
             cachedRead: vi.fn(
                 async (target: TFile) => contents.get(target.path) ?? "",
             ),
+            read: vi.fn(async (target: TFile) => contents.get(target.path) ?? ""),
             process,
             rename,
             createFolder: vi.fn(async (path: string) => {
@@ -129,6 +134,54 @@ function targetDirectory(_template: string, note: TFile | null): string {
 }
 
 describe("ImageReorganizer", () => {
+    it("converts a recursive folder then organizes encoded Markdown without touching an adjacent folder", async () => {
+        const note = file("notes/sub/文章.md");
+        const neighbor = file("notes-other/邻居.md");
+        const wiki = file("raw/中文 image.png");
+        const markdown = file("raw/Pasted image 20260929125327.png");
+        const other = file("raw/neighbor.png");
+        const existing = "![](../../raw/Pasted%20image%2020260929125327.png)";
+        const { app, contents } = createVault([note, neighbor, wiki, markdown, other], {
+            [note.path]: `![[raw/中文 image.png|中文]]\n${existing}\n![[missing-test.png]]`,
+            [neighbor.path]: "![[raw/neighbor.png]]",
+        });
+        const result = await new ScopedReferenceConversion(app, new RefConverter(app))
+            .convert({ kind: "folder", path: "notes" });
+        expect(result).toMatchObject({ totalNotes: 1, convertedNotes: 1, convertedReferences: 1, skippedReferences: 1 });
+        expect(contents.get(note.path)).toContain(existing);
+        expect(contents.get(note.path)).toContain("![中文](../../raw/中文%20image.png)");
+        const reorganizer = new ImageReorganizer(app, settings(), targetDirectory);
+        await expect(reorganizer.reorganizeFolder("notes", "markdown"))
+            .resolves.toEqual({ moved: 2, skipped: 1, notes: 1 });
+        expect(wiki.path).toBe("notes/sub/attachments/中文 image.png");
+        expect(markdown.path).toBe("notes/sub/attachments/Pasted image 20260929125327.png");
+        expect(contents.get(note.path)).toContain("![](attachments/Pasted%20image%2020260929125327.png)");
+        expect(contents.get(note.path)).toContain("![[missing-test.png]]");
+        expect(other.path).toBe("raw/neighbor.png");
+        expect(contents.get(neighbor.path)).toBe("![[raw/neighbor.png]]");
+    });
+
+    it.each([true, false])("honors skipWikiRefsOnReorganize=%s for nested notes", async skipWiki => {
+        const note = file("notes/sub/文章.md");
+        const image = file("raw/wiki image.png");
+        const source = "![[raw/wiki image.png|图片]]";
+        const { app, contents } = createVault([note, image], { [note.path]: source });
+        const reorganizer = new ImageReorganizer(app, settings({ skipWikiRefsOnReorganize: skipWiki }), targetDirectory);
+        await expect(reorganizer.reorganizeFolder("notes", "markdown"))
+            .resolves.toEqual({ moved: skipWiki ? 0 : 1, skipped: skipWiki ? 1 : 0, notes: 1 });
+        expect(contents.get(note.path)).toBe(skipWiki ? source : "![图片](attachments/wiki%20image.png)");
+        expect(image.path).toBe(skipWiki ? "raw/wiki image.png" : "notes/sub/attachments/wiki image.png");
+    });
+
+    it.each(["/", "", "/notes/"])("normalizes folder scope %j without omitting notes", async folderPath => {
+        const note = file("notes/文章.md");
+        const image = file("raw/root.png");
+        const { app } = createVault([note, image], { [note.path]: "![](../raw/root.png)" });
+        const reorganizer = new ImageReorganizer(app, settings(), targetDirectory);
+        await expect(reorganizer.reorganizeFolder(folderPath, "markdown"))
+            .resolves.toEqual({ moved: 1, skipped: 0, notes: 1 });
+        expect(image.path).toBe("notes/attachments/root.png");
+    });
     it.each([
         ["original order", false],
         ["reversed image order", true],
