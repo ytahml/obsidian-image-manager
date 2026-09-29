@@ -168,8 +168,8 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 
 `collectLocalNoteImages`：
 
-- 活动笔记读取 Editor 内存文本，避免未保存内容丢失。
-- 非活动笔记使用 Vault `read`。
+- 读取所有打开的 Markdown leaf（包括非活动笔记）的 Editor 文本；同一笔记多个 Editor 不一致时失败关闭。
+- 未打开的笔记使用 Vault `read`。
 - Markdown 本地路径先完整容错解码并去除尖括号，再用 Obsidian linkpath 语义解析。
 - 聚合缺失引用、同名歧义、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要；歧义引用不发起上传，也不替换当前或其他笔记。
 - 排除所有 URL scheme、protocol-relative、data 与 blob 引用；同一 `TFile.path` 在显式笔记上传中只上传一次，每处引用仍独立保留 alt。
@@ -179,7 +179,9 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 - 遍历其他笔记时复用共享来源感知解析器；只有引用唯一解析到本次上传的同一 `TFile.path` 才替换，remote、缺失、歧义和解析到其他同名文件的引用保持原文。
 - 当前 Editor 已更新时，遍历其他笔记必须跳过当前文件。
 - 上传 URL 中 Unicode 可读化只发生在生成 Markdown 引用的边界。
-- 当前笔记的全部成功替换先一次写回，成功后再更新其他笔记；显式流程只返回结构化结果，Notice 和进度属于 `main.ts` UI adapter。
+- 显式范围上传由 `createUploadPlan()` 选择全库/递归文件夹/文章笔记，按源文件路径去重；确认后可选更新全库中同一成功图片的引用，范围外笔记也参与。
+- `replaceBatchReferences()` 每篇笔记聚合所有成功图片，重新解析最新内容；Editor 绑定/内容及源文件身份/版本必须仍有效，Vault 写回比较快照，冲突保留原文。单篇失败不阻断其他笔记；结构化结果区分上传与改写结果，Notice 属于 `main.ts`。不删除本地图片。
+- 原 `replaceVaultReferences()` 仍服务自动上传调用方的既有跨笔记流程；它不是显式范围上传的新写回路径，不得循环调用它代替批量安全写回。
 
 ## 自动上传与本地清理
 

@@ -4,7 +4,6 @@ import {
     TAbstractFile,
     TFile,
     TFolder,
-    MarkdownView,
     SuggestModal,
 } from "obsidian";
 import {
@@ -19,6 +18,8 @@ import { RenameImageModal } from "./modals/rename-image";
 import { RefConverter } from "./utils/ref-converter";
 import { ImageOptimizer } from "./utils/image-optimizer";
 import { ImageScanner } from "./utils/image-scanner";
+import { BatchUploadDialog } from "./modals/batch-upload-dialog";
+import type { UploadScope } from "./uploaders/upload-scope";
 import { BatchRename } from "./utils/batch-rename";
 import {
     ImageReorganizer,
@@ -39,6 +40,7 @@ import { ExternalRenameRepairCoordinator } from "./lifecycle/external-rename-rep
 import { IndeterminateImageRegistry } from "./lifecycle/indeterminate-image-registry";
 import { ConfirmDialog } from "./modals/confirm-dialog";
 import { ManagedPastePipeline } from "./lifecycle/managed-paste-pipeline";
+import { createImageCommands } from "./commands";
 
 export default class ImageManagerPlugin extends Plugin {
     settings: ImageManagerSettings;
@@ -145,111 +147,21 @@ export default class ImageManagerPlugin extends Plugin {
             });
         }
 
-        // Commands
-        this.addCommand({
-            id: "browse-images",
-            name: t("command.browseImages"),
-            checkCallback: (checking) => {
-                if (!this.settings.enableImageBrowser) return false;
-                if (!checking) new ImageBrowserModal(this.app, this).open();
-                return true;
-            },
-        });
-
-        this.addCommand({
-            id: "compress-current-image",
-            name: t("command.compressImage"),
-            checkCallback: (checking) => {
-                const file = this.app.workspace.getActiveFile();
-                if (!file || !this.isImageFile(file)) return false;
-                if (!checking) void this.compressCurrentImage(file);
-                return true;
-            },
-        });
-
-        this.addCommand({
-            id: "convert-reference-format",
-            name: t("command.convertReference"),
-            callback: () => this.convertCurrentNote(),
-        });
-
-        this.addCommand({
-            id: "convert-reference-format-vault",
-            name: t("command.convertReferenceVault"),
-            callback: () => this.convertEntireVault(),
-        });
-
-        this.addCommand({
-            id: "upload-to-hosting",
-            name: t("command.uploadToHosting"),
-            callback: () => this.uploadCurrentImage(),
-        });
-
-        this.addCommand({
-            id: "upload-note-images",
-            name: t("command.uploadNoteImages"),
-            checkCallback: (checking) => {
-                const file = this.app.workspace.getActiveFile();
-                if (!file || file.extension !== "md") return false;
-                if (!checking) void this.uploadNoteImages(file);
-                return true;
-            },
-        });
-
-        this.addCommand({
-            id: "batch-upload",
-            name: t("command.batchUpload"),
-            callback: () => this.batchUpload(),
-        });
-
-        this.addCommand({
-            id: "find-orphan-images",
-            name: t("command.findOrphans"),
-            callback: () => {
-                new OrphanImagesModal(this.app, this).open();
-            },
-        });
-
-        this.addCommand({
-            id: "rename-image",
-            name: t("command.renameImage"),
-            checkCallback: (checking) => {
-                const file = this.app.workspace.getActiveFile();
-                if (!file || !this.isImageFile(file)) return false;
-                if (!checking) this.renameImage(file);
-                return true;
-            },
-        });
-
-        this.addCommand({
-            id: "migrate-images",
-            name: t("command.migrateImages"),
-            callback: () => {
-                new Notice(t("notice.migrateNotImplemented"));
-            },
-        });
-
-        this.addCommand({
-            id: "reorganize-images",
-            name: t("command.reorganizeImages"),
-            checkCallback: (checking) => {
-                const file = this.app.workspace.getActiveFile();
-                if (!file || file.extension !== "md") return false;
-                if (!checking) void this.reorganizeNote(file);
-                return true;
-            },
-        });
-
-        this.addCommand({
-            id: "convert-to-md",
-            name: t("command.convertToMd"),
-            checkCallback: (checking) => {
-                const file = this.app.workspace.getActiveFile();
-                if (!file || file.extension !== "md") return false;
-                if (!checking) void this.convertNoteToFormat(file, "markdown");
-                return true;
-            },
-        });
+        for (const command of createImageCommands({
+            getActiveFile: () => this.app.workspace.getActiveFile(),
+            isImage: file => this.isImageFile(file),
+            browserEnabled: () => this.settings.enableImageBrowser,
+            browse: () => new ImageBrowserModal(this.app, this).open(),
+            compress: file => this.compressCurrentImage(file),
+            convertNote: file => this.convertNoteToFormat(file, "markdown"),
+            convertVault: () => this.convertEntireVault(),
+            uploadImage: () => this.uploadCurrentImage(),
+            uploadNote: file => this.uploadNoteImages(file),
+            uploadScope: () => this.batchUpload(),
+            findOrphans: () => new OrphanImagesModal(this.app, this).open(),
+            rename: file => this.renameImage(file),
+            reorganize: file => this.reorganizeNote(file),
+        })) this.addCommand(command);
 
         // Settings tab
         this.addSettingTab(new ImageManagerSettingTab(this.app, this));
@@ -309,6 +221,9 @@ export default class ImageManagerPlugin extends Plugin {
             this.app.workspace.on("file-menu", (menu, file) => {
                 if (file instanceof TFolder) {
                     menu.addSeparator();
+                    menu.addItem(item => item.setTitle(`Markdown Image Manager: ${t("upload.folderCommand")}`)
+                        .setIcon("upload").onClick(() => this.batchUpload({ kind: "folder", path: file.path })));
+
                     menu.addItem((item) => {
                         item.setTitle(
                             `Markdown Image Manager: ${t("command.reorganizeImages")}`,
@@ -427,47 +342,6 @@ export default class ImageManagerPlugin extends Plugin {
         }
     }
 
-    private async convertCurrentNote() {
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-
-        if (!activeView?.file) {
-            new Notice(t("notice.noActiveEditor"));
-            return;
-        }
-
-        const file = activeView.file;
-        const content = await this.app.vault.cachedRead(file);
-        const counts = this.refConverter.countReferences(content);
-
-        // Always convert wiki → markdown
-        const targetFormat = "markdown";
-        const refCount = counts.wiki;
-
-        if (refCount === 0) {
-            new Notice(t("notice.noRefsToConvert"));
-            return;
-        }
-
-        const result = this.refConverter.convertAllReferences(
-            content,
-            targetFormat,
-            file,
-        );
-        if (result.converted > 0) {
-            await this.app.vault.process(file, () => result.content);
-        }
-        new Notice(
-            result.skipped > 0
-                ? t("notice.convertPartial", {
-                      count: String(result.converted),
-                      skipped: String(result.skipped),
-                  })
-                : t("notice.convertSuccess", {
-                      count: String(result.converted),
-                  }),
-        );
-    }
-
     private async convertEntireVault() {
         const mdFiles = this.app.vault.getMarkdownFiles();
         const targetFormat = "markdown";
@@ -536,57 +410,41 @@ export default class ImageManagerPlugin extends Plugin {
         }
     }
 
-    private async batchUpload() {
-        const scanner = new ImageScanner(
-            this.app,
-            this.settings.supportedExtensions,
-        );
-        const images = scanner.getAllImages();
-
-        if (images.length === 0) {
-            new Notice(t("notice.noImagesToUpload"));
+    private batchUpload(scope: UploadScope = { kind: "vault" }): void {
+        if (this.explicitUploads.isBusy) {
+            new Notice(t("upload.busy"));
             return;
         }
-
-        const configs = this.settings.hostingConfigs.filter((c) => c.enabled);
-        if (configs.length === 0) {
-            new Notice(t("notice.noHostingConfig"));
-            return;
-        }
-
-        const doBatch = async (hostingConfig: ImageHostingConfig) => {
-            new Notice(
-                t("notice.batchUploadStart", { count: String(images.length) }),
-            );
-            const result = await this.explicitUploads.uploadBatch(
-                images,
-                hostingConfig,
-                (progress) => {
-                    new Notice(
-                        t("notice.batchUploadProgress", {
-                            done: String(progress.completed),
-                            total: String(progress.total),
-                            current: progress.current,
-                        }),
-                        2000,
-                    );
-                },
-            );
-            new Notice(
-                t("notice.batchUploadDone", {
-                    success: String(result.successfulImages),
-                    total: String(result.totalImages),
-                }),
-            );
-        };
-
-        if (configs.length === 1) {
-            await doBatch(configs[0]!);
-        } else {
-            new HostingSuggestModal(this.app, configs, (config) => {
-                void doBatch(config);
-            }).open();
-        }
+        new BatchUploadDialog(this.app, scope, this.settings.autoReplaceAfterUpload, {
+            getHostings: () => this.settings.hostingConfigs,
+            prepare: (selected) => this.explicitUploads.createPlan(selected, this.settings.supportedExtensions),
+            execute: async (plan, hosting, replaceReferences) => {
+                if (this.explicitUploads.isBusy) {
+                    new Notice(t("upload.busy"));
+                    return;
+                }
+                const progress = new Notice(t("upload.running"), 0);
+                try {
+                    const result = await this.explicitUploads.uploadPlan(plan, hosting, {
+                        replaceReferences,
+                        referenceTemplate: this.settings.customReferenceTemplate,
+                        upload: {
+                            compressBeforeUpload: this.settings.compressBeforeUpload,
+                            compressQuality: this.settings.compressQuality,
+                            uploadPathTemplate: this.settings.uploadPathTemplate,
+                        },
+                    }, state => progress.setMessage(t("notice.batchUploadProgress", {
+                        done: String(state.completed), total: String(state.total), current: state.current,
+                    })));
+                    new Notice(t("upload.result", {
+                        success: String(result.successfulImages), failed: String(result.failedImages),
+                        unused: String(result.unusedImages), notes: String(result.updatedNotes),
+                        refs: String(result.replacedReferences), outside: String(result.outsideScopeNotes),
+                        skipped: String(result.skipped.length), conflicts: String(result.failures.length),
+                    }), 15000);
+                } finally { progress.hide(); }
+            },
+        }).open();
     }
 
     async doUpload(file: TFile, hostingConfig: ImageHostingConfig) {
@@ -638,90 +496,8 @@ export default class ImageManagerPlugin extends Plugin {
         }
     }
 
-    private async uploadNoteImages(file: TFile) {
-        const configs = this.settings.hostingConfigs.filter((c) => c.enabled);
-        if (configs.length === 0) {
-            new Notice(t("notice.noHostingConfig"));
-            return;
-        }
-
-        const chooseAndUpload = async (hostingConfig: ImageHostingConfig) => {
-            const progress = new Notice(
-                t("notice.batchUploadProgress", {
-                    done: "0",
-                    total: "0",
-                    current: "",
-                }),
-                0,
-            );
-            try {
-                const result = await this.explicitUploads.uploadNote(
-                    file,
-                    hostingConfig,
-                    (state) => {
-                        progress.setMessage(
-                            t("notice.batchUploadProgress", {
-                                done: String(state.completedImages),
-                                total: String(state.totalImages),
-                                current: state.current,
-                            }),
-                        );
-                    },
-                );
-                if (result.totalReferences === 0) {
-                    new Notice(t("notice.noteUploadNoImages"));
-                    return;
-                }
-                if (result.failures.length > 0) {
-                    const firstFailure = result.failures[0]!;
-                    let error = firstFailure.error ?? t("notice.unknownError");
-                    if (firstFailure.kind === "missing-file") {
-                        error = t("notice.noteUploadFileMissing");
-                    } else if (firstFailure.kind === "ambiguous-file") {
-                        error = t("notice.noteUploadFileAmbiguous");
-                    }
-                    new Notice(
-                        t("notice.noteUploadPartial", {
-                            success: String(result.successfulReferences),
-                            total: String(result.totalReferences),
-                            failed: String(
-                                result.totalReferences -
-                                    result.successfulReferences,
-                            ),
-                            file: firstFailure.fileName,
-                            error,
-                        }),
-                        10_000,
-                    );
-                } else {
-                    new Notice(
-                        t("notice.noteUploadDone", {
-                            success: String(result.successfulReferences),
-                            total: String(result.totalReferences),
-                        }),
-                    );
-                }
-            } finally {
-                progress.hide();
-            }
-        };
-
-        if (configs.length === 1) {
-            await chooseAndUpload(configs[0]!);
-        } else {
-            new HostingSuggestModal(this.app, configs, (config) => {
-                chooseAndUpload(config).catch((e) => {
-                    new Notice(
-                        t("notice.uploadFailed", {
-                            error:
-                                e instanceof Error
-                                    ? e.message
-                                    : t("notice.unknownError"),
-                        }),
-                    );
-                });
-            }).open();
-        }
+    private uploadNoteImages(file: TFile): void {
+        this.batchUpload({ kind: "note", path: file.path });
     }
 
     private renameImage(file: TFile) {

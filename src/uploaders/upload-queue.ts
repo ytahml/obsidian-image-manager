@@ -1,136 +1,79 @@
 import type { TFile } from 'obsidian';
 import type { ImageHostingConfig } from '../types';
-import { type UploadOperationResult, UploadService } from './upload-service';
+import type { UploadOperationResult, UploadService, UploadServiceOptions } from './upload-service';
+import { snapshotUploadSource, type UploadSource } from './upload-scope';
 
 export interface QueueItem {
-    file: TFile;
+    source: UploadSource;
     status: 'pending' | 'uploading' | 'done' | 'failed';
-    url?: string;
-    error?: string;
+    operation?: UploadOperationResult;
 }
-
-export interface QueueProgress {
-    total: number;
-    completed: number;
-    failed: number;
-    current: string;
-}
-
+export interface QueueResult { source: UploadSource; operation: UploadOperationResult }
+export interface QueueProgress { total: number; completed: number; failed: number; current: string }
 const MAX_RETRIES = 3;
 const DEFAULT_CONCURRENCY = 3;
 
 export class UploadQueue {
     private items: QueueItem[] = [];
-    private concurrency: number;
     private onProgress?: (progress: QueueProgress) => void;
-    private onComplete?: (results: QueueItem[]) => void;
+    constructor(private readonly uploadService: UploadService) {}
 
-    constructor(private readonly uploadService: UploadService) {
-        this.concurrency = DEFAULT_CONCURRENCY;
-    }
-
-    /**
-     * 添加文件到上传队列
-     */
-    addFiles(files: TFile[]): void {
-        for (const file of files) {
-            // Avoid duplicates
-            if (!this.items.some((item) => item.file.path === file.path)) {
-                this.items.push({
-                    file,
-                    status: 'pending',
-                });
+    addFiles(files: TFile[]): void { this.addSources(files.map(snapshotUploadSource)); }
+    addSources(sources: readonly UploadSource[]): void {
+        for (const source of sources) {
+            if (!this.items.some(item => item.source.path === source.path)) {
+                this.items.push({ source, status: 'pending' });
             }
         }
     }
+    onProgressChange(callback: (progress: QueueProgress) => void): void { this.onProgress = callback; }
 
-    /**
-     * 设置进度回调
-     */
-    onProgressChange(callback: (progress: QueueProgress) => void): void {
-        this.onProgress = callback;
+    /** Compatibility for callers that only need successful operations. */
+    async start(hosting: ImageHostingConfig): Promise<UploadOperationResult[]> {
+        return (await this.startItems(hosting)).map(item => item.operation).filter(op => op.success);
     }
-
-    /**
-     * 设置完成回调
-     */
-    onCompleteChange(callback: (results: QueueItem[]) => void): void {
-        this.onComplete = callback;
+    async startItems(
+        hosting: ImageHostingConfig,
+        options: UploadServiceOptions = {},
+        isCurrent: (source: UploadSource) => boolean = () => true,
+    ): Promise<QueueResult[]> {
+        const worker = async () => {
+            while (true) {
+                const item = this.items.find(entry => entry.status === 'pending');
+                if (!item) return;
+                item.status = 'uploading';
+                this.reportProgress();
+                try {
+                    if (!isCurrent(item.source)) {
+                        item.operation = this.failure(hosting, item.source, true);
+                    } else {
+                        item.operation = await this.uploadService.uploadFile(item.source.file, hosting, {
+                            ...options, maxRetries: MAX_RETRIES,
+                            beforeAttempt: async attempt => isCurrent(item.source) &&
+                                (!options.beforeAttempt || await options.beforeAttempt(attempt)),
+                        });
+                    }
+                } catch {
+                    item.operation = this.failure(hosting, item.source, false);
+                }
+                item.status = item.operation.success && item.operation.url ? 'done' : 'failed';
+                this.reportProgress();
+            }
+        };
+        await Promise.all(Array.from({ length: DEFAULT_CONCURRENCY }, () => worker()));
+        return this.items.map(item => ({ source: item.source, operation: item.operation! }));
     }
-
-    /**
-     * 开始处理队列
-     */
-    async start(hostingConfig: ImageHostingConfig): Promise<UploadOperationResult[]> {
-        const results: UploadOperationResult[] = [];
-
-        // Start workers
-        const workers: Promise<void>[] = [];
-        for (let i = 0; i < this.concurrency; i++) {
-            workers.push(this.worker(hostingConfig, results));
-        }
-
-        await Promise.all(workers);
-        this.onComplete?.(this.items);
-        return results;
-    }
-
-    /**
-     * 获取当前进度
-     */
     getProgress(): QueueProgress {
-        const completed = this.items.filter((i) => i.status === 'done').length;
-        const failed = this.items.filter((i) => i.status === 'failed').length;
-        const current = this.items.find((i) => i.status === 'uploading');
         return {
             total: this.items.length,
-            completed,
-            failed,
-            current: current?.file.name ?? '',
+            completed: this.items.filter(item => item.status === 'done' || item.status === 'failed').length,
+            failed: this.items.filter(item => item.status === 'failed').length,
+            current: this.items.find(item => item.status === 'uploading')?.source.file.name ?? '',
         };
     }
-
-    /**
-     * 清空队列
-     */
-    clear(): void {
-        this.items = [];
+    private failure(hosting: ImageHostingConfig, source: UploadSource, cancelled: boolean): UploadOperationResult {
+        return { success: false, cancelled, hostingId: hosting.id, hostingType: hosting.type,
+            originalPath: source.path, attempts: 0, error: cancelled ? 'Source changed' : 'Upload failed' };
     }
-
-    private async worker(
-        hostingConfig: ImageHostingConfig,
-        results: UploadOperationResult[]
-    ): Promise<void> {
-        while (true) {
-            const item = this.items.find((i) => i.status === 'pending');
-            if (!item) break;
-
-            item.status = 'uploading';
-            this.reportProgress();
-
-            try {
-                const result = await this.uploadService.uploadFile(item.file, hostingConfig, {
-                    maxRetries: MAX_RETRIES,
-                });
-                if (result.success && result.url) {
-                    item.status = 'done';
-                    item.url = result.url;
-                    results.push(result);
-                } else {
-                    throw new Error(result.error ?? 'Upload failed');
-                }
-            } catch (e) {
-                item.status = 'failed';
-                item.error = e instanceof Error ? e.message : 'Unknown error';
-            }
-
-            this.reportProgress();
-        }
-    }
-
-    private reportProgress(): void {
-        if (this.onProgress) {
-            this.onProgress(this.getProgress());
-        }
-    }
+    private reportProgress(): void { this.onProgress?.(this.getProgress()); }
 }

@@ -23,7 +23,7 @@
 | `hostingConfigs` | `[]` | 图床列表 |
 | `defaultHostingId` | `''` | 多个启用图床时的默认项 |
 | `uploadPathTemplate` | `images/{year}/{month}/{hash}.{ext}` | 原生图床全局 fallback |
-| `autoReplaceAfterUpload` | false | 上传后替换本地引用 |
+| `autoReplaceAfterUpload` | false | 单图上传后替换本地引用；范围上传对话框替换选项的初始值，本次选择不反写设置 |
 | `customReferenceTemplate` | `''` | 上传后自定义文本引用 |
 | `reorganizeConvertFormat` | true | 显式整理时是否转换为 Markdown |
 | `skipWikiRefsOnReorganize` | true | 整理时是否跳过 Wiki |
@@ -137,6 +137,12 @@ Modal 分为固定基础区和 capability 门控正文：
 - 错误只映射结构化分类，不显示 XML/JSON 原文、endpoint secret 或签名 URL。
 - loading 位于图片画布，成功不重复显示“已加载”文案。
 - 远程预览的完整 key 使用“远程路径”标签，与本地信息层级一致。
+
+## 范围上传确认
+
+`BatchUploadDialog` 提供全库、递归文件夹、文章范围选择，选择图床及可选引用替换。范围按 Markdown 笔记定义，不按附件目录；显示笔记数、去重图片数和扫描跳过数。文章/文件夹右键入口预选对应范围。确认前只有本地扫描，无上传请求。
+
+替换提示必须明确会更新**全库**同一图片引用，包括范围外笔记；始终保留本地文件。未选有效目标、无图片或无启用图床时不可确认。执行时冻结图床及本次偏好，移除配置控件防重复提交。关闭窗口不等于取消已开始请求。完成通知分别显示上传成功/失败/未采用、更新笔记/引用/范围外笔记，以及冲突/读写失败，不宣称全库原子成功。
 
 ## Modal 通用约束
 

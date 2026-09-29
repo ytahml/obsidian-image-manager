@@ -24,17 +24,17 @@ function createFile(path: string, parentPath = ""): TFile {
 
 describe("note image upload references", () => {
     it("uses live editor text when the selected note is active", async () => {
+        const file = createFile("notes/current.md");
         const read = vi.fn();
         const app = {
             workspace: {
                 getActiveViewOfType: vi.fn(() => ({
-                    file: { path: "notes/current.md" },
+                    file,
                     editor: { getValue: () => "![live](image.png)" },
                 })),
             },
             vault: { read },
         } as unknown as App;
-        const file = createFile("notes/current.md");
 
         await expect(readNoteContentForAction(app, file)).resolves.toBe(
             "![live](image.png)",

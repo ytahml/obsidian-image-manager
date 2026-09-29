@@ -20,7 +20,7 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 
 - **Local files**: paste/drop saving, naming/path templates, Canvas compression, reference-aware gallery, preview, safe orphan cleanup, rename, and template-based reorganization.
 - **References**: Markdown and Wiki image parsing; user commands convert Wiki images to Markdown. Generated Markdown paths keep Unicode readable and encode syntax-sensitive ASCII.
-- **Uploads**: Aliyun OSS, Qiniu, S3-compatible storage, and Custom HTTP. `UploadService` owns upload attempts and results; `ExplicitUploadWorkflow` owns direct, note, and vault batch workflows while paste coordinators retain their transaction semantics.
+- **Uploads**: Aliyun OSS, Qiniu, S3-compatible storage, and Custom HTTP. `UploadService` owns attempts; `ExplicitUploadWorkflow` owns single-image and scoped note/folder/vault uploads. Scope selects referenced images, optional replacement updates all Markdown notes (including outside scope), and explicit uploads keep local files. Paste coordinators retain their transaction semantics.
 - **Remote objects**: Aliyun OSS, Qiniu Kodo, and S3-compatible providers support explicit scan, virtual folders, card browsing, viewport thumbnails, preview, reference locations, and guarded deletion. Custom HTTP remains upload-only.
 - **Settings and UI**: Chinese/English, Obsidian 1.13.0 minimum, declarative settings, mobile-compatible where the host APIs permit.
 
@@ -39,8 +39,8 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 
 ## Known Code Boundaries
 
-- `migrate-images` is a stable registered command that currently shows a not-implemented notice; migration types exist but there is no migration engine or history UI.
-- Restore-local-reference translation keys exist, but there is no registered command or implementation.
+- `migrate-images` is no longer registered: migration types remain for compatibility, but there is no migration engine or history UI. Never register placeholder commands.
+- Restore-local-reference has no command or implementation; unused placeholder translations have been removed.
 - Custom HTTP hosting has no common object protocol and must not be given generic list/preview/delete behavior by guessing from its returned URL.
 - `RemoteManagementConfig.pageSize` and `previewMode` remain only for old `data.json` compatibility; current UI has no result pagination and normalizes previews to viewport loading.
 

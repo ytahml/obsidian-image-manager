@@ -16,6 +16,7 @@ Custom HTTP 只有上传协议。图床迁移和恢复本地引用不属于当�
 
 ```text
 src/main.ts                 Plugin 生命周期、命令、事件、跨模块编排
+src/commands.ts             已实现命令定义与上下文门控（不注册占位功能）
 src/settings.ts             Obsidian 1.13 声明式设置定义、图床自定义渲染
 src/types.ts                持久化设置与公共本地域类型
 src/modals/                 本地/远程浏览、预览、配置、命名与确认 UI
@@ -42,18 +43,17 @@ src/i18n/                   中英文词条与插值
 |---|---|
 | `browse-images` | 打开本地/图床图片浏览器；受 `enableImageBrowser` 门控 |
 | `compress-current-image` | 仅活动文件为受支持图片时可用 |
-| `convert-reference-format` | 当前笔记 Wiki 图片引用转 Markdown |
+| `convert-reference-format` | 仅活动 Markdown；当前笔记 Wiki 图片引用转 Markdown |
 | `convert-reference-format-vault` | 全库 Wiki 图片引用转 Markdown |
-| `upload-to-hosting` | 上传当前图片；运行时检查 Markdown 模式与图床配置 |
-| `upload-note-images` | 上传活动 Markdown 笔记中的本地图片；Markdown 模式下可用 |
-| `batch-upload` | 上传全库受支持图片 |
+| `upload-to-hosting` | 仅活动受支持图片；运行时检查图床配置，不受粘贴格式影响 |
+| `upload-note-images` | 仅活动 Markdown；打开范围上传配置，预选文章 |
+| `batch-upload` | 打开全库/递归文件夹/文章范围配置，默认全库；只上传笔记引用的本地图片 |
 | `find-orphan-images` | 打开专用孤立图片窗口 |
 | `rename-image` | 仅活动文件为图片时可用 |
 | `reorganize-images` | 整理活动 Markdown 笔记 |
-| `convert-to-md` | 当前 Markdown 笔记中的 Wiki 图片转 Markdown |
-| `migrate-images` | 保留的占位命令；当前仅显示未实现提示 |
+| `convert-to-md` | 仅活动 Markdown；与 `convert-reference-format` 共用实现的兼容快捷入口 |
 
-文件菜单还为 Markdown 文件提供笔记上传、整理和转 Markdown，为文件夹提供整理。
+`migrate-images` 已停止注册；未实现的迁移/恢复本地引用不展示。其余 11 个已实现命令 ID 保持稳定。文件菜单为 Markdown 提供预选文章上传、整理和转 Markdown，为文件夹提供预选文件夹上传和整理。
 
 ## 生命周期与事件
 
@@ -67,7 +67,7 @@ src/i18n/                   中英文词条与插值
 
 Vault 中 Markdown 文件变化会使远程引用索引 stale。delegated paste/drop 先冻结来源笔记引用基线，再通过事务差异把新 `TFile` 与唯一新增引用配对，同来源笔记效果串行；图片 rename 链按最终路径合并为一个串行修复批次，并受 delegated 活跃/近期保护门禁约束。整理期间由 `isReorganizing` 阻止修复器与内部移动冲突。
 
-`ManagedPastePipeline` 封装 managed 模式从命名、路径、压缩、落盘、引用插入到可选上传及安全回收的完整事务。`UploadReferenceManager` 统一上传引用的准备、渲染和普通 Vault 替换，`ExplicitUploadWorkflow` 返回不含 Notice/剪贴板副作用的单图、笔记和全库结构化结果。`main.ts` 只过滤事件输入、在 managed/delegated 之间分流并把结果投影到 Obsidian UI；资源整理继续通过插件公开的 `resolveImagePath()` 复用同一条路径规则。
+`ManagedPastePipeline` 封装 managed 模式从命名、路径、压缩、落盘、引用插入到可选上传及安全回收的完整事务。`UploadReferenceManager` 统一引用渲染及按笔记安全批量写回；`upload-scope.ts` 生成笔记范围计划；`ExplicitUploadWorkflow` 返回不含 Notice/剪贴板副作用的单图与范围上传结构化结果。`main.ts` 只过滤事件输入、在 managed/delegated 之间分流并把结果投影到 Obsidian UI；资源整理继续通过插件公开的 `resolveImagePath()` 复用同一条路径规则。
 
 ## 核心类型
 
@@ -115,7 +115,7 @@ paste/drop
 ```
 
 ```text
-单图 / 笔记 / 全库
+单图 / 文章 / 递归文件夹 / 全库笔记引用的图片
   → ExplicitUploadWorkflow
   → UploadService
   → createUploader

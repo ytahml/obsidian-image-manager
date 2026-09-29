@@ -255,7 +255,7 @@ src/
 - **Upload Path Template** — Supports `{year}`, `{month}`, `{day}`, `{filename}`, `{ext}`, `{hash}`, `{timestamp}`, `{sourceDir}`
 - **Public Access URL Base** — Base URL used to access uploaded objects; it can include a bucket or directory path. Required for Qiniu
 - **Custom Reference Template** — Optional upload-only template; `{fileUrl}` is required and file metadata or intrinsic dimensions can be included
-- **Auto Replace After Upload** — Automatically replace local references with hosting URL
+- **Auto Replace After Upload** — Replace references after single-image upload; also sets the initial replacement choice in the scoped upload dialog
 - **Remote Object Management** — Available for Aliyun OSS, Qiniu Kodo, and S3-compatible configurations; scanning remains explicit
 - **Management Prefix** — Limits remote scanning to a bucket prefix; an empty value means the current bucket root and requires confirmation
 - **Other Reference URL Bases** — One HTTP(S) base per line for recognizing CDN, legacy-domain, or alternate public URLs
@@ -271,6 +271,20 @@ Aliyun OSS, S3-compatible, and Qiniu remote browsing list objects only after an 
 Remote object management supports Aliyun OSS, S3-compatible storage, and Qiniu Kodo. In **Other reference URL bases**, enter one HTTP(S) base per line, with each base ending where the object key begins; do not use commas or semicolons as separators. OSS ListObjectsV2 incurs API request charges; private preview uses a 300-second V4 presigned URL, while public preview uses the configured public access URL base. Grant only `oss:ListObjects`, `oss:GetObject` for private previews, and `oss:DeleteObject` when deletion is required. Archive, Cold Archive, and Deep Cold Archive objects are not previewed automatically. Qiniu requires its public access URL base for public previews and private download-token previews; use separate least-privilege credentials for upload, management, and private download where your Qiniu policy requires them.
 
 Deletion requires selecting eligible objects, typing the exact selected count, and acknowledging that cloud deletion cannot be undone. Selection count is not capped; requests still run with at most two concurrent operations and are never retried automatically. Successful operations are shown as "Request successful"; whether storage space is released depends on the provider's deletion and versioning policy. Use a dedicated bucket or prefix, grant only the permissions required, and verify results by scanning the configured scope again. The plugin keeps up to 200 redacted local diagnostic records of completed delete requests; they never participate in remote-existence, reference, or deletion decisions, and do not contain presigned preview URLs or credentials.
+
+### Upload images referenced by notes
+
+Use **Upload referenced images (choose note scope)** from the command palette, or the upload action on a note/folder's context menu:
+
+1. Choose all Markdown notes in the vault, a folder including subfolders, or one article.
+2. Choose the hosting configuration and whether to replace local references. Review the unique-image count and skipped items before uploading.
+3. When replacement is enabled, **all Markdown notes referencing the same successfully uploaded image are updated, even outside the chosen scope**. Local image files are always kept.
+
+Scope selects notes, not attachment directories. Attachments stored elsewhere are included; unreferenced images and existing remote URLs are excluded. This replaces the older behavior of uploading every image file in the vault. Use single-image upload for an unreferenced image. Markdown images and Wiki embeds are supported; Canvas, HTML and frontmatter rewriting are not included.
+
+Results distinguish upload success/failure, reference updates, and conflicts/read/write failures. Concurrent edits are preserved; a successful upload does not guarantee every reference was updated. Closing the progress window does not cancel requests already started.
+
+Only implemented commands are registered. The unimplemented migration command is removed; other published command IDs, including both current-note Wiki-to-Markdown shortcuts, remain compatible. Image/note actions appear only in the appropriate context.
 
 ### Auto Upload
 

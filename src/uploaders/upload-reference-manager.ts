@@ -1,5 +1,7 @@
 import type { App, TFile } from "obsidian";
 import type { RefConverter } from "../utils/ref-converter";
+import { readNoteSnapshot, writeNoteSnapshot } from "../utils/note-content";
+import { isUploadSourceCurrent, type UploadSource } from "./upload-scope";
 import { makePublicUrlReadable } from "../utils/public-url";
 import {
     renderCustomReference,
@@ -13,6 +15,18 @@ import {
 
 export interface PreparedUploadReference {
     render(url: string, altText?: string): string;
+}
+
+export interface UploadedReference {
+    source: UploadSource;
+    url: string;
+    prepared: PreparedUploadReference;
+}
+export interface BatchReferenceResult {
+    updatedNotes: number;
+    replacedReferences: number;
+    outsideScopeNotes: number;
+    failures: Array<{ notePath: string; reason: 'conflict' | 'read-or-write-failed' }>;
 }
 
 export interface ReplaceVaultReferenceOptions {
@@ -42,6 +56,50 @@ export class UploadReferenceManager {
             (error) => this.options.onImageInfoError?.(file, error),
         );
         return new PreparedReference(template, fileVars);
+    }
+
+    /** One pass over Markdown; each note is written at most once, against live content. */
+    async replaceBatchReferences(
+        uploads: readonly UploadedReference[],
+        scopeNotes: ReadonlySet<string>,
+    ): Promise<BatchReferenceResult> {
+        const result: BatchReferenceResult = { updatedNotes: 0, replacedReferences: 0, outsideScopeNotes: 0, failures: [] };
+        if (!uploads.length) return result;
+        const app = this.options.app;
+        const byPath = new Map(uploads.map(upload => [upload.source.path, upload]));
+        const lookup = createLocalFileLookup(app.vault.getFiles());
+        for (const note of app.vault.getMarkdownFiles()) {
+            try {
+                const snapshot = await readNoteSnapshot(app, note);
+                const refs = this.options.refConverter.parseReferences(snapshot.content);
+                let content = snapshot.content;
+                let count = 0;
+                const used = new Set<UploadedReference>();
+                for (let i = refs.length - 1; i >= 0; i--) {
+                    const ref = refs[i]!;
+                    const resolution = resolveLocalFileReference(app, note, ref.path, ref.format, lookup);
+                    if (resolution.status !== 'resolved') continue;
+                    const upload = byPath.get(resolution.file.path);
+                    if (!upload || resolution.file !== upload.source.file || !isUploadSourceCurrent(app, upload.source)) continue;
+                    const text = upload.prepared.render(upload.url, ref.altText);
+                    content = content.substring(0, ref.col) + text + content.substring(ref.col + ref.fullMatch.length);
+                    used.add(upload);
+                    count++;
+                }
+                if (!count) continue;
+                const status = await writeNoteSnapshot(app, note, snapshot, content,
+                    () => Array.from(used).every(upload => isUploadSourceCurrent(app, upload.source)));
+                if (status === 'conflict') result.failures.push({ notePath: snapshot.path, reason: 'conflict' });
+                if (status === 'applied') {
+                    result.updatedNotes++;
+                    result.replacedReferences += count;
+                    if (!scopeNotes.has(snapshot.path)) result.outsideScopeNotes++;
+                }
+            } catch {
+                result.failures.push({ notePath: note.path, reason: 'read-or-write-failed' });
+            }
+        }
+        return result;
     }
 
     async replaceVaultReferences(
