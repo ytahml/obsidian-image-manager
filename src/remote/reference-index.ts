@@ -3,6 +3,7 @@ import { RefConverter } from '../utils/ref-converter';
 import {
     createRemoteObjectReferenceLookup,
     indexRemoteReference,
+    trimTrailingUrlPunctuation,
     type IndexedRemoteReference,
 } from './object-reference-matcher';
 import type {
@@ -128,21 +129,6 @@ function collectReferences(
         });
         if (indexed) references.push(indexed);
     }
-}
-
-function trimTrailingUrlPunctuation(value: string): string {
-    let result = value.replace(/[.,;:!?]+$/, '');
-    while (result.endsWith(')') && countCharacters(result, ')') > countCharacters(result, '(')) {
-        result = result.slice(0, -1);
-    }
-    while (result.endsWith(']') && countCharacters(result, ']') > countCharacters(result, '[')) {
-        result = result.slice(0, -1);
-    }
-    return result;
-}
-
-function countCharacters(value: string, character: string): number {
-    return [...value].filter((item) => item === character).length;
 }
 
 function throwIfAborted(signal?: AbortSignal) {

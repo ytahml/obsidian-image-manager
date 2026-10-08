@@ -424,7 +424,7 @@ export class ImageManagerSettingTab extends PluginSettingTab {
                         this.plugin.settings.hostingConfigs[idx] = saved;
                     }
                     void this.plugin.saveSettings().then(() => this.update());
-                }).open();
+                }, (fromBase, toBase) => this.plugin.openUrlPrefixMigrationPrefilled(fromBase, toBase)).open();
             });
 
             // Delete button

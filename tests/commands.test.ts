@@ -10,19 +10,22 @@ function fixture() {
         getActiveFile: () => file, isImage: value => value.extension === 'png', browserEnabled: () => enabled,
         browse: vi.fn(), compress: vi.fn(), convertScope: vi.fn(), uploadImage: vi.fn(),
         uploadScope: vi.fn(), findOrphans: vi.fn(), rename: vi.fn(), reorganize: vi.fn(),
+        migrateUrlPrefix: vi.fn(),
     };
     return { actions, commands: createImageCommands(actions), setFile: (value: TFile | null) => { file = value; }, disable: () => { enabled = false; } };
 }
-it('registers exactly the eight implemented IDs without legacy scope aliases', () => {
+it('registers exactly the nine implemented IDs without legacy scope aliases', () => {
     const f = fixture();
-    expect(f.commands.map(c => c.id).sort()).toEqual(['browse-images', 'compress-current-image', 'convert-reference-format', 'upload-to-hosting', 'batch-upload', 'find-orphan-images', 'rename-image', 'reorganize-images'].sort());
+    expect(f.commands.map(c => c.id).sort()).toEqual(['browse-images', 'compress-current-image', 'convert-reference-format', 'upload-to-hosting', 'batch-upload', 'find-orphan-images', 'rename-image', 'reorganize-images', 'migrate-url-prefix'].sort());
 });
 it('opens both unified scope commands without requiring an active file', () => {
     const f = fixture();
     f.commands.find(c => c.id === 'convert-reference-format')!.callback?.();
     f.commands.find(c => c.id === 'batch-upload')!.callback?.();
+    f.commands.find(c => c.id === 'migrate-url-prefix')!.callback?.();
     expect(f.actions.convertScope).toHaveBeenCalledOnce();
     expect(f.actions.uploadScope).toHaveBeenCalledOnce();
+    expect(f.actions.migrateUrlPrefix).toHaveBeenCalledOnce();
 });
 it('enforces image/browser gates and every registered command has an executable route', () => {
     const f = fixture();

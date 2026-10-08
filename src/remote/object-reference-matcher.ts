@@ -172,3 +172,19 @@ function decodePathSegment(segment: string): string | null {
         return null;
     }
 }
+
+/** Remove trailing punctuation that ends a URL match without changing the URL itself. */
+export function trimTrailingUrlPunctuation(value: string): string {
+    let result = value.replace(/[.,;:!?]+$/, '');
+    while (result.endsWith(')') && countCharacters(result, ')') > countCharacters(result, '(')) {
+        result = result.slice(0, -1);
+    }
+    while (result.endsWith(']') && countCharacters(result, ']') > countCharacters(result, '[')) {
+        result = result.slice(0, -1);
+    }
+    return result;
+}
+
+function countCharacters(value: string, character: string): number {
+    return [...value].filter((item) => item === character).length;
+}

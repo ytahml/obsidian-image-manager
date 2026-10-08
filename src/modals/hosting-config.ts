@@ -1,4 +1,4 @@
-import { App, DropdownComponent, Modal, Setting, TextComponent } from 'obsidian';
+import { App, DropdownComponent, Modal, Notice, Setting, TextComponent } from 'obsidian';
 import {
     DEFAULT_UPLOAD_PATH_TEMPLATE,
     type ImageHostingConfig,
@@ -16,19 +16,29 @@ import {
     normalizeRemotePrefix,
 } from '../remote/management-settings';
 import { supportsRemoteObjectManagement } from '../remote/provider-factory';
+import { nextPreviousUrlPrefix, resolveMigrationFromBase, shouldOfferUrlPrefixMigration } from '../remote/url-prefix-migration';
 
 type HostingConfigTab = 'connection' | 'remote';
 
 export class HostingConfigModal extends Modal {
     private config: ImageHostingConfig;
     private onSave: (config: ImageHostingConfig) => void;
+    private onMigrateUrlPrefix: ((fromBase: string, toBase: string) => void) | undefined;
+    private originalUrlPrefix: string;
     private isNew: boolean;
     private activeTab: HostingConfigTab = 'connection';
 
-    constructor(app: App, config: ImageHostingConfig, onSave: (config: ImageHostingConfig) => void) {
+    constructor(
+        app: App,
+        config: ImageHostingConfig,
+        onSave: (config: ImageHostingConfig) => void,
+        onMigrateUrlPrefix?: (fromBase: string, toBase: string) => void,
+    ) {
         super(app);
         this.config = JSON.parse(JSON.stringify(config)) as ImageHostingConfig;
         this.onSave = onSave;
+        this.onMigrateUrlPrefix = onMigrateUrlPrefix;
+        this.originalUrlPrefix = config.urlPrefix;
         this.isNew = !config.id;
     }
 
@@ -166,7 +176,22 @@ export class HostingConfigModal extends Modal {
                         this.config.urlPrefix = v;
                     })
             );
+        if (!this.isNew && this.onMigrateUrlPrefix) {
+            urlPrefix.addButton((button) =>
+                button.setButtonText(t('modal.hosting.migrateRefs')).onClick(() => this.migrateUrlPrefix())
+            );
+        }
         urlPrefix.settingEl.addClass('hosting-config-upload-item');
+    }
+
+    private migrateUrlPrefix(): void {
+        const fromBase = resolveMigrationFromBase(this.originalUrlPrefix, this.config.previousUrlPrefix);
+        const toBase = this.config.urlPrefix;
+        if (!shouldOfferUrlPrefixMigration(fromBase, toBase)) {
+            new Notice(t('modal.hosting.migrateRefsNothing'));
+            return;
+        }
+        this.onMigrateUrlPrefix?.(fromBase, toBase);
     }
 
     private renderButtons(container: HTMLElement) {
@@ -180,6 +205,8 @@ export class HostingConfigModal extends Modal {
             if (!this.config.name) {
                 this.config.name = this.config.type.toUpperCase();
             }
+            // Persist the previous non-empty base for the explicit migrate button.
+            this.config.previousUrlPrefix = nextPreviousUrlPrefix(this.originalUrlPrefix, this.config.previousUrlPrefix);
             this.onSave(this.config);
             this.close();
         });
