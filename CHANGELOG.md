@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.0.7
+
+### 🇺🇸 English
+
+#### New features
+
+- Migrate historical image and link URLs when the public base URL changes, with vault, folder, or single-note scope, a preview, and conflict-protected writes ([PR #59](https://github.com/ytahml/obsidian-image-manager/pull/59), [Issue #58](https://github.com/ytahml/obsidian-image-manager/issues/58)). Available from the command palette and the hosting configuration dialog.
+- Preserve object paths, query strings, fragments, Markdown titles, angle-wrapped URLs (including parentheses), and HTML image attributes. Adjacent links and images are migrated independently.
+- Invalidate outdated previews immediately when inputs change and keep migration available after switching scope during preview debounce.
+
+Thanks to [@wlunan](https://github.com/wlunan) for the contribution and follow-up improvements. Requires Obsidian 1.13.0 or later (unchanged).
+
+### 🇨🇳 中文
+
+#### 新功能
+
+- 更换公共访问基础路径后，可批量迁移历史图片和链接 URL，支持全库、文件夹或单篇文章范围，提供影响预览与冲突保护写回（[PR #59](https://github.com/ytahml/obsidian-image-manager/pull/59)、[Issue #58](https://github.com/ytahml/obsidian-image-manager/issues/58)）。可从命令面板或图床配置弹窗进入。
+- 保留对象路径、查询参数、片段、Markdown 标题、尖括号包裹的 URL（含括号）及 HTML 图片属性；相邻链接和图片分别迁移。
+- 输入变化后立即作废旧预览，避免执行旧计划；修复防抖期间切换范围可能导致迁移按钮持续禁用的问题。
+
+感谢 [@wlunan](https://github.com/wlunan) 的贡献与后续完善。最低 Obsidian 版本仍为 1.13.0。
+
+---
+
 ## 2.0.6
 
 ### 🇺🇸 English
