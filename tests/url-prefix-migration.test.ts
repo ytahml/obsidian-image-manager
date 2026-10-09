@@ -6,7 +6,6 @@ import {
     findUrlPrefixReplacements,
     nextPreviousUrlPrefix,
     resolveMigrationFromBase,
-    shouldOfferUrlPrefixMigration,
     UrlPrefixMigration,
 } from '../src/remote/url-prefix-migration';
 
@@ -104,33 +103,22 @@ describe('findUrlPrefixReplacements', () => {
     });
 });
 
-describe('shouldOfferUrlPrefixMigration', () => {
-    it('offers only for changed, non-empty bases regardless of formatting', () => {
-        expect(shouldOfferUrlPrefixMigration('https://a.example.com', 'https://b.example.com')).toBe(true);
-        expect(shouldOfferUrlPrefixMigration('a.example.com', 'https://a.example.com')).toBe(false);
-        expect(shouldOfferUrlPrefixMigration('https://a.example.com/', 'a.example.com')).toBe(false);
-        expect(shouldOfferUrlPrefixMigration('', 'https://b.example.com')).toBe(false);
-        expect(shouldOfferUrlPrefixMigration('https://a.example.com', '')).toBe(false);
-    });
-});
-
 describe('url prefix save state', () => {
-    it('prefers the current-session original base over the persisted previous base', () => {
-        expect(resolveMigrationFromBase('s3.current.example.com', 's3.old.example.com')).toBe('s3.current.example.com');
+    it('prefers the persisted previous base over the current-session original', () => {
+        expect(resolveMigrationFromBase('s3.current.example.com', 's3.old.example.com')).toBe('s3.old.example.com');
         expect(resolveMigrationFromBase('', 's3.old.example.com')).toBe('s3.old.example.com');
+        expect(resolveMigrationFromBase('s3.current.example.com', undefined)).toBe('s3.current.example.com');
         expect(resolveMigrationFromBase('', undefined)).toBe('');
     });
 
     it('tracks the previous base across a clear-then-refill sequence', () => {
-        // Save 1: original A -> empty. Persist A, no migration (new base empty).
+        // Save 1: original A -> empty. Persist A.
         const persisted = nextPreviousUrlPrefix('s3.old.example.com', undefined);
         expect(persisted).toBe('s3.old.example.com');
-        expect(shouldOfferUrlPrefixMigration(resolveMigrationFromBase('s3.old.example.com', undefined), '')).toBe(false);
 
-        // Save 2: original empty -> B. Use persisted A, offer migration.
+        // Save 2: original empty -> B. Resolve persisted A as the old base.
         const from = resolveMigrationFromBase('', persisted);
         expect(from).toBe('s3.old.example.com');
-        expect(shouldOfferUrlPrefixMigration(from, 's3.new.example.com')).toBe(true);
         expect(nextPreviousUrlPrefix('', persisted)).toBe('s3.old.example.com');
     });
 });

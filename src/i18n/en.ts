@@ -479,7 +479,6 @@ export const en: Record<string, string> = {
     "modal.hosting.urlPrefixDesc":
         "Base for public image URLs. It may include a bucket, such as https://img.example.com/bucket.",
     "modal.hosting.migrateRefs": "Migrate old references",
-    "modal.hosting.migrateRefsNothing": "The new base URL is empty or matches the old one.",
     "modal.hosting.providerConfig": "Provider Configuration",
     "modal.hosting.save": "Save",
     "modal.hosting.region": "Region",

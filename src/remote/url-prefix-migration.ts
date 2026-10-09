@@ -146,17 +146,10 @@ export function applyUrlReplacements(content: string, replacements: readonly Url
     return result;
 }
 
-/** A changed, non-empty URL base offers a migration; equal or empty bases have nothing to migrate. */
-export function shouldOfferUrlPrefixMigration(previousBase: string, nextBase: string): boolean {
-    const fromNorm = normalizePublicUrlBase(previousBase);
-    const toNorm = normalizePublicUrlBase(nextBase);
-    return fromNorm.length > 0 && toNorm.length > 0 && fromNorm !== toNorm;
-}
-
-/** Resolve the base to migrate from: the current-session original wins, then the persisted previous base. */
+/** Resolve the base to migrate from: the persisted previous base wins, then the current-session original. */
 export function resolveMigrationFromBase(originalUrlPrefix: string, previousUrlPrefix: string | undefined): string {
-    const original = originalUrlPrefix.trim();
-    return original || (previousUrlPrefix ?? '').trim();
+    const previous = (previousUrlPrefix ?? '').trim();
+    return previous || originalUrlPrefix.trim();
 }
 
 /** Persist the previous non-empty base: an original non-empty value replaces it, clearing keeps it. */

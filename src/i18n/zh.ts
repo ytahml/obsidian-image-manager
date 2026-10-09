@@ -438,7 +438,6 @@ export const zh: Record<string, string> = {
     "modal.hosting.urlPrefixDesc":
         "图片公开地址的基础路径，可包含 Bucket，如 https://img.example.com/bucket。",
     "modal.hosting.migrateRefs": "迁移历史引用",
-    "modal.hosting.migrateRefsNothing": "新基础路径为空或与旧基础路径相同。",
     "modal.hosting.providerConfig": "服务商配置",
     "modal.hosting.save": "保存",
     "modal.hosting.region": "区域",
