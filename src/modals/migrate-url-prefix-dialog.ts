@@ -17,7 +17,7 @@ export class MigrateUrlPrefixDialog extends Modal {
     private toBase = '';
     private pending = false;
     private closed = false;
-    private generation = 0;
+    private previewVersion = 0;
     private previewTimer: number | undefined;
     private currentPlan: UrlPrefixMigrationPlan | undefined;
     private summaryEl: HTMLElement | undefined;
@@ -36,14 +36,14 @@ export class MigrateUrlPrefixDialog extends Modal {
 
     onClose(): void {
         this.closed = true;
-        this.generation++;
+        this.previewVersion++;
         if (this.previewTimer !== undefined) window.clearTimeout(this.previewTimer);
         this.previewTimer = undefined;
         this.contentEl.empty();
     }
 
     private render(): void {
-        const generation = ++this.generation;
+        const version = ++this.previewVersion;
         const root = this.contentEl;
         root.empty();
         this.summaryEl = undefined;
@@ -103,18 +103,22 @@ export class MigrateUrlPrefixDialog extends Modal {
                 button.setButtonText(t('migrate.start')).setCta().setDisabled(true).onClick(() => this.run());
             });
 
-        void this.refreshPreview(generation);
+        void this.refreshPreview(version);
     }
 
     private schedulePreview(): void {
         if (this.previewTimer !== undefined) window.clearTimeout(this.previewTimer);
+        // Invalidate the old plan immediately so a stale plan can never be submitted during debounce.
+        this.currentPlan = undefined;
+        this.startButton?.setDisabled(true);
+        const version = ++this.previewVersion;
         this.previewTimer = window.setTimeout(() => {
             this.previewTimer = undefined;
-            void this.refreshPreview(this.generation);
+            void this.refreshPreview(version);
         }, 300);
     }
 
-    private async refreshPreview(generation: number): Promise<void> {
+    private async refreshPreview(version: number): Promise<void> {
         const fromBase = this.fromBase.trim();
         const toBase = this.toBase.trim();
         const summary = this.summaryEl;
@@ -136,18 +140,22 @@ export class MigrateUrlPrefixDialog extends Modal {
         button.setDisabled(true);
         try {
             const plan = await this.actions.preview(this.noteScope, fromBase, toBase);
-            if (this.closed || generation !== this.generation) return;
+            if (this.closed || version !== this.previewVersion) return;
             this.currentPlan = plan;
             summary.setText(t('migrate.summary', { notes: String(plan.notePaths.length), refs: String(plan.referenceCount) }));
             button.setDisabled(plan.notePaths.length === 0);
         } catch {
-            if (!this.closed && generation === this.generation) summary.setText(t('migrate.failed'));
+            if (!this.closed && version === this.previewVersion) summary.setText(t('migrate.failed'));
         }
     }
 
     private run(): void {
         const plan = this.currentPlan;
+        const fromBase = this.fromBase.trim();
+        const toBase = this.toBase.trim();
         if (this.pending || !plan || plan.notePaths.length === 0) return;
+        // Reject a stale plan that no longer matches the current inputs.
+        if (plan.fromBase !== fromBase || plan.toBase !== toBase) return;
         this.pending = true;
         const root = this.contentEl;
         root.empty();

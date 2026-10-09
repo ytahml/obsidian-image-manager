@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const ui = vi.hoisted(() => ({
     buttons: [] as Array<{ text: string; disabled: boolean; click: () => void }>,
     texts: [] as Array<{ value: string; change: (value: string) => void }>,
@@ -37,7 +37,17 @@ const plan: UrlPrefixMigrationPlan = {
     notePaths: ['a.md', 'b.md'],
     referenceCount: 2,
 };
-beforeEach(() => { vi.clearAllMocks(); ui.buttons.length = 0; ui.texts.length = 0; ui.dropdowns.length = 0; });
+beforeEach(() => {
+    vi.clearAllMocks();
+    ui.buttons.length = 0; ui.texts.length = 0; ui.dropdowns.length = 0;
+    vi.useFakeTimers();
+    vi.stubGlobal('window', { setTimeout, clearTimeout });
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+});
 
 it('prefills hosting editor values, previews automatically, and executes once', async () => {
     const preview = vi.fn(async () => plan);
@@ -69,4 +79,45 @@ it('does not preview identical bases', async () => {
     await Promise.resolve();
     expect(preview).not.toHaveBeenCalled();
     expect(ui.buttons[1]!.disabled).toBe(true);
+});
+
+it('disables submit and drops the plan immediately when the input changes', async () => {
+    const preview = vi.fn(async () => plan);
+    const execute = vi.fn(async () => {});
+    const dialog = new MigrateUrlPrefixDialog({} as App, { preview, execute }, { fromBase: 'https://old.example.com', toBase: 'https://new.example.com' });
+    dialog.onOpen();
+    await Promise.resolve();
+    expect(ui.buttons[1]!.disabled).toBe(false);
+
+    ui.texts[1]!.change('https://other.example.com');
+    expect(ui.buttons[1]!.disabled).toBe(true);
+    ui.buttons[1]!.click();
+    expect(execute).not.toHaveBeenCalled();
+});
+
+it('ignores a stale preview that resolves after a newer one', async () => {
+    let resolveOld!: (p: UrlPrefixMigrationPlan) => void;
+    let resolveNew!: (p: UrlPrefixMigrationPlan) => void;
+    const preview = vi.fn()
+        .mockImplementationOnce(() => new Promise<UrlPrefixMigrationPlan>(res => { resolveOld = res; }))
+        .mockImplementationOnce(() => new Promise<UrlPrefixMigrationPlan>(res => { resolveNew = res; }));
+    const execute = vi.fn(async () => {});
+
+    const dialog = new MigrateUrlPrefixDialog({} as App, { preview, execute }, { fromBase: 'https://old.example.com', toBase: 'https://new.example.com' });
+    dialog.onOpen();
+    await Promise.resolve();
+
+    ui.texts[1]!.change('https://other.example.com');
+    vi.advanceTimersByTime(300);
+    await Promise.resolve();
+
+    resolveNew({ ...plan, toBase: 'https://other.example.com' });
+    await Promise.resolve();
+    expect(ui.buttons[1]!.disabled).toBe(false);
+
+    resolveOld({ ...plan, toBase: 'https://new.example.com' });
+    await Promise.resolve();
+
+    ui.buttons[1]!.click();
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ toBase: 'https://other.example.com' }));
 });
