@@ -39,6 +39,8 @@ export interface ImageHostingConfig {
     uploadPath: string;
     /** Public access URL base, optionally including a bucket or directory path. */
     urlPrefix: string;
+    /** Previous non-empty urlPrefix, kept across "clear then refill" saves to detect migrations. */
+    previousUrlPrefix?: string;
     /** Optional remote-object browser settings. Missing values keep old configs disabled. */
     remoteManagement?: RemoteManagementConfig;
 }

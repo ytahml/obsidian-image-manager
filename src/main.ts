@@ -19,6 +19,7 @@ import { ImageOptimizer } from "./utils/image-optimizer";
 import { ImageScanner } from "./utils/image-scanner";
 import { BatchUploadDialog } from "./modals/batch-upload-dialog";
 import { ConvertReferenceDialog } from "./modals/convert-reference-dialog";
+import { MigrateUrlPrefixDialog } from "./modals/migrate-url-prefix-dialog";
 import type { UploadScope } from "./uploaders/upload-scope";
 import type { NoteScope } from "./utils/note-scope";
 import { ScopedReferenceConversion } from "./utils/scoped-reference-conversion";
@@ -33,6 +34,7 @@ import { ExplicitUploadWorkflow } from "./uploaders/explicit-upload-workflow";
 import { UploadReferenceManager } from "./uploaders/upload-reference-manager";
 import { setLocale, t } from "./i18n";
 import { RemoteReferenceIndex } from "./remote/reference-index";
+import { UrlPrefixMigration, type UrlPrefixMigrationPlan } from "./remote/url-prefix-migration";
 import type { RemoteDeleteAuditEntry } from "./remote/types";
 import {
     normalizeRemoteDeleteHistory,
@@ -56,6 +58,7 @@ export default class ImageManagerPlugin extends Plugin {
     private uploadReferences: UploadReferenceManager;
     private explicitUploads: ExplicitUploadWorkflow;
     private referenceConversion: ScopedReferenceConversion;
+    private urlPrefixMigration: UrlPrefixMigration;
     private delegatedHandoff: ObsidianDelegatedHandoff;
     private isReorganizing = false;
     private renameRepairCoordinator: ExternalRenameRepairCoordinator<TFile>;
@@ -68,6 +71,7 @@ export default class ImageManagerPlugin extends Plugin {
 
         this.refConverter = new RefConverter(this.app);
         this.referenceConversion = new ScopedReferenceConversion(this.app, this.refConverter);
+        this.urlPrefixMigration = new UrlPrefixMigration(this.app);
         this.imageOptimizer = new ImageOptimizer(this.app);
         this.uploadService = new UploadService(this.app, () => this.settings);
         this.uploadReferences = new UploadReferenceManager({
@@ -166,6 +170,7 @@ export default class ImageManagerPlugin extends Plugin {
             findOrphans: () => new OrphanImagesModal(this.app, this).open(),
             rename: file => this.renameImage(file),
             reorganize: file => this.reorganizeNote(file),
+            migrateUrlPrefix: () => this.openUrlPrefixMigration(),
         })) this.addCommand(command);
 
         // Settings tab
@@ -325,6 +330,39 @@ export default class ImageManagerPlugin extends Plugin {
         new ConvertReferenceDialog(this.app, { kind: "vault" }, {
             execute: scope => this.convertReferences(scope),
         }).open();
+    }
+
+    private openUrlPrefixMigration(): void {
+        this.openUrlPrefixMigrationPrefilled("", "");
+    }
+
+    /** Opened by the hosting editor after saving a changed public URL base. */
+    openUrlPrefixMigrationPrefilled(fromBase: string, toBase: string): void {
+        new MigrateUrlPrefixDialog(this.app, {
+            preview: (scope, from, to) => this.urlPrefixMigration.preview(scope, from, to),
+            execute: plan => this.runUrlPrefixMigration(plan),
+        }, { fromBase, toBase }).open();
+    }
+
+    private async runUrlPrefixMigration(plan: UrlPrefixMigrationPlan): Promise<void> {
+        if (this.urlPrefixMigration.isBusy) {
+            new Notice(t("migrate.busy"));
+            return;
+        }
+        try {
+            const result = await this.urlPrefixMigration.migrate(plan);
+            if (result.migratedReferences === 0 && result.conflicts === 0 && result.failedNotes === 0) {
+                new Notice(t("notice.noRefsToMigrate"));
+                return;
+            }
+            new Notice(t("notice.migrateResult", {
+                notes: String(result.migratedNotes),
+                count: String(result.migratedReferences),
+                conflicts: String(result.conflicts + result.failedNotes),
+            }), 15000);
+        } catch {
+            new Notice(t("migrate.failed"));
+        }
     }
 
     private async convertReferences(scope: NoteScope): Promise<void> {

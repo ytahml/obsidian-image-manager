@@ -14,6 +14,7 @@ export interface ImageCommandActions {
     findOrphans: () => void;
     rename: FileAction;
     reorganize: FileAction;
+    migrateUrlPrefix: () => void;
 }
 
 /** Only implemented operations. Published aliases intentionally retain their IDs. */
@@ -40,5 +41,6 @@ export function createImageCommands(actions: ImageCommandActions): Command[] {
         { id: 'find-orphan-images', name: t('command.findOrphans'), callback: actions.findOrphans },
         fileCommand('rename-image', 'command.renameImage', actions.isImage, actions.rename),
         fileCommand('reorganize-images', 'command.reorganizeImages', markdown, actions.reorganize),
+        { id: 'migrate-url-prefix', name: t('command.migrateUrlPrefix'), callback: actions.migrateUrlPrefix },
     ];
 }

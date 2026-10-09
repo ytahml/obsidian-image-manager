@@ -333,6 +333,16 @@ The image browser manages both local images and remote objects from supported ho
 
 > **Note**: Conversion is one-way from Wiki images to Markdown. It does not move or delete images.
 
+### Migrate public access URL base
+
+When a bucket's public domain changes but the object keys stay the same, use **Migrate public access URL base** from the command palette to rewrite existing references from the old base to the new base:
+
+- Enter the old and new base URLs, then choose the entire vault (default), a recursive folder, or one note
+- When editing a hosting configuration, the **Migrate old references** button next to **Public access URL base** opens this dialog with both bases prefilled
+- A preview shows how many notes and references will be affected before you confirm
+- Only references under the old base are rewritten; the object path, query, and fragment are preserved
+- Open editors are rewritten from their live content; conflicting or concurrently changed notes are left unchanged and reported
+
 ### Orphan Image Detection
 
 - Command palette → "Find Orphan Images"

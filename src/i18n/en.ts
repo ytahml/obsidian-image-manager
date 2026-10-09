@@ -24,6 +24,22 @@ export const en: Record<string, string> = {
     "convert.running": "Converting Wiki image references…",
     "convert.failed": "Could not complete the conversion. Conflicting or failed notes were left unchanged.",
     "convert.busy": "A Wiki image conversion is already running. Please wait for it to finish.",
+    "migrate.title": "Migrate public access URL base",
+    "migrate.scopeHelp": "Rewrite image references that start with the old public access URL base to the new base, preserving the object path, query, and fragment.",
+    "migrate.fromBase": "Old base URL",
+    "migrate.toBase": "New base URL",
+    "migrate.preview": "Enter both base URLs to preview affected references.",
+    "migrate.scanning": "Scanning references…",
+    "migrate.summary": "{notes} notes · {refs} references will be migrated",
+    "migrate.invalid": "Enter different, non-empty old and new base URLs.",
+    "migrate.selectNote": "Select a note to migrate.",
+    "migrate.start": "Migrate",
+    "migrate.running": "Migrating references…",
+    "migrate.runningHelp": "Closing this window does not cancel the migration. A completion notice will report the result.",
+    "migrate.failed": "Could not complete the migration. Conflicting or failed notes were left unchanged.",
+    "migrate.busy": "A URL base migration is already running. Please wait for it to finish.",
+    "notice.migrateResult": "Migrated {count} reference(s) across {notes} note(s). Note conflicts/read/write failures: {conflicts}.",
+    "notice.noRefsToMigrate": "No matching references found to migrate",
     // Settings
     "settings.title": "Markdown Image Manager Settings",
     "settings.language": "Language",
@@ -114,6 +130,7 @@ export const en: Record<string, string> = {
     "command.findOrphans": "Find orphan images",
     "command.renameImage": "Rename image (update references)",
     "command.reorganizeImages": "Reorganize images",
+    "command.migrateUrlPrefix": "Migrate public access URL base",
 
     // Ribbon
     "ribbon.tooltip": "Markdown Image Manager",
@@ -461,6 +478,7 @@ export const en: Record<string, string> = {
     "modal.hosting.urlPrefix": "Public access URL base",
     "modal.hosting.urlPrefixDesc":
         "Base for public image URLs. It may include a bucket, such as https://img.example.com/bucket.",
+    "modal.hosting.migrateRefs": "Migrate old references",
     "modal.hosting.providerConfig": "Provider Configuration",
     "modal.hosting.save": "Save",
     "modal.hosting.region": "Region",
