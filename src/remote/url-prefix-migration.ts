@@ -1,6 +1,5 @@
 import { TFile } from 'obsidian';
 import type { App } from 'obsidian';
-import { MD_IMAGE_REGEX } from '../constants';
 import { normalizePublicUrlBase } from '../uploaders/public-url';
 import { trimTrailingUrlPunctuation } from './object-reference-matcher';
 import { readNoteSnapshot, writeNoteSnapshot } from '../utils/note-content';
@@ -52,6 +51,26 @@ function buildUrlReplacement(
     return `${toNorm}${url.pathname.slice(fromPathname.length)}${url.search}${url.hash}`;
 }
 
+interface ParsedInlineUrl {
+    url: string;
+    /** Offset of the URL within the parenthesized content. */
+    offset: number;
+}
+
+/** Extract the exact URL from `![alt](url "title")` / `[text](<url>)` parentheses. */
+function parseInlineUrl(parenContent: string): ParsedInlineUrl | null {
+    const trimmed = parenContent.replace(/^\s+/, '');
+    const offset = parenContent.length - trimmed.length;
+    if (trimmed.startsWith('<')) {
+        const close = trimmed.indexOf('>');
+        if (close < 0) return null;
+        return { url: trimmed.slice(1, close), offset: offset + 1 };
+    }
+    const match = /^[^\s]+/.exec(trimmed);
+    if (!match) return null;
+    return { url: match[0], offset };
+}
+
 export function findUrlPrefixReplacements(
     content: string,
     fromBase: string,
@@ -73,34 +92,48 @@ export function findUrlPrefixReplacements(
     const replacements: UrlReplacement[] = [];
     const coveredRanges: Array<{ start: number; end: number }> = [];
 
-    // Markdown image references get exact URL positions so adjacent references are never merged.
-    const mdImagePattern = new RegExp(MD_IMAGE_REGEX.source, 'g');
+    // Inline links and images get exact URL positions, so titles, angle brackets, and adjacent
+    // references are never merged or rewritten.
+    const inlinePattern = /(!?)\[([^\]]*)\]\(([^)]+)\)/g;
     let match: RegExpExecArray | null;
-    while ((match = mdImagePattern.exec(content)) !== null) {
-        const alt = match[1] ?? '';
-        const urlText = match[2] ?? '';
-        const start = match.index + alt.length + 4;
-        const replacement = buildUrlReplacement(urlText, fromOrigin, fromPathname, toNorm);
+    while ((match = inlinePattern.exec(content)) !== null) {
+        const isImage = match[1] === '!';
+        const alt = match[2] ?? '';
+        const parsed = parseInlineUrl(match[3] ?? '');
+        coveredRanges.push({ start: match.index, end: match.index + match[0].length });
+        if (!parsed) continue;
+        const urlStart = match.index + (isImage ? 2 : 1) + alt.length + 2 + parsed.offset;
+        const replacement = buildUrlReplacement(parsed.url, fromOrigin, fromPathname, toNorm);
         if (replacement !== null) {
-            replacements.push({ start, end: start + urlText.length, original: urlText, replacement });
-            coveredRanges.push({ start: match.index, end: match.index + match[0].length });
+            replacements.push({ start: urlStart, end: urlStart + parsed.url.length, original: parsed.url, replacement });
         }
     }
 
-    // Remaining URLs (links, HTML, frontmatter, wiki wrappers, raw) via the broad URL scan.
+    // Remaining URLs (HTML, frontmatter, wiki wrappers, raw, reference definitions) via the broad
+    // scan, skipping any match that overlaps an already-recognized inline reference.
     const urlPattern = /https?:\/\/[^\s<>"']+/gi;
     while ((match = urlPattern.exec(content)) !== null) {
-        if (coveredRanges.some((range) => match!.index >= range.start && match!.index < range.end)) continue;
         const trimmed = trimTrailingUrlPunctuation(match[0]);
         if (!trimmed) continue;
+        const urlStart = match.index;
+        const urlEnd = match.index + trimmed.length;
+        if (coveredRanges.some((range) => urlStart < range.end && urlEnd > range.start)) continue;
         const replacement = buildUrlReplacement(trimmed, fromOrigin, fromPathname, toNorm);
         if (replacement !== null) {
-            replacements.push({ start: match.index, end: match.index + trimmed.length, original: trimmed, replacement });
+            replacements.push({ start: urlStart, end: urlEnd, original: trimmed, replacement });
         }
     }
 
     replacements.sort((a, b) => a.start - b.start);
-    return replacements;
+    // Defensive: never emit overlapping replacement ranges.
+    const deduped: UrlReplacement[] = [];
+    let lastEnd = -1;
+    for (const replacement of replacements) {
+        if (replacement.start < lastEnd) continue;
+        deduped.push(replacement);
+        lastEnd = replacement.end;
+    }
+    return deduped;
 }
 
 /** Apply replacements from back to front so earlier offsets stay valid. */

@@ -67,6 +67,41 @@ describe('findUrlPrefixReplacements', () => {
         expect(result).toHaveLength(2);
         expect(applyUrlReplacements(content, result)).toBe('![a.jpg](https://s3.lunak.cn/obs-notes/2026/10/1.jpg)![b.jpg|700](https://s3.lunak.cn/obs-notes/2026/10/2.jpg)111');
     });
+
+    it('keeps an image title untouched while rewriting only the URL', () => {
+        const content = '![图片](https://a.example.com/obs/a.jpg "图片标题")';
+        const result = findUrlPrefixReplacements(content, 'https://a.example.com', 'https://b.example.com');
+        expect(result).toHaveLength(1);
+        expect(applyUrlReplacements(content, result)).toBe('![图片](https://b.example.com/obs/a.jpg "图片标题")');
+    });
+
+    it('rewrites an angle-bracket wrapped URL and keeps the brackets and title', () => {
+        const content = '![alt](<https://a.example.com/obs/a.jpg> "标题")';
+        const result = findUrlPrefixReplacements(content, 'https://a.example.com', 'https://b.example.com');
+        expect(result).toHaveLength(1);
+        expect(applyUrlReplacements(content, result)).toBe('![alt](<https://b.example.com/obs/a.jpg> "标题")');
+    });
+
+    it('rewrites a plain link URL and keeps its title', () => {
+        const content = '[查看图片](https://a.example.com/obs/a.jpg "图片标题")';
+        const result = findUrlPrefixReplacements(content, 'https://a.example.com', 'https://b.example.com');
+        expect(result).toHaveLength(1);
+        expect(applyUrlReplacements(content, result)).toBe('[查看图片](https://b.example.com/obs/a.jpg "图片标题")');
+    });
+
+    it('rewrites an adjacent link and image without overlapping ranges', () => {
+        const content = '[查看图片](https://a.example.com/obs/a.jpg)![图片](https://a.example.com/obs/b.jpg)';
+        const result = findUrlPrefixReplacements(content, 'https://a.example.com', 'https://b.example.com');
+        expect(result).toHaveLength(2);
+        expect(applyUrlReplacements(content, result)).toBe('[查看图片](https://b.example.com/obs/a.jpg)![图片](https://b.example.com/obs/b.jpg)');
+    });
+
+    it('rewrites references separated by newlines', () => {
+        const content = '[查看](https://a.example.com/obs/a.jpg)\n![图](https://a.example.com/obs/b.jpg)';
+        const result = findUrlPrefixReplacements(content, 'https://a.example.com', 'https://b.example.com');
+        expect(result).toHaveLength(2);
+        expect(applyUrlReplacements(content, result)).toBe('[查看](https://b.example.com/obs/a.jpg)\n![图](https://b.example.com/obs/b.jpg)');
+    });
 });
 
 describe('shouldOfferUrlPrefixMigration', () => {
