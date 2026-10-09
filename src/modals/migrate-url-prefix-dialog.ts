@@ -46,6 +46,7 @@ export class MigrateUrlPrefixDialog extends Modal {
         const version = ++this.previewVersion;
         const root = this.contentEl;
         root.empty();
+        this.modalEl.addClass('migrate-url-prefix-dialog');
         this.summaryEl = undefined;
         this.startButton = undefined;
         this.currentPlan = undefined;
@@ -53,21 +54,27 @@ export class MigrateUrlPrefixDialog extends Modal {
         new Setting(root).setName(t('migrate.title')).setHeading();
         root.createEl('p', { text: t('migrate.scopeHelp') });
 
-        new Setting(root).setName(t('migrate.fromBase')).addText(text => text
-            .setPlaceholder('Old.example.com/bucket')
-            .setValue(this.fromBase)
-            .onChange(value => {
-                this.fromBase = value;
-                this.schedulePreview();
-            }));
+        new Setting(root).setName(t('migrate.fromBase')).addText(text => {
+            text.inputEl.classList.add('migrate-url-base-input');
+            return text
+                .setPlaceholder('Old.example.com/bucket')
+                .setValue(this.fromBase)
+                .onChange(value => {
+                    this.fromBase = value;
+                    this.schedulePreview();
+                });
+        });
 
-        new Setting(root).setName(t('migrate.toBase')).addText(text => text
-            .setPlaceholder('New.example.com/bucket')
-            .setValue(this.toBase)
-            .onChange(value => {
-                this.toBase = value;
-                this.schedulePreview();
-            }));
+        new Setting(root).setName(t('migrate.toBase')).addText(text => {
+            text.inputEl.classList.add('migrate-url-base-input');
+            return text
+                .setPlaceholder('New.example.com/bucket')
+                .setValue(this.toBase)
+                .onChange(value => {
+                    this.toBase = value;
+                    this.schedulePreview();
+                });
+        });
 
         new Setting(root).setName(t('upload.scope')).addDropdown(dropdown => dropdown
             .addOption('vault', t('upload.vault'))

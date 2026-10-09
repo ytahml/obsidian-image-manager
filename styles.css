@@ -1348,3 +1348,8 @@
 .hosting-config-monospace {
 	font-family: monospace;
 }
+
+/* Migrate URL Prefix Dialog */
+.migrate-url-prefix-dialog .migrate-url-base-input {
+	width: 100%;
+}

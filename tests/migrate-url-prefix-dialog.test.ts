@@ -7,12 +7,12 @@ const ui = vi.hoisted(() => ({
 vi.mock('obsidian', () => {
     const root = { empty() {}, createEl: () => ({ setText() {} }) };
     return {
-        Modal: class { contentEl = root; constructor(public app: unknown) {} open() {} close() {} },
+        Modal: class { contentEl = root; modalEl = { addClass() {} }; constructor(public app: unknown) {} open() {} close() {} },
         FuzzySuggestModal: class {}, Notice: vi.fn(), TFile: class {}, TFolder: class {},
         Setting: class {
             setName() { return this; } setHeading() { return this; } setDesc() { return this; }
             addText(callback: (value: unknown) => void) {
-                const value = { value: '', change: (_: string) => {}, setPlaceholder() { return this; }, setValue(next: string) { this.value = next; return this; }, onChange(fn: (v: string) => void) { this.change = fn; return this; } };
+                const value = { value: '', inputEl: { classList: { add() {} } }, change: (_: string) => {}, setPlaceholder() { return this; }, setValue(next: string) { this.value = next; return this; }, onChange(fn: (v: string) => void) { this.change = fn; return this; } };
                 ui.texts.push(value); callback(value); return this;
             }
             addDropdown(callback: (value: unknown) => void) {
