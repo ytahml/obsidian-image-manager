@@ -94,7 +94,7 @@ export function findUrlPrefixReplacements(
 
     // Inline links and images get exact URL positions, so titles, angle brackets, and adjacent
     // references are never merged or rewritten.
-    const inlinePattern = /(!?)\[([^\]]*)\]\(([^)]+)\)/g;
+    const inlinePattern = /(!?)\[([^\]]*)\]\((\s*<[^>]*>[^)]*|[^)]+)\)/g;
     let match: RegExpExecArray | null;
     while ((match = inlinePattern.exec(content)) !== null) {
         const isImage = match[1] === '!';

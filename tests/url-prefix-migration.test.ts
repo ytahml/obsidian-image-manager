@@ -88,6 +88,20 @@ describe('findUrlPrefixReplacements', () => {
         expect(applyUrlReplacements(content, result)).toBe('[查看图片](https://b.example.com/obs/a.jpg "图片标题")');
     });
 
+    it('preserves parentheses in angle-wrapped image and link URLs', () => {
+        const content = '![图](<https://a.example.com/obs/a(b).svg> "标题")[查看](  <https://a.example.com/obs/c(d).svg?q=(x)#part> "链接")';
+        const result = findUrlPrefixReplacements(content, 'https://a.example.com/obs', 'https://longer.example.com/new-path');
+        expect(result).toHaveLength(2);
+        expect(applyUrlReplacements(content, result)).toBe('![图](<https://longer.example.com/new-path/a(b).svg> "标题")[查看](  <https://longer.example.com/new-path/c(d).svg?q=(x)#part> "链接")');
+    });
+
+    it('preserves HTML image attributes and quotes', () => {
+        const content = `<img src="https://a.example.com/obs/a.svg" alt="图片" width="260"><img src='https://a.example.com/obs/b.svg' alt="单引号">`;
+        const result = findUrlPrefixReplacements(content, 'https://a.example.com/obs', 'https://b.example.com/new');
+        expect(result).toHaveLength(2);
+        expect(applyUrlReplacements(content, result)).toBe(`<img src="https://b.example.com/new/a.svg" alt="图片" width="260"><img src='https://b.example.com/new/b.svg' alt="单引号">`);
+    });
+
     it('rewrites an adjacent link and image without overlapping ranges', () => {
         const content = '[查看图片](https://a.example.com/obs/a.jpg)![图片](https://a.example.com/obs/b.jpg)';
         const result = findUrlPrefixReplacements(content, 'https://a.example.com', 'https://b.example.com');

@@ -14,7 +14,7 @@
 ## 安全边界
 
 - 前缀匹配必须同时满足 origin 精确相等与路径 segment 边界：`new URL` 解析后 `origin` 相等，且 `pathname` 等于旧路径或以 `旧路径 + "/"` 开头。域名边界拒绝 `a.com` 命中 `a.com.evil.com`，路径边界拒绝 `/obs-notes` 命中 `/obs-notes2`。
-- 扫描口径与远程引用索引一致：Markdown 图片引用用 `MD_IMAGE_REGEX` 精确定位 URL 区间，其余 URL（链接、HTML、frontmatter、Wiki 包裹、裸 URL）用 `https?://` 正则扫描并跳过图片引用范围；相邻无空格引用不会被合并而漏替换。`data:`、`blob:`、协议相对引用不参与。
+- 扫描口径与远程引用索引一致：Markdown 行内图片与链接精确定位 URL 区间，保留标题与尖括号，尖括号内的括号属于 URL；其余 URL（HTML、frontmatter、Wiki 包裹、裸 URL）用 `https?://` 正则扫描并跳过行内引用范围；相邻无空格引用不会被合并而漏替换。`data:`、`blob:`、协议相对引用不参与。
 - 替换范围精确到 `[start, end)`，被裁剪的尾标点保留在原文不动；从后往前应用替换，避免 offset 漂移。
 - 写回复用快照机制：读取打开 Editor 的实时内容，写回前重验 Editor 集合、内容、路径与文件身份；冲突、分歧、删除或读写失败保留原文。
 - from 与 new 规范化后为空或相等时不可执行；不触发网络请求，不读取或改写对象、凭证、签名；query 值原样保留、不解析、不进入日志。

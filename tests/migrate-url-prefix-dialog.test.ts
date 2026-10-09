@@ -121,3 +121,23 @@ it('ignores a stale preview that resolves after a newer one', async () => {
     ui.buttons[1]!.click();
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ toBase: 'https://other.example.com' }));
 });
+
+it('keeps the current preview usable after changing scope during debounce', async () => {
+    const preview = vi.fn(async (_scope: unknown, fromBase: string, toBase: string) => ({ ...plan, fromBase, toBase }));
+    const execute = vi.fn(async () => {});
+    const dialog = new MigrateUrlPrefixDialog({} as App, { preview, execute }, plan);
+    dialog.onOpen();
+    await Promise.resolve();
+
+    ui.texts[1]!.change('https://other.example.com');
+    ui.dropdowns[0]!.change('folder');
+    await Promise.resolve();
+    const start = ui.buttons[ui.buttons.length - 1]!;
+    expect(start.disabled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(preview).toHaveBeenCalledTimes(2);
+    expect(start.disabled).toBe(false);
+    start.click();
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ toBase: 'https://other.example.com' }));
+});

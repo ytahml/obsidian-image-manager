@@ -43,6 +43,8 @@ export class MigrateUrlPrefixDialog extends Modal {
     }
 
     private render(): void {
+        if (this.previewTimer !== undefined) window.clearTimeout(this.previewTimer);
+        this.previewTimer = undefined;
         const version = ++this.previewVersion;
         const root = this.contentEl;
         root.empty();
@@ -126,6 +128,7 @@ export class MigrateUrlPrefixDialog extends Modal {
     }
 
     private async refreshPreview(version: number): Promise<void> {
+        if (this.closed || version !== this.previewVersion) return;
         const fromBase = this.fromBase.trim();
         const toBase = this.toBase.trim();
         const summary = this.summaryEl;
