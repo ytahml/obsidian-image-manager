@@ -54,7 +54,8 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 | Paste/Drag & Drop Image Auto Processing | ✅ Implemented |
 | Right-click Menu Integration | ✅ Implemented |
 | Chinese/English Internationalization | ✅ Implemented |
-| Image Hosting Migration | ❌ Not Implemented |
+| Public Access URL Base Migration (same bucket and object keys; reference URLs only) | ✅ Implemented (2.0.7) |
+| Cross-Hosting Object Migration (copy/move images between hosting services or buckets) | ❌ Not Implemented |
 | Replace Hosting References with Local | ❌ Not Implemented |
 
 ---
@@ -437,7 +438,7 @@ Unknown variables, a missing `{fileUrl}`, or unavailable requested dimensions ca
 - Remote reference indexing scans Markdown files in the current vault
 - Custom HTTP hosting is upload-only because it has no common list, preview, or delete protocol
 - Clipboard writes use the browser `navigator.clipboard` API; mobile behavior still depends on the host platform and permissions
-- Image hosting migration not yet implemented
+- Cross-hosting object migration (copying/moving images between hosting services or buckets) is not implemented; public access URL base migration only rewrites reference URLs in the selected Markdown notes and does not transfer cloud objects.
 
 ---
 
