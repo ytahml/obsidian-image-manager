@@ -18,11 +18,7 @@ export class AliyunOSSUploader extends UploaderBase {
         context?: UploadContext
     ): Promise<UploadResult> {
         const ossConfig = this.config.config as AliyunOSSConfig;
-        let template = this.getUploadPathTemplate();
-        if (this.config.uploadPath && !template.includes('{filename}')) {
-            template = template.replace(/\/?$/, '/{filename}.{ext}');
-        }
-        const targetPath = await this.resolveUploadPath(filename, data, context, template);
+        const targetPath = await this.resolveUploadPath(filename, data, context);
         console.debug(`[AliyunOSS] Uploading to: ${targetPath}`);
         const contentType = this.guessMimeType(filename);
         const encodedPath = encodeOSSKey(targetPath);

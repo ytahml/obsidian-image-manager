@@ -29,9 +29,8 @@ export abstract class UploaderBase {
     protected resolveUploadPath(
         filename: string,
         data?: ArrayBuffer,
-        context?: UploadContext,
-        template = this.getUploadPathTemplate()
+        context?: UploadContext
     ): Promise<string> {
-        return resolveUploadPath(template, filename, data, context);
+        return resolveUploadPath(this.getUploadPathTemplate(), filename, data, context);
     }
 }
