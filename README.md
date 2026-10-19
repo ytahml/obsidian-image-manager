@@ -416,6 +416,8 @@ When a bucket's public domain changes but the object keys stay the same, use **M
 
 Provider-specific upload paths override the global template. Aliyun OSS, Qiniu, and S3 use these templates; custom HTTP uploaders continue to use the URL returned by their configured JSON response path.
 
+Templates specify the complete object path, for example `images/{year}/{hash}.{ext}`; filenames are never appended automatically. If an older OSS configuration contains only a directory such as `images`, change it to `images/{filename}.{ext}`. A fixed path targets the same object on repeated uploads and may overwrite existing content. Existing objects and note references are not migrated automatically.
+
 ### Custom Reference Template
 
 | Variable | Description |

@@ -32,6 +32,8 @@ public-url.ts    公共 URL base 规范化与拼接
 变量：`{year}`、`{month}`、`{day}`、`{filename}`、`{ext}`、`{hash}`、`{timestamp}`、`{sourceDir}`。
 
 - `{hash}` 是文件内容 SHA-256 的前 16 位。
+- 三类原生图床都将选中的模板作为完整 object key，通过同一个 `UploaderBase.resolveUploadPath()` 解析，不因缺少 `{filename}` 而追加文件名。图床级和全局模板遵循相同规则。
+- 不猜测旧值是否为目录，也不自动迁移配置或历史对象。旧 OSS 配置若只填目录（如 `images`），需显式改为 `images/{filename}.{ext}`；固定 key 会使后续上传指向同一对象，可能覆盖已有内容。
 - `{sourceDir}` 是源图片相对 Vault 根的父目录；根文件为空且不能产生重复 `/`。
 - 只有显式使用 `{sourceDir}` 时才把 Vault 目录名发送给服务商。
 - Custom 不使用对象 key 模板，以响应 JSON path 提取 URL。
