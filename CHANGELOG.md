@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.0.8
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Fixed Aliyun OSS appending an extra `/{filename}.{ext}` when an upload path template uses `{hash}`, `{timestamp}`, or a fixed filename. OSS, Qiniu, and S3 now share the same complete-object-path template behavior ([PR #62](https://github.com/ytahml/obsidian-image-manager/pull/62), [Issue #61](https://github.com/ytahml/obsidian-image-manager/issues/61)).
+- Added cross-provider regression coverage for provider/global/default templates, special characters, and Custom HTTP response URLs.
+
+#### Compatibility
+
+- If an older OSS upload path contains only a directory such as `images`, change it to `images/{filename}.{ext}`. Filenames are no longer appended automatically; repeated uploads to a fixed key may overwrite existing content. Existing objects and note references are not migrated.
+
+Thanks to [@TWhave](https://github.com/TWhave) for reporting the issue. Requires Obsidian 1.13.0 or later (unchanged).
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 修复阿里云 OSS 在上传路径模板使用 `{hash}`、`{timestamp}` 或固定文件名时，额外追加 `/{filename}.{ext}` 的问题。OSS、七牛和 S3 现在统一按完整对象路径解析模板（[PR #62](https://github.com/ytahml/obsidian-image-manager/pull/62)、[Issue #61](https://github.com/ytahml/obsidian-image-manager/issues/61)）。
+- 补充跨图床回归测试，覆盖图床级、全局和默认模板、特殊字符及 Custom HTTP 响应 URL。
+
+#### 兼容说明
+
+- 旧版 OSS 上传路径若仅填写目录（如 `images`），请改为 `images/{filename}.{ext}`。不再自动追加文件名；多次上传到固定 key 可能覆盖已有内容。已有对象和笔记引用不会自动迁移。
+
+感谢 [@TWhave](https://github.com/TWhave) 的反馈。最低 Obsidian 版本仍为 1.13.0。
+
+---
+
 ## 2.0.7
 
 ### 🇺🇸 English
