@@ -37,6 +37,8 @@ ClipboardEvent/DragEvent
 
 清理规则移除用户扩展名、替换空格、去除 `/\:*?"<>|` 等不安全字符、合并连字符并清理首尾；空结果回退 `image`。命名 Modal 的 Enter 必须处理 IME composing。
 
+命名和本地路径模板只展开原模板中的变量一次。来自笔记名、笔记目录和文件名的 `$&` 等美元替换符或 `{year}` 等字面文本不会作为替换指令或新的变量再次执行；未知模板变量保留原文。
+
 ### 本地路径模板
 
 `imagePathTemplate` 支持 `{noteName}`、`{notePath}`、`{filename}`、`{year}`、`{month}`、`{day}`、`{timestamp}`。
