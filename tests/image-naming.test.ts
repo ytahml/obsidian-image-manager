@@ -23,6 +23,21 @@ describe('image naming templates', () => {
         );
     });
 
+    it.each(['$&', '$`', "$'", '$$'])('keeps %s literal in the note name', (literal) => {
+        expect(generateImageFileName('before-{noteName}-after', 'png', `note${literal}`, now, 0))
+            .toBe(`before-note${literal}-after.png`);
+    });
+
+    it('does not expand template-shaped text inserted from the note name', () => {
+        expect(generateImageFileName('{noteName}-{date}', 'png', 'note{date}', now, 0))
+            .toBe('note{date}-2026-07-14.png');
+    });
+
+    it('leaves unknown template variables unchanged', () => {
+        expect(generateImageFileName('{unknown}-{noteName}', 'png', 'note', now, 0))
+            .toBe('{unknown}-note.png');
+    });
+
     it('falls back to image when the resolved note name is empty', () => {
         expect(generateImageFileName('{noteName}', 'png', '', now, 0)).toBe('image.png');
     });

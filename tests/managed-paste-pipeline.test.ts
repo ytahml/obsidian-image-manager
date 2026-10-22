@@ -219,6 +219,47 @@ describe('ManagedPastePipeline', () => {
         ));
     });
 
+    describe.each(['vault', 'note'] as const)('literal paths relative to %s', (imagePathBase) => {
+        it.each(['$&', '$`', "$'", '$$'])('keeps %s literal in every path variable', (literal) => {
+            const target = harness({ imagePathBase });
+            const directory = `folder${literal}`;
+            const note = file(`${directory}/note${literal}.md`, directory);
+            const expected = `assets/${directory}/note${literal}/image${literal}.png`;
+
+            expect(target.pipeline.resolveImagePath(
+                'assets/{notePath}/{noteName}/{filename}', note, `image${literal}.png`
+            )).toBe(imagePathBase === 'note' ? `${directory}/${expected}` : expected);
+        });
+    });
+
+    it('does not expand template-shaped note paths or filenames a second time', () => {
+        const target = harness({ imagePathBase: 'vault' });
+        const note = file('notes{year}/note{month}.md', 'notes{year}');
+
+        expect(target.pipeline.resolveImagePath(
+            '{notePath}/{noteName}/{filename}/{year}', note, 'image{day}.png'
+        )).toBe(`notes{year}/note{month}/image{day}.png/${new Date().getFullYear()}`);
+    });
+
+    it('saves and references a note-derived literal filename through the managed pipeline', async () => {
+        const target = harness({
+            imagePathBase: 'note',
+            imageNamingTemplate: '{noteName}',
+            imagePathTemplate: 'assets/{noteName}',
+        });
+        const note = file('notes/report$&{year}.md', 'notes');
+
+        target.pipeline.processFiles([target.image], target.editor, note);
+
+        await vi.waitFor(() => expect(target.createBinary).toHaveBeenCalledOnce());
+        expect(target.createBinary).toHaveBeenCalledWith(
+            'notes/assets/report$&{year}/report$&{year}.png', expect.any(ArrayBuffer)
+        );
+        expect(target.getContent()).toBe(
+            '![report$&{year}.png](assets/report$&%7Byear%7D/report$&%7Byear%7D.png)'
+        );
+    });
+
     it('keeps path resolution available to reorganization through the same pipeline', () => {
         const target = harness({ imagePathBase: 'note' });
         const note = file('projects/demo/note.md', 'projects/demo');
