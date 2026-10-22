@@ -16,6 +16,8 @@ git diff --check
 
 Volta 固定 Node 22.x/npm 10.x；普通 CI 使用 Node 22.x。修改依赖、脚本或 CI 前同时检查 `package.json`、lockfile、`.github/workflows/` 和 release workflow。
 
+`moment` 的 npm override 仅用于开发依赖树：Obsidian 类型包和 ESLint 插件固定了旧版本，统一到 2.31.0 以修复 GHSA-4p3w-j4w9-5jqw。它不改变 Obsidian 宿主提供的运行时，也不打包进插件；上游解除旧版本固定后可移除此 override。依赖审计使用 `npm audit --registry=https://registry.npmjs.org`，部分镜像不提供 audit endpoint。
+
 ## 测试策略
 
 Vitest 测试应覆盖可观察行为与高风险协议，而不是源码字符串或文档措辞：
