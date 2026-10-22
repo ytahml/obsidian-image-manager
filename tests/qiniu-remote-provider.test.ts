@@ -11,6 +11,8 @@ import {
     QiniuRemoteObjectProvider,
 } from '../src/remote/providers/qiniu-remote';
 import { buildQiniuManagementSigningString } from '../src/qiniu/auth';
+import { createRemoteObjectReferenceLookup, indexRemoteReference } from '../src/remote/object-reference-matcher';
+import { getRemoteDeleteUnavailableReason } from '../src/remote/delete-policy';
 
 function hostingConfig(): ImageHostingConfig {
     const config: QiniuConfig = {
@@ -60,6 +62,36 @@ describe('Qiniu remote list parsing', () => {
 });
 
 describe('Qiniu remote provider', () => {
+    it.each([
+        ['primary', 'cdn.example.com/vault/', [], 'https://cdn.example.com/vault'],
+        ['alias', 'https://cdn.example.com/vault', ['origin.example.com/vault/'], 'https://origin.example.com/vault'],
+        ['alias with port', 'https://cdn.example.com/vault', ['origin.example.com:8443/vault/'], 'https://origin.example.com:8443/vault'],
+    ] as const)('protects referenced objects through a scheme-less %s', (_name, urlPrefix, aliases, referenceBase) => {
+        const config = hostingConfig();
+        config.urlPrefix = urlPrefix;
+        config.remoteManagement!.publicUrlAliases = [...aliases];
+        const provider = new QiniuRemoteObjectProvider(config);
+        const object = { hostingId: config.id, key: 'vault-a/used.png', size: 1 };
+        const reference = indexRemoteReference(`${referenceBase}/${object.key}`, 'url')!;
+        const lookup = createRemoteObjectReferenceLookup(provider.referenceMapping, [reference], { isComplete: true });
+
+        expect(lookup.classify(object)).toBe('referenced');
+        expect(getRemoteDeleteUnavailableReason(object, {
+            config,
+            provider,
+            indexState: {
+                status: 'fresh',
+                summary: {
+                    scannedAt: 123, markdownFileCount: 1, referencedCount: 1,
+                    possiblyReferencedCount: 0, unmappableCount: 0,
+                },
+            },
+            scannedObjects: [object],
+            classify: (candidate) => lookup.classify(candidate),
+        })).toBe('referenced');
+        expect(lookup.classify({ ...object, key: 'vault-a/unused.png' })).toBe('not-referenced-in-current-vault');
+    });
+
     it('uses the required double line break after signed management headers', () => {
         const url = new URL('https://rsf.qiniuapi.com/list?bucket=images&limit=1');
         expect(buildQiniuManagementSigningString(

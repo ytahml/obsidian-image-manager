@@ -200,7 +200,7 @@ Provider 差异：
 映射原则：
 
 - 使用 Provider 的主 `urlPrefix`、源站 base 和 `publicUrlAliases`。
-- alias 一行一个 HTTP(S) base，不能含账号、query、fragment，必须截止 object key 前。
+- alias 一行一个 HTTP(S) base，不能含账号、query、fragment，必须截止 object key 前；省略 scheme 时与 `urlPrefix` 一样补 `https://`。OSS、Qiniu、S3 都在构建引用 mapping 时规范化主 base 和 alias，与上传/预览一致。
 - 不按 basename 猜测，不把相邻 path prefix 当命中。
 - encoded slash、double-encoded percent 等必须保持可区分。
 - 索引完成前、stale、abort 或 mapping 歧义不能声明未引用。
