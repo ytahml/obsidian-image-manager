@@ -49,10 +49,12 @@ describe.each(providers)('$name upload path contract', (config) => {
         { template: 'images', key: 'images' },
     ];
 
-    async function checkUpload(uploadPath: string, globalTemplate: string, key: string) {
+    async function checkUpload(
+        uploadPath: string, globalTemplate: string, key: string, filename = 'photo.png'
+    ) {
         const uploader = createUploader({ ...config, uploadPath }, globalTemplate);
-        const result = await uploader.upload(new ArrayBuffer(0), 'photo.png', {
-            sourcePath: 'notes/assets/photo.png',
+        const result = await uploader.upload(new ArrayBuffer(0), filename, {
+            sourcePath: `notes/assets/${filename}`,
         });
         const encodedKey = key.split('/').map(encodeURIComponent).join('/');
         expect(result).toMatchObject({ success: true, objectKey: key, url: `https://cdn.example.com/base/${encodedKey}` });
@@ -75,6 +77,10 @@ describe.each(providers)('$name upload path contract', (config) => {
 
     it('falls back to the default hash template', async () => {
         await checkUpload('', '', 'images/2026/07/e3b0c44298fc1c14.png');
+    });
+
+    it('preserves literal filename characters in the object key, request, and public URL', async () => {
+        await checkUpload('images/{filename}.{ext}', '', 'images/photo$&-{ext}.png', 'photo$&-{ext}.png');
     });
 });
 

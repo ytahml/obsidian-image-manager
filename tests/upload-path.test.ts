@@ -58,4 +58,30 @@ describe('upload path templates', () => {
 
         expect(result).toBe('/legacy//photo.png');
     });
+
+    it.each(['$&', '$`', "$'", '$$', '{ext}', '{sourceDir}'])(
+        'keeps filename replacement characters literal: %s', async (literal) => {
+            const result = await resolveUploadPath(
+                'images/{filename}.{ext}',
+                `photo${literal}.png`,
+                new ArrayBuffer(0),
+                { sourcePath: 'notes/assets/photo.png' }
+            );
+
+            expect(result).toBe(`images/photo${literal}.png`);
+        }
+    );
+
+    it.each(['$&', '$`', "$'", '$$', '{filename}'])(
+        'keeps source directory replacement characters literal: %s', async (literal) => {
+            const result = await resolveUploadPath(
+                'images/{sourceDir}/{filename}.{ext}',
+                'photo.png',
+                new ArrayBuffer(0),
+                { sourcePath: `notes/${literal}/photo.png` }
+            );
+
+            expect(result).toBe(`images/notes/${literal}/photo.png`);
+        }
+    );
 });
