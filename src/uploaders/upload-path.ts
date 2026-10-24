@@ -45,10 +45,9 @@ export async function resolveUploadPath(
         sourceDir: getSourceDir(context.sourcePath),
     };
 
-    let resolvedPath = template;
-    for (const [key, value] of Object.entries(variables)) {
-        resolvedPath = resolvedPath.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
-    }
+    // Expand only template tokens; inserted file and folder names are literal data.
+    const tokenPattern = new RegExp(`\\{(${Object.keys(variables).join('|')})\\}`, 'g');
+    let resolvedPath = template.replace(tokenPattern, (match, key: string) => variables[key] ?? match);
 
     if (template.includes('{sourceDir}')) {
         resolvedPath = resolvedPath.replace(/\/{2,}/g, '/').replace(/^\/+|\/+$/g, '');

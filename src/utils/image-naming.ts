@@ -16,10 +16,9 @@ export function generateImageFileName(
         counter: String(counter),
     };
 
-    let resolved = template || 'image-{timestamp}';
-    for (const [key, value] of Object.entries(vars)) {
-        resolved = resolved.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
-    }
+    const tokenPattern = new RegExp(`\\{(${Object.keys(vars).join('|')})\\}`, 'g');
+    const resolved = (template || 'image-{timestamp}')
+        .replace(tokenPattern, (match, key: string) => vars[key] ?? match);
 
     return sanitizeImageFileName(resolved, ext);
 }
