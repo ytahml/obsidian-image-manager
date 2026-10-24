@@ -136,8 +136,8 @@ export function buildQiniuReferenceMapping(config: ImageHostingConfig): RemoteUr
     const settings = getRemoteManagementConfig(config);
     return {
         hostingId: config.id,
-        urlPrefix: config.urlPrefix,
-        publicUrlAliases: settings.publicUrlAliases,
+        urlPrefix: normalizePublicUrlBase(config.urlPrefix),
+        publicUrlAliases: settings.publicUrlAliases.map(normalizePublicUrlBase),
     };
 }
 
