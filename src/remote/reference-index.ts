@@ -1,5 +1,6 @@
-import { App } from 'obsidian';
+import type { App } from 'obsidian';
 import { RefConverter } from '../utils/ref-converter';
+import { captureMarkdownEditorState, readNoteSnapshot } from '../utils/note-content';
 import {
     createRemoteObjectReferenceLookup,
     indexRemoteReference,
@@ -20,6 +21,7 @@ export interface RemoteReferenceScanOptions {
 interface Snapshot {
     summary: RemoteReferenceScanSummary;
     references: IndexedRemoteReference[];
+    editorsAreCurrent: () => boolean;
 }
 
 /** On-demand index of image URLs in Markdown syntax, HTML, frontmatter, links, and raw text. */
@@ -28,6 +30,7 @@ export class RemoteReferenceIndex {
     private isStale = false;
     private revision = 0;
     private invalidationListeners = new Set<() => void>();
+    private notificationPending = false;
 
     constructor(
         private app: App,
@@ -36,19 +39,26 @@ export class RemoteReferenceIndex {
     ) {}
 
     async scan(options: RemoteReferenceScanOptions = {}): Promise<RemoteReferenceScanSummary> {
+        // A failed or superseded rescan must not leave the previous snapshot usable for deletion.
+        this.invalidate();
         const scanRevision = this.revision;
+        const editorsAreCurrent = captureMarkdownEditorState(this.app);
         const references: IndexedRemoteReference[] = [];
-        const files = this.app.vault.getMarkdownFiles();
+        const files = this.app.vault.getMarkdownFiles().map(file => ({
+            file, path: file.path, mtime: file.stat.mtime, size: file.stat.size,
+        }));
 
-        for (const file of files) {
+        for (const { file } of files) {
             throwIfAborted(options.signal);
-            const content = await this.app.vault.cachedRead(file);
+            const snapshot = await readNoteSnapshot(this.app, file);
             throwIfAborted(options.signal);
-            collectReferences(content, file.path, this.refConverter, references);
+            collectReferences(snapshot.content, snapshot.path, this.refConverter, references);
         }
 
         throwIfAborted(options.signal);
-        if (scanRevision !== this.revision) {
+        if (scanRevision !== this.revision || !editorsAreCurrent() ||
+            this.app.vault.getMarkdownFiles().length !== files.length || files.some(({ file, path, mtime, size }) =>
+                this.app.vault.getAbstractFileByPath(path) !== file || file.path !== path || file.stat.mtime !== mtime || file.stat.size !== size)) {
             throw new Error('Vault changed while scanning remote references');
         }
 
@@ -59,7 +69,7 @@ export class RemoteReferenceIndex {
             possiblyReferencedCount: 0,
             unmappableCount: references.filter((reference) => !reference.pathSegments).length,
         };
-        this.snapshot = { summary, references };
+        this.snapshot = { summary, references, editorsAreCurrent };
         this.isStale = false;
         return summary;
     }
@@ -67,7 +77,13 @@ export class RemoteReferenceIndex {
     invalidate() {
         this.revision++;
         if (this.snapshot) this.isStale = true;
-        for (const listener of this.invalidationListeners) listener();
+        if (this.notificationPending) return;
+        this.notificationPending = true;
+        // getState() can invalidate during rendering; notify after the current stack completes.
+        queueMicrotask(() => {
+            this.notificationPending = false;
+            for (const listener of this.invalidationListeners) listener();
+        });
     }
 
     onInvalidate(listener: () => void): () => void {
@@ -77,15 +93,23 @@ export class RemoteReferenceIndex {
 
     getState(): RemoteReferenceIndexState {
         if (!this.snapshot) return { status: 'empty' };
+        if (!this.isStale && !this.snapshot.editorsAreCurrent()) this.invalidate();
         return this.isStale
             ? { status: 'stale', summary: this.snapshot.summary }
             : { status: 'fresh', summary: this.snapshot.summary };
     }
 
     createLookup(mapping: RemoteUrlMapping): RemoteObjectReferenceLookup {
-        return createRemoteObjectReferenceLookup(mapping, this.snapshot?.references ?? [], {
-            isComplete: this.snapshot !== null && !this.isStale,
+        const snapshot = this.snapshot;
+        const revision = this.revision;
+        const lookup = createRemoteObjectReferenceLookup(mapping, snapshot?.references ?? [], {
+            isComplete: this.getState().status === 'fresh',
         });
+        const current = () => this.getState().status === 'fresh' && this.snapshot === snapshot && this.revision === revision;
+        return {
+            classify: object => current() ? lookup.classify(object) : 'unmappable',
+            getReferences: object => current() ? lookup.getReferences(object) : [],
+        };
     }
 }
 

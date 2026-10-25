@@ -3,9 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('obsidian', () => ({
     App: class {},
     TFile: class {},
+    MarkdownView: class {},
 }));
 
-import type { App } from 'obsidian';
+import { MarkdownView, TFile, type App, type Editor } from 'obsidian';
 import {
     createRemoteObjectReferenceLookup,
     indexRemoteReference,
@@ -106,12 +107,19 @@ interface TestFile {
 function createIndex(
     contents: Record<string, string>,
     now = () => 12345
-): { index: RemoteReferenceIndex; setContent: (path: string, content: string) => void } {
-    const files = Object.keys(contents).map((path) => ({ path, extension: 'md' }));
+) {
+    const files = Object.keys(contents).map((path) => Object.assign(new TFile(), {
+        path, extension: 'md', stat: { mtime: 1, ctime: 1, size: contents[path]!.length },
+    }));
+    const views: MarkdownView[] = [];
+    let onRead: (() => void) | undefined;
+    const read = async (file: TestFile) => { onRead?.(); return contents[file.path] ?? ''; };
     const app = {
+        workspace: { getLeavesOfType: () => views.map(view => ({ view })), getActiveViewOfType: () => null },
         vault: {
             getMarkdownFiles: () => files,
-            cachedRead: async (file: TestFile) => contents[file.path] ?? '',
+            getAbstractFileByPath: (path: string) => files.find(file => file.path === path),
+            read, cachedRead: read,
         },
     } as unknown as App;
     const refConverter = {
@@ -136,7 +144,16 @@ function createIndex(
 
     return {
         index: new RemoteReferenceIndex(app, refConverter, now),
-        setContent(path, content) {
+        views, files,
+        setOnRead(callback: () => void) { onRead = callback; },
+        open(path: string, value: string) {
+            const content = { value };
+            const editor = { getValue: () => content.value } as Editor;
+            const view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { file: files.find(file => file.path === path)!, editor });
+            views.push(view);
+            return { content, view };
+        },
+        setContent(path: string, content: string) {
             contents[path] = content;
         },
     };
@@ -187,6 +204,43 @@ describe('remote reference index', () => {
         expect(index.createLookup(mapping).classify(object('image.png'))).toBe('unmappable');
     });
 
+    it('revokes deletion eligibility immediately but notifies outside the state query', async () => {
+        const f = createIndex({ 'one.md': '' });
+        await f.index.scan();
+        const lookup = f.index.createLookup(mapping);
+        const listener = vi.fn(() => f.index.getState());
+        f.index.onInvalidate(listener);
+        f.open('one.md', 'unsaved');
+
+        expect(f.index.getState().status).toBe('stale');
+        expect(lookup.classify(object('unused.png'))).toBe('unmappable');
+        expect(listener).not.toHaveBeenCalled();
+        await Promise.resolve();
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('coalesces notifications and respects listeners removed before delivery', async () => {
+        const { index } = createIndex({ 'one.md': '' });
+        await index.scan();
+        const listener = vi.fn();
+        const removed = vi.fn();
+        index.onInvalidate(listener);
+        const unsubscribe = index.onInvalidate(removed);
+
+        index.invalidate();
+        index.invalidate();
+        unsubscribe();
+        expect(index.getState().status).toBe('stale');
+        expect(listener).not.toHaveBeenCalled();
+        await Promise.resolve();
+        expect(listener).toHaveBeenCalledTimes(1);
+        expect(removed).not.toHaveBeenCalled();
+
+        index.invalidate();
+        await Promise.resolve();
+        expect(listener).toHaveBeenCalledTimes(2);
+    });
+
     it('does not publish a snapshot when aborted or invalidated during the scan', async () => {
         const controller = new AbortController();
         controller.abort();
@@ -195,15 +249,18 @@ describe('remote reference index', () => {
         await expect(index.scan({ signal: controller.signal })).rejects.toThrow('aborted');
         expect(index.getState()).toEqual({ status: 'empty' });
 
-        const files = [{ path: 'one.md', extension: 'md' }];
+        const files = [{ path: 'one.md', extension: 'md', stat: { mtime: 1, size: 0 } }];
         let invalidate: (() => void) | undefined;
+        const read = async () => {
+            invalidate?.();
+            return 'https://cdn.example.com/vault-a/image.png';
+        };
         const app = {
+            workspace: { getLeavesOfType: () => [], getActiveViewOfType: () => null },
             vault: {
                 getMarkdownFiles: () => files,
-                cachedRead: async () => {
-                    invalidate?.();
-                    return 'https://cdn.example.com/vault-a/image.png';
-                },
+                getAbstractFileByPath: () => files[0],
+                read, cachedRead: read,
             },
         } as unknown as App;
         const refConverter = { parseReferences: () => [] } as unknown as import('../src/utils/ref-converter').RefConverter;
@@ -212,5 +269,77 @@ describe('remote reference index', () => {
 
         await expect(invalidatedIndex.scan()).rejects.toThrow('Vault changed');
         expect(invalidatedIndex.getState()).toEqual({ status: 'empty' });
+    });
+
+    it('indexes an unsaved URL from a non-active Markdown editor', async () => {
+        const f = createIndex({ 'one.md': 'stale disk content' });
+        f.open('one.md', 'https://cdn.example.com/vault-a/unsaved.png');
+        await f.index.scan();
+        expect(f.index.createLookup(mapping).classify(object('unsaved.png'))).toBe('referenced');
+    });
+
+    it.each(['edit', 'open', 'close', 'rebind'] as const)('rejects editor %s during scanning', async change => {
+        const f = createIndex({ 'one.md': '', 'two.md': '' });
+        const { content, view } = f.open('one.md', 'original');
+        f.setOnRead(() => {
+            if (change === 'edit') content.value = 'changed';
+            if (change === 'open') f.open('two.md', 'new editor');
+            if (change === 'close') f.views.length = 0;
+            if (change === 'rebind') view.file = f.files[1]!;
+        });
+        await expect(f.index.scan()).rejects.toThrow();
+        expect(f.index.getState().status).not.toBe('fresh');
+    });
+
+    it('rejects conflicting views and invalidates a previously fresh snapshot on failed rescan', async () => {
+        const f = createIndex({ 'one.md': '' });
+        await f.index.scan();
+        const old = f.index.createLookup(mapping);
+        f.open('one.md', 'first');
+        f.open('one.md', 'second');
+        await expect(f.index.scan()).rejects.toThrow();
+        expect(f.index.getState().status).not.toBe('fresh');
+        expect(old.classify(object('unused.png'))).toBe('unmappable');
+    });
+
+    it.each(['edit', 'open', 'close', 'rebind'] as const)('revokes new and retained lookups after editor %s', async change => {
+        const f = createIndex({ 'one.md': '', 'two.md': '' });
+        const { content, view } = f.open('one.md', 'original');
+        await f.index.scan();
+        const old = f.index.createLookup(mapping);
+        expect(old.classify(object('unsaved.png'))).toBe('not-referenced-in-current-vault');
+        if (change === 'edit') content.value = 'https://cdn.example.com/vault-a/unsaved.png';
+        if (change === 'open') f.open('two.md', 'https://cdn.example.com/vault-a/unsaved.png');
+        if (change === 'close') f.views.length = 0;
+        if (change === 'rebind') view.file = f.files[1]!;
+        expect(old.classify(object('unsaved.png'))).toBe('unmappable');
+        expect(f.index.getState().status).toBe('stale');
+        expect(f.index.createLookup(mapping).classify(object('unsaved.png'))).toBe('unmappable');
+    });
+
+    it('revokes retained lookups when invalidated or replaced by a new scan', async () => {
+        const f = createIndex({ 'one.md': 'https://cdn.example.com/vault-a/used.png' });
+        await f.index.scan();
+        const first = f.index.createLookup(mapping);
+        f.index.invalidate();
+        expect(first.classify(object('unused.png'))).toBe('unmappable');
+        expect(first.getReferences(object('used.png'))).toEqual([]);
+        await f.index.scan();
+        const second = f.index.createLookup(mapping);
+        await f.index.scan();
+        expect(second.classify(object('unused.png'))).toBe('unmappable');
+    });
+
+    it.each(['modify', 'delete', 'replace', 'rename'] as const)('rejects file %s during a scan before publishing fresh state', async change => {
+        const f = createIndex({ 'one.md': '' });
+        f.setOnRead(() => {
+            const file = f.files[0]!;
+            if (change === 'modify') file.stat.mtime++;
+            if (change === 'delete') f.files.length = 0;
+            if (change === 'replace') f.files[0] = Object.assign(new TFile(), file);
+            if (change === 'rename') file.path = 'renamed.md';
+        });
+        await expect(f.index.scan()).rejects.toThrow('Vault changed');
+        expect(f.index.getState().status).not.toBe('fresh');
     });
 });

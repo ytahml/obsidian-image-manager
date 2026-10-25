@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("obsidian", () => ({
     TFile: class TFile {},
+    MarkdownView: class MarkdownView {},
     normalizePath: (path: string) => path.replace(/^\/+|\/+$/g, ""),
 }));
 
-import { TFile, type App } from "obsidian";
+import { MarkdownView, TFile, type App, type Editor } from "obsidian";
 import type { RefConverter } from "../src/utils/ref-converter";
 import { UploadReferenceManager } from "../src/uploaders/upload-reference-manager";
 
@@ -14,6 +15,7 @@ function imageFile(path: string): TFile {
     file.path = path;
     file.name = path.split("/").pop() ?? path;
     file.extension = path.split(".").pop() ?? "";
+    file.stat = { mtime: 1, ctime: 1, size: 10 };
     const parentPath = path.slice(0, path.lastIndexOf("/"));
     file.parent = parentPath ? ({ path: parentPath } as TFile["parent"]) : null;
     return file;
@@ -60,6 +62,7 @@ describe("UploadReferenceManager", () => {
             },
         );
         const app = {
+            workspace: { getLeavesOfType: () => [], getActiveViewOfType: () => null },
             metadataCache: {
                 getFirstLinkpathDest: vi.fn(
                     (target: string, sourcePath: string) =>
@@ -71,6 +74,8 @@ describe("UploadReferenceManager", () => {
             vault: {
                 getFiles: () => [uploaded, otherImage, source, otherNote],
                 getMarkdownFiles: () => [source, otherNote],
+                getAbstractFileByPath: (path: string) => [uploaded, otherImage, source, otherNote].find(file => file.path === path),
+                read: async (file: TFile) => contents.get(file.path) ?? "",
                 cachedRead: async (file: TFile) =>
                     contents.get(file.path) ?? "",
                 process,
@@ -170,9 +175,12 @@ describe("UploadReferenceManager", () => {
             return refs;
         });
         const app = {
+            workspace: { getLeavesOfType: () => [], getActiveViewOfType: () => null },
             vault: {
                 getFiles: () => [image, current, other, skipped],
                 getMarkdownFiles: () => [current, other, skipped],
+                getAbstractFileByPath: (path: string) => [image, current, other, skipped].find(file => file.path === path),
+                read: async (file: TFile) => contents.get(file.path) ?? "",
                 cachedRead: async (file: TFile) =>
                     contents.get(file.path) ?? "",
                 process,
@@ -203,5 +211,71 @@ describe("UploadReferenceManager", () => {
         );
         expect(contents.get(skipped.path)).toBe("![skip](assets/photo.png)");
         expect(process).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([false, true])('preserves concurrent edits during automatic writeback (open editor: %s)', async (open) => {
+        const image = imageFile('assets/photo.png');
+        const note = imageFile('note.md');
+        const original = '![](assets/photo.png)';
+        let content = original;
+        const replaceRange = vi.fn((text: string) => { content = text; });
+        const editor = {
+            getValue: () => content,
+            offsetToPos: (offset: number) => ({ line: 0, ch: offset }),
+            replaceRange,
+        } as unknown as Editor;
+        const leaves = open ? [{ view: Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { file: note, editor }) }] : [];
+        const app = {
+            workspace: { getLeavesOfType: () => leaves, getActiveViewOfType: () => null },
+            vault: {
+                getFiles: () => [image, note], getMarkdownFiles: () => [note],
+                getAbstractFileByPath: (path: string) => [image, note].find(file => file.path === path),
+                read: async () => content, cachedRead: async () => content,
+                process: async (_file: TFile, update: (text: string) => string) => {
+                    content += '\nUSER_EDIT';
+                    content = update(content);
+                },
+            },
+        } as unknown as App;
+        const manager = new UploadReferenceManager({
+            app,
+            refConverter: { parseReferences: () => [{ fullMatch: original, path: image.path, format: 'markdown', col: 0, altText: '' }] } as unknown as RefConverter,
+            getDefaultTemplate: () => '', getImageInfo: vi.fn(),
+        });
+        const prepared = { render: () => {
+            if (open) content += '\nUSER_EDIT';
+            return '![](https://cdn.example/new.png)';
+        } };
+
+        expect(await manager.replaceVaultReferences(image, 'https://cdn.example/new.png', prepared)).toBe(0);
+        expect(content).toBe(original + '\nUSER_EDIT');
+        expect(replaceRange).not.toHaveBeenCalled();
+    });
+
+    it('updates unsaved content through its editor without writing the stale saved note', async () => {
+        const image = imageFile('assets/photo.png'), note = imageFile('note.md');
+        let content = 'UNSAVED\n![](assets/photo.png)';
+        const editor = {
+            getValue: () => content, offsetToPos: (offset: number) => ({ line: 0, ch: offset }),
+            replaceRange: (text: string) => { content = text; },
+        } as unknown as Editor;
+        const process = vi.fn();
+        const app = {
+            workspace: { getLeavesOfType: () => [{ view: Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { file: note, editor }) }], getActiveViewOfType: () => null },
+            vault: {
+                getFiles: () => [image, note], getMarkdownFiles: () => [note],
+                getAbstractFileByPath: (path: string) => [image, note].find(file => file.path === path),
+                cachedRead: async () => '![](assets/photo.png)', read: async () => '![](assets/photo.png)', process,
+            },
+        } as unknown as App;
+        const manager = new UploadReferenceManager({
+            app,
+            refConverter: { parseReferences: (text: string) => [{ fullMatch: '![](assets/photo.png)', path: image.path, format: 'markdown', col: text.indexOf('![]'), altText: '' }] } as unknown as RefConverter,
+            getDefaultTemplate: () => '', getImageInfo: vi.fn(),
+        });
+        const prepared = await manager.prepare(image);
+        expect(await manager.replaceVaultReferences(image, 'https://cdn.example/new.png', prepared)).toBe(1);
+        expect(content).toBe('UNSAVED\n![photo](https://cdn.example/new.png)');
+        expect(process).not.toHaveBeenCalled();
     });
 });

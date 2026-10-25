@@ -1,7 +1,7 @@
 import type { App, TFile } from "obsidian";
 import type { RefConverter } from "../utils/ref-converter";
 import { readNoteSnapshot, writeNoteSnapshot } from "../utils/note-content";
-import { isUploadSourceCurrent, type UploadSource } from "./upload-scope";
+import { isUploadSourceCurrent, snapshotUploadSource, type UploadSource } from "./upload-scope";
 import { makePublicUrlReadable } from "../utils/public-url";
 import {
     renderCustomReference,
@@ -63,6 +63,7 @@ export class UploadReferenceManager {
     async replaceBatchReferences(
         uploads: readonly UploadedReference[],
         scopeNotes: ReadonlySet<string>,
+        options: ReplaceVaultReferenceOptions = {},
     ): Promise<BatchReferenceResult> {
         const result: BatchReferenceResult = { updatedNotes: 0, replacedReferences: 0, outsideScopeNotes: 0, replacedSourcePaths: new Set(), failures: [] };
         if (!uploads.length) return result;
@@ -70,6 +71,7 @@ export class UploadReferenceManager {
         const byPath = new Map(uploads.map(upload => [upload.source.path, upload]));
         const lookup = createLocalFileLookup(app.vault.getFiles());
         for (const note of app.vault.getMarkdownFiles()) {
+            if (options.skipFile === note) continue;
             try {
                 const snapshot = await readNoteSnapshot(app, note);
                 const refs = this.options.refConverter.parseReferences(snapshot.content);
@@ -110,44 +112,11 @@ export class UploadReferenceManager {
         prepared: PreparedUploadReference,
         options: ReplaceVaultReferenceOptions = {},
     ): Promise<number> {
-        let totalReplaced = 0;
-        const lookup = createLocalFileLookup(this.options.app.vault.getFiles());
-
-        for (const mdFile of this.options.app.vault.getMarkdownFiles()) {
-            if (options.skipFile?.path === mdFile.path) continue;
-            const content = await this.options.app.vault.cachedRead(mdFile);
-            const refs = this.options.refConverter.parseReferences(content);
-            let newContent = content;
-            let replaced = false;
-
-            for (let i = refs.length - 1; i >= 0; i--) {
-                const ref = refs[i]!;
-                const resolution = resolveLocalFileReference(
-                    this.options.app,
-                    mdFile,
-                    ref.path,
-                    ref.format,
-                    lookup,
-                );
-                if (
-                    resolution.status !== "resolved" ||
-                    resolution.file.path !== imageFile.path
-                )
-                    continue;
-                const replacement = prepared.render(newUrl, ref.altText);
-                newContent =
-                    newContent.substring(0, ref.col) +
-                    replacement +
-                    newContent.substring(ref.col + ref.fullMatch.length);
-                replaced = true;
-                totalReplaced++;
-            }
-
-            if (replaced)
-                await this.options.app.vault.process(mdFile, () => newContent);
-        }
-
-        return totalReplaced;
+        const result = await this.replaceBatchReferences(
+            [{ source: snapshotUploadSource(imageFile), url: newUrl, prepared }],
+            new Set(), options,
+        );
+        return result.replacedReferences;
     }
 }
 
