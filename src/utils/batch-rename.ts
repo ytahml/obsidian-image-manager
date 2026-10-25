@@ -4,6 +4,7 @@ import type { ImageManagerSettings } from '../types';
 import { decodePathSegments, encodePathSegments } from './path-utils';
 import type { RenameRepairEntry } from '../lifecycle/external-rename-repair-coordinator';
 import { createLocalFileLookup, resolveLocalFileReference } from './local-image-resolution';
+import { readNoteSnapshot, writeNoteSnapshot } from './note-content';
 
 export interface RenameResult {
     file: TFile;
@@ -62,7 +63,8 @@ export class BatchRename {
         let updatedCount = 0;
 
         for (const mdFile of mdFiles) {
-            const content = await this.app.vault.cachedRead(mdFile);
+            const snapshot = await readNoteSnapshot(this.app, mdFile);
+            const content = snapshot.content;
             const refs = this.refConverter.parseReferences(content);
 
             let newContent = content;
@@ -88,7 +90,8 @@ export class BatchRename {
             }
 
             if (changed) {
-                await this.app.vault.process(mdFile, () => newContent);
+                const result = await writeNoteSnapshot(this.app, mdFile, snapshot, newContent);
+                if (result === 'conflict') throw new Error('Note changed during image rename');
                 updatedCount++;
             }
         }
@@ -112,7 +115,8 @@ export class BatchRename {
         let updatedCount = 0;
 
         for (const mdFile of mdFiles) {
-            const content = await this.app.vault.cachedRead(mdFile);
+            const snapshot = await readNoteSnapshot(this.app, mdFile);
+            const content = snapshot.content;
             const refs = this.refConverter.parseReferences(content);
 
             let newContent = content;
@@ -134,7 +138,8 @@ export class BatchRename {
             }
 
             if (changed) {
-                await this.app.vault.process(mdFile, () => newContent);
+                const result = await writeNoteSnapshot(this.app, mdFile, snapshot, newContent);
+                if (result === 'conflict') throw new Error('Note changed during image reference repair');
                 updatedCount++;
             }
         }

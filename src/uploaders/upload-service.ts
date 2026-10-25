@@ -58,13 +58,15 @@ export class UploadService {
         options: UploadServiceOptions = {}
     ): Promise<UploadOperationResult> {
         let data = await this.app.vault.readBinary(file);
+        let filename = file.name;
         const originalSize = data.byteLength;
         const defaults = this.getDefaults();
         if (options.compressBeforeUpload ?? defaults.compressBeforeUpload) {
             const compressed = await this.optimizer.compressImage(file, options.compressQuality ?? defaults.compressQuality);
             data = compressed.data;
+            filename = `${file.name.replace(/\.[^.]+$/, '')}.${compressed.format}`;
         }
-        return this.uploadData(data, file.name, hostingConfig, {
+        return this.uploadData(data, filename, hostingConfig, {
             sourcePath: file.path,
         }, options, originalSize);
     }

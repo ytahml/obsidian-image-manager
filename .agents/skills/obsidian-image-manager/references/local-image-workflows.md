@@ -88,7 +88,8 @@ ClipboardEvent/DragEvent
 `ImageOptimizer` 提供 `compressImage`、`convertFormat`、`getImageInfo`：
 
 - SVG 压缩直接返回原数据；格式转换拒绝 SVG。
-- PNG 压缩输出 WebP；其他格式按 MIME 输出。
+- 新受管附件和上传载荷的 PNG 压缩默认输出 WebP；以 Canvas 实际返回的 MIME 确定扩展名，包含不支持编码器时的 PNG 回退。保存路径、引用与上传 Content-Type 跟随实际格式。
+- 当前图片原地压缩保持源格式；Canvas 无法输出该格式时保留原字节，不重命名附件或改写引用。
 - JPG 不支持透明度，转换时将 alpha 混合到白色背景。
 - GIF 经 Canvas 只保留第一帧，不能无提示把动画处理宣传为无损。
 - quality 设置为 1–100，调用 Canvas 时除以 100。
@@ -214,6 +215,8 @@ managed 自动上传在本地未压缩而 `compressBeforeUpload=true` 时重新�
 `BatchRename.renameImage` 必须在 `vault.rename()` 前更新全库引用，防止 Obsidian 内置链接更新覆盖目录信息。新引用保留原目录和格式，alt 等于旧文件名时同步更新。
 
 显式重命名用共享来源感知解析器逐条绑定真实 `TFile`，只更新指向待重命名对象的引用；其他目录同名文件、远程 URL、缺失或歧义目标保持原文，不能仅按 basename 匹配。
+
+显式重命名与外部引用修复读取实时 Editor/Vault 快照，写回前重验内容、路径、身份和 Editor 绑定。冲突保留当前文本并报告失败，显式重命名在文件 rename 前停止；不承诺跨笔记原子性或回滚先前已更新的笔记。
 
 外部普通 rename 由协调器收敛并批量调用 `fixBrokenImageRefsBatch`：
 

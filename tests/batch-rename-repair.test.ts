@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('obsidian', () => ({
     App: class App {},
+    MarkdownView: class MarkdownView {},
     TFile: class TFile {},
 }));
 
@@ -38,10 +39,13 @@ describe('BatchRename broken reference repair', () => {
         const targets = new Map([[firstTarget.path, firstTarget], [secondTarget.path, secondTarget]]);
         content = '![](foo.png)';
         process = vi.fn(async (_file: TFile, update: (current: string) => string) => { content = update(content); });
+        targets.set(note.path, note);
         app = {
+            workspace: { getLeavesOfType: () => [], getActiveViewOfType: () => null },
             vault: {
                 getMarkdownFiles: () => [note],
                 cachedRead: async () => content,
+                read: async () => content,
                 process,
                 getAbstractFileByPath: (path: string) => targets.get(path) ?? null,
             },
@@ -59,6 +63,16 @@ describe('BatchRename broken reference repair', () => {
 
         expect(content).toBe('![](foo.png)');
         expect(process).not.toHaveBeenCalled();
+    });
+
+    it('preserves concurrent user text during external rename repair', async () => {
+        process.mockImplementation((_file: TFile, update: (current: string) => string) => {
+            content += '\nnew user text';
+            content = update(content);
+        });
+        const rename = new BatchRename(app, { imagePathBase: 'vault' } as ImageManagerSettings);
+        await expect(rename.fixBrokenImageRefs('a/foo.png', 'x/foo.png')).rejects.toThrow();
+        expect(content).toBe('![](foo.png)\nnew user text');
     });
 
     it('repairs a basename only when one batch entry uniquely explains it', async () => {

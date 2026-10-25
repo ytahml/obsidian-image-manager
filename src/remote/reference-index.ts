@@ -122,7 +122,10 @@ function collectReferences(
     const imageReferenceRanges: Array<{ start: number; end: number }> = [];
     for (const reference of refConverter.parseReferences(content)) {
         if (reference.format !== 'markdown') continue;
-        const indexed = indexRemoteReference(reference.path, 'markdown-image', {
+        // RefConverter's image range can end at an inner ')'; read the destination
+        // from the source so titles and balanced URL parentheses are not part of the key.
+        const destinationStart = reference.col + reference.fullMatch.indexOf('](') + 2;
+        const indexed = indexRemoteReference(readImageDestination(content, destinationStart), 'markdown-image', {
             path: sourcePath,
             line: reference.line,
         });
@@ -153,6 +156,28 @@ function collectReferences(
         });
         if (indexed) references.push(indexed);
     }
+}
+
+function readImageDestination(content: string, start: number): string {
+    while (/\s/.test(content[start] ?? '') && start < content.length) start++;
+    if (content[start] === '<') {
+        const end = content.indexOf('>', start + 1);
+        return end < 0 ? '' : content.slice(start + 1, end);
+    }
+    let depth = 0;
+    let destination = '';
+    for (let index = start; index < content.length; index++) {
+        const char = content[index]!;
+        if (char === '\\' && /[\\()]/.test(content[index + 1] ?? '')) {
+            destination += content[++index];
+            continue;
+        }
+        if (/\s/.test(char) || (char === ')' && depth === 0)) break;
+        if (char === '(') depth++;
+        if (char === ')') depth--;
+        destination += char;
+    }
+    return destination;
 }
 
 function throwIfAborted(signal?: AbortSignal) {
