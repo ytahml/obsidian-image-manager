@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const { providerUpload, compressImage } = vi.hoisted(() => ({
+    providerUpload: vi.fn(),
+    compressImage: vi.fn(),
+}));
+
 vi.mock('obsidian', () => ({
     Notice: class Notice {
         hide(): void {}
@@ -16,12 +21,18 @@ vi.mock('../src/utils/local-orphan-management', () => ({
 vi.mock('../src/utils/empty-folder-cleanup', () => ({
     removeEmptyDirectParent: vi.fn(),
 }));
+vi.mock('../src/uploaders/uploader-factory', () => ({
+    createUploader: () => ({ upload: providerUpload }),
+}));
+vi.mock('../src/utils/image-optimizer', () => ({
+    ImageOptimizer: class { compressImage = compressImage; },
+}));
 
 import { MarkdownView, TFile, type App, type Editor } from 'obsidian';
 import { ManagedPastePipeline } from '../src/lifecycle/managed-paste-pipeline';
 import { DEFAULT_SETTINGS, type ImageManagerSettings, type ImageReference } from '../src/types';
 import type { RefConverter } from '../src/utils/ref-converter';
-import type { UploadService } from '../src/uploaders/upload-service';
+import { UploadService } from '../src/uploaders/upload-service';
 
 function file(path: string, parentPath = ''): TFile {
     const target = new TFile();
@@ -45,7 +56,7 @@ function parseReferences(content: string): ImageReference[] {
     }];
 }
 
-function harness(overrides: Partial<ImageManagerSettings> = {}) {
+function harness(overrides: Partial<ImageManagerSettings> = {}, useRealUploadService = false) {
     const settings: ImageManagerSettings = {
         ...DEFAULT_SETTINGS,
         imageNamingTemplate: 'managed image',
@@ -74,6 +85,7 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
             getAbstractFileByPath: (path: string) => files.get(path) ?? null,
             createFolder,
             createBinary,
+            readBinary: async () => new Uint8Array([1, 2, 3]).buffer,
         },
         metadataCache: {
             getFirstLinkpathDest: (path: string) =>
@@ -97,10 +109,13 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
     const prepareReference = vi.fn(async () => ({
         render: (url: string, alt = '') => `![${alt}](${url})`,
     }));
+    const uploadService = useRealUploadService
+        ? new UploadService(app, () => settings)
+        : { uploadFile, uploadData } as unknown as UploadService;
     const pipeline = new ManagedPastePipeline({
         app,
         getSettings: () => settings,
-        uploadService: { uploadFile, uploadData } as unknown as UploadService,
+        uploadService,
         refConverter: { parseReferences } as unknown as RefConverter,
         uploadReferences: {
             prepare: prepareReference,
@@ -120,7 +135,7 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
     return {
         pipeline, settings, createFolder, createBinary, editor, image,
         files, views, bind, trashFile,
-        uploadFile, uploadData, replaceReferenceInNotes,
+        uploadFile, uploadData, uploadService, replaceReferenceInNotes,
         getContent: () => content,
     };
 }
@@ -194,7 +209,8 @@ describe('ManagedPastePipeline', () => {
             expect.any(ArrayBuffer),
             'managed-image.png',
             target.settings.hostingConfigs[0],
-            { sourcePath: 'attachments/managed-image.png' }
+            { sourcePath: 'attachments/managed-image.png' },
+            expect.any(Object)
         );
         expect(target.replaceReferenceInNotes).toHaveBeenCalledOnce();
     });
@@ -320,6 +336,56 @@ describe('ManagedPastePipeline', () => {
 
         expect(target.getContent()).toBe(local);
         expect(target.replaceReferenceInNotes).not.toHaveBeenCalled();
+        expect(target.trashFile).not.toHaveBeenCalled();
+    });
+
+    it.each(['switch', 'close', 'delete'] as const)('does not send an upload after source %s during compression', async change => {
+        providerUpload.mockReset().mockResolvedValue({ success: true, url: 'https://cdn.test/image.png' });
+        let finishCompression: (value: { data: ArrayBuffer }) => void = () => {};
+        compressImage.mockReset().mockImplementation(() => new Promise(resolve => { finishCompression = resolve; }));
+        const target = harness({
+            managedAutoUploadOnPaste: true,
+            compressBeforeUpload: true,
+            managedKeepLocalCopy: false,
+            hostingConfigs: [{ id: 'host', type: 'custom', enabled: true }] as never,
+        }, true);
+        const upload = vi.spyOn(target.uploadService, 'uploadFile');
+        const source = file('first.md');
+        target.bind(source);
+        target.pipeline.processFiles([target.image], target.editor, source);
+        await vi.waitFor(() => expect(compressImage).toHaveBeenCalledOnce());
+        const local = target.getContent();
+        if (change === 'switch') target.bind(file('second.md'));
+        if (change === 'close') target.views.length = 0;
+        if (change === 'delete') target.files.delete(source.path);
+        finishCompression({ data: new Uint8Array([1]).buffer });
+        const operation = upload.mock.results[0];
+        if (operation?.type !== 'return') throw new Error('Expected an upload promise');
+        const result = await operation.value;
+
+        expect(providerUpload).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ success: false, cancelled: true, attempts: 0 });
+        expect(target.getContent()).toBe(local);
+        expect(target.files.has('attachments/managed-image.png')).toBe(true);
+        expect(target.replaceReferenceInNotes).not.toHaveBeenCalled();
+        expect(target.trashFile).not.toHaveBeenCalled();
+    });
+
+    it('uploads compressed data through the service while the source remains bound', async () => {
+        providerUpload.mockReset().mockResolvedValue({ success: true, url: 'https://cdn.test/image.png' });
+        compressImage.mockReset().mockResolvedValue({ data: new Uint8Array([1]).buffer });
+        const target = harness({
+            managedAutoUploadOnPaste: true,
+            compressBeforeUpload: true,
+            managedKeepLocalCopy: true,
+            hostingConfigs: [{ id: 'host', type: 'custom', enabled: true }] as never,
+        }, true);
+        const source = file('first.md');
+        target.bind(source);
+        target.pipeline.processFiles([target.image], target.editor, source);
+        await vi.waitFor(() => expect(target.getContent()).toBe('![managed-image.png](https://cdn.test/image.png)'));
+        expect(providerUpload).toHaveBeenCalledOnce();
+        expect(target.replaceReferenceInNotes).toHaveBeenCalledOnce();
         expect(target.trashFile).not.toHaveBeenCalled();
     });
 });

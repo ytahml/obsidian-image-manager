@@ -254,11 +254,14 @@ export class ManagedPastePipeline {
                 localCompressed: localDataCompressed,
                 uploadCompression: this.settings.compressBeforeUpload,
             });
+            const uploadOptions = {
+                beforeAttempt: () => isEditorBoundToFile(this.options.app, editor, currentFile),
+            };
             const result = uploadSource === 'saved-file'
-                ? await this.options.uploadService.uploadFile(savedFile, hostingConfig)
+                ? await this.options.uploadService.uploadFile(savedFile, hostingConfig, uploadOptions)
                 : await this.options.uploadService.uploadData(data, savedFile.name, hostingConfig, {
                     sourcePath: savedFile.path,
-                });
+                }, uploadOptions);
 
             if (!result.success || !result.url) {
                 notice.hide();
