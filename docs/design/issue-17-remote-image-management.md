@@ -37,7 +37,7 @@
 
 ## 引用索引
 
-索引按需扫描 Markdown 文件；相关文件 create、modify、delete 或 rename 后变 stale，不后台自动重扫。
+索引按需扫描 Markdown 文件，打开的笔记以实时 Editor 为准；多 Editor 分歧、扫描期间文件或 Editor 变化时失败关闭。相关文件 create、modify、delete、rename 及 Editor 内容变化后变 stale，不后台自动重扫；Editor 打开、关闭、重绑与未落盘编辑也参与状态重验。失效或重扫后的旧 lookup 不再提供删除资格。
 
 - 可可靠映射的 Markdown 图片、普通链接、HTML、frontmatter、Wiki 包裹和裸 URL 都归为 `referenced`。
 - `possibly-referenced` 仅为旧类型兼容；当前可靠映射统一归入 `referenced`。

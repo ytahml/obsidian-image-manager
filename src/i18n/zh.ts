@@ -133,6 +133,7 @@ export const zh: Record<string, string> = {
     "notice.notImplemented": "尚未实现",
     "notice.unknownError": "未知错误",
     "notice.imageSaveFailed": "图片保存失败：{error}",
+    "notice.managedPasteSourceChanged": "来源笔记已切换或关闭，未插入图片引用；已保存的本地图片会保留。",
     "notice.noActiveEditor": "没有活动编辑器，请先打开一个笔记。",
     "notice.imageInserted": "图片已插入",
     "notice.compressSuccess": "图片已压缩，节省 {saved}%",

@@ -3,6 +3,7 @@ import { RefConverter } from './ref-converter';
 import type { ImageManagerSettings } from '../types';
 import { decodePathSegments, encodePathSegments } from './path-utils';
 import type { RenameRepairEntry } from '../lifecycle/external-rename-repair-coordinator';
+import { createLocalFileLookup, resolveLocalFileReference } from './local-image-resolution';
 
 export interface RenameResult {
     file: TFile;
@@ -57,6 +58,7 @@ export class BatchRename {
     private async updateReferencesBeforeRename(file: TFile, oldName: string, newName: string): Promise<number> {
         const oldPath = file.path;
         const mdFiles = this.app.vault.getMarkdownFiles();
+        const lookup = createLocalFileLookup(this.app.vault.getFiles());
         let updatedCount = 0;
 
         for (const mdFile of mdFiles) {
@@ -69,24 +71,20 @@ export class BatchRename {
             // Process in reverse order to preserve indices
             for (let i = refs.length - 1; i >= 0; i--) {
                 const ref = refs[i]!;
+                const resolved = resolveLocalFileReference(this.app, mdFile, ref.path, ref.format, lookup);
+                if (resolved.status !== 'resolved' || resolved.file !== file) continue;
                 const logicalRefPath = ref.format === 'markdown'
-                    ? decodePathSegments(ref.path)
+                    ? decodePathSegments(ref.path.replace(/^<|>$/g, ''))
                     : ref.path;
-                const refName = logicalRefPath.split('/').pop() ?? logicalRefPath;
 
-                if (refName === oldName || logicalRefPath === oldPath || logicalRefPath === oldName) {
-                    const newRef = this.buildUpdatedRef(
-                        { ...ref, path: logicalRefPath },
-                        oldName,
-                        newName,
-                        oldPath
-                    );
-                    newContent =
-                        newContent.substring(0, ref.col) +
-                        newRef +
-                        newContent.substring(ref.col + ref.fullMatch.length);
-                    changed = true;
-                }
+                const newRef = this.buildUpdatedRef(
+                    { ...ref, path: logicalRefPath }, oldName, newName, oldPath
+                );
+                newContent =
+                    newContent.substring(0, ref.col) +
+                    newRef +
+                    newContent.substring(ref.col + ref.fullMatch.length);
+                changed = true;
             }
 
             if (changed) {

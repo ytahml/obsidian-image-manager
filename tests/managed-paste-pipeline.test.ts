@@ -5,6 +5,7 @@ vi.mock('obsidian', () => ({
         hide(): void {}
     },
     TFile: class TFile {},
+    MarkdownView: class MarkdownView {},
 }));
 vi.mock('../src/modals/image-name-prompt', () => ({
     ImageNamePromptModal: class ImageNamePromptModal {},
@@ -16,7 +17,7 @@ vi.mock('../src/utils/empty-folder-cleanup', () => ({
     removeEmptyDirectParent: vi.fn(),
 }));
 
-import { TFile, type App, type Editor } from 'obsidian';
+import { MarkdownView, TFile, type App, type Editor } from 'obsidian';
 import { ManagedPastePipeline } from '../src/lifecycle/managed-paste-pipeline';
 import { DEFAULT_SETTINGS, type ImageManagerSettings, type ImageReference } from '../src/types';
 import type { RefConverter } from '../src/utils/ref-converter';
@@ -54,6 +55,7 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
         ...overrides,
     };
     const files = new Map<string, TFile>();
+    const views: MarkdownView[] = [];
     const createFolder = vi.fn(async (path: string) => {
         const folderEntry = new TFile();
         folderEntry.path = path;
@@ -64,7 +66,9 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
         files.set(path, created);
         return created;
     });
+    const trashFile = vi.fn();
     const app = {
+        workspace: { getLeavesOfType: () => views.map(view => ({ view })), getActiveViewOfType: () => null },
         vault: {
             adapter: { exists: async () => false },
             getAbstractFileByPath: (path: string) => files.get(path) ?? null,
@@ -75,7 +79,7 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
             getFirstLinkpathDest: (path: string) =>
                 Array.from(files.values()).find((candidate) => candidate.name === path || candidate.path === path) ?? null,
         },
-        fileManager: { trashFile: vi.fn() },
+        fileManager: { trashFile },
     } as unknown as App;
     let content = '';
     const replaceSelection = vi.fn((replacement: string) => { content += replacement; });
@@ -109,8 +113,13 @@ function harness(overrides: Partial<ImageManagerSettings> = {}) {
         type: 'image/png',
         arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
     } as File;
+    const bind = (note: TFile) => {
+        files.set(note.path, note);
+        views.splice(0, views.length, Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { file: note, editor }));
+    };
     return {
         pipeline, settings, createFolder, createBinary, editor, image,
+        files, views, bind, trashFile,
         uploadFile, uploadData, replaceReferenceInNotes,
         getContent: () => content,
     };
@@ -120,6 +129,7 @@ describe('ManagedPastePipeline', () => {
     it('saves a managed image and inserts an encoded note-relative Markdown reference', async () => {
         const target = harness({ imagePathBase: 'note' });
         const note = file('notes/note.md', 'notes');
+        target.bind(note);
 
         target.pipeline.processFiles([target.image], target.editor, note);
 
@@ -140,7 +150,9 @@ describe('ManagedPastePipeline', () => {
             hostingConfigs: [{ id: 'host', enabled: true }] as never,
         });
 
-        target.pipeline.processFiles([target.image], target.editor, file('note.md'));
+        const note = file('note.md');
+        target.bind(note);
+        target.pipeline.processFiles([target.image], target.editor, note);
 
         await vi.waitFor(() => expect(target.createBinary).toHaveBeenCalledOnce());
         expect(target.uploadFile).not.toHaveBeenCalled();
@@ -170,6 +182,7 @@ describe('ManagedPastePipeline', () => {
         });
         target.uploadData.mockResolvedValue({ success: true, url: 'https://cdn.test/managed.png' });
         const note = file('note.md');
+        target.bind(note);
 
         target.pipeline.processFiles([target.image], target.editor, note);
 
@@ -210,6 +223,7 @@ describe('ManagedPastePipeline', () => {
         });
         target.uploadData.mockResolvedValue({ success: true, url: 'https://cdn.test/special.png' });
         const note = file('idea配置.gitignore文件后不生效.md');
+        target.bind(note);
 
         target.pipeline.processFiles([target.image], target.editor, note);
 
@@ -248,6 +262,7 @@ describe('ManagedPastePipeline', () => {
             imagePathTemplate: 'assets/{noteName}',
         });
         const note = file('notes/report$&{year}.md', 'notes');
+        target.bind(note);
 
         target.pipeline.processFiles([target.image], target.editor, note);
 
@@ -266,5 +281,45 @@ describe('ManagedPastePipeline', () => {
 
         expect(target.pipeline.resolveImagePath('assets/{noteName}', note, 'image.png'))
             .toBe('projects/demo/assets/note');
+    });
+
+    it.each(['switch', 'close', 'delete'] as const)('does not insert or upload after source %s during save', async (change) => {
+        const target = harness({ managedAutoUploadOnPaste: true, hostingConfigs: [{ id: 'host', enabled: true }] as never });
+        const note = file('first.md');
+        target.bind(note);
+        const create = target.createBinary.getMockImplementation()!;
+        target.createBinary.mockImplementation(async (path: string) => {
+            if (change === 'switch') target.bind(file('second.md'));
+            if (change === 'close') target.views.length = 0;
+            if (change === 'delete') target.files.delete(note.path);
+            return create(path);
+        });
+
+        target.pipeline.processFiles([target.image], target.editor, note);
+
+        await vi.waitFor(() => expect(target.createBinary).toHaveBeenCalledOnce());
+        expect(target.getContent()).toBe('');
+        expect(target.files.has('attachments/managed-image.png')).toBe(true);
+        expect(target.uploadData).not.toHaveBeenCalled();
+        expect(target.uploadFile).not.toHaveBeenCalled();
+        expect(target.trashFile).not.toHaveBeenCalled();
+    });
+
+    it('does not replace an identical reference in a different note after upload completes', async () => {
+        const target = harness({ managedAutoUploadOnPaste: true, hostingConfigs: [{ id: 'host', enabled: true }] as never });
+        const source = file('first.md');
+        target.bind(source);
+        let finish: (result: { success: boolean; url: string }) => void = () => {};
+        target.uploadData.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+        target.pipeline.processFiles([target.image], target.editor, source);
+        await vi.waitFor(() => expect(target.uploadData).toHaveBeenCalledOnce());
+        const local = target.getContent();
+        target.bind(file('second.md'));
+        finish({ success: true, url: 'https://cdn.test/image.png' });
+        await vi.waitFor(() => expect(target.uploadData.mock.settledResults[0]?.type).toBe('fulfilled'));
+
+        expect(target.getContent()).toBe(local);
+        expect(target.replaceReferenceInNotes).not.toHaveBeenCalled();
+        expect(target.trashFile).not.toHaveBeenCalled();
     });
 });

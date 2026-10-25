@@ -216,6 +216,7 @@ export default class ImageManagerPlugin extends Plugin {
                 if (file instanceof TFile) this.delegatedHandoff.onModify(file);
             }),
         );
+        this.registerEvent(this.app.workspace.on("editor-change", () => this.remoteReferenceIndex.invalidate()));
         this.registerEvent(
             this.app.vault.on("delete", (file) => {
                 this.invalidateRemoteReferenceIndex(file);

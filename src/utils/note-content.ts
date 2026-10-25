@@ -7,15 +7,40 @@ export interface NoteContentSnapshot {
     editors: Editor[];
 }
 
-function noteEditors(app: App, file: TFile): Editor[] {
-    const editors = new Set<Editor>();
+function markdownViews(app: App): MarkdownView[] {
+    const views = new Set<MarkdownView>();
     for (const leaf of app.workspace.getLeavesOfType?.('markdown') ?? []) {
         const view = leaf.view;
-        if (view instanceof MarkdownView && view.file === file) editors.add(view.editor);
+        if (view instanceof MarkdownView) views.add(view);
     }
     const active = app.workspace.getActiveViewOfType(MarkdownView);
-    if (active?.file === file) editors.add(active.editor);
-    return Array.from(editors);
+    if (active) views.add(active);
+    return Array.from(views);
+}
+
+function noteEditors(app: App, file: TFile): Editor[] {
+    return Array.from(new Set(markdownViews(app).filter(view => view.file === file).map(view => view.editor)));
+}
+
+/** A reused Editor must still belong to the original, existing note before an async effect. */
+export function isEditorBoundToFile(app: App, editor: Editor, file: TFile | null): file is TFile {
+    return file !== null && app.vault.getAbstractFileByPath(file.path) === file && noteEditors(app, file).includes(editor);
+}
+
+/** Synchronous guard for unsaved content and editor open/close/rebind changes. */
+export function captureMarkdownEditorState(app: App): () => boolean {
+    const capture = () => new Map(markdownViews(app)
+        .filter((view): view is MarkdownView & { file: TFile } => view.file !== null)
+        .map(view => [view.editor, { file: view.file, path: view.file.path, content: view.editor.getValue() }]));
+    const initial = capture();
+    return () => {
+        const current = capture();
+        return current.size === initial.size && Array.from(initial).every(([editor, state]) => {
+            const latest = current.get(editor);
+            return latest?.file === state.file && latest.path === state.path && latest.content === state.content &&
+                app.vault.getAbstractFileByPath(state.path) === state.file;
+        });
+    };
 }
 
 /** All open views must agree; never read saved content behind an open editor. */

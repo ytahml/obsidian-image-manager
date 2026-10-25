@@ -185,7 +185,9 @@ Provider 差异：
 
 ## 远程引用索引
 
-索引只扫描 Markdown 文件，并在用户触发的远程流程中按需建立。Vault Markdown create/modify/delete/rename 后变 stale，不后台自动重扫。
+索引只扫描 Markdown 文件，并在用户触发的远程流程中按需建立。打开的 Markdown 使用实时 Editor 快照，多个 Editor 分歧则失败关闭；未打开的文件使用 Vault 内容。发布 fresh 前重验文件集合、身份、版本和打开 Editor 的绑定/内容，扫描期间的变化使本次结果不可用。
+
+Vault Markdown create/modify/delete/rename 与 editor-change 使索引 stale，不后台自动重扫；查询状态或旧 lookup 时也同步重验 Editor 集合、路径与内容，覆盖打开、关闭及复用 Editor 的切换。lookup 绑定创建时的索引代次，失效、失败重扫或新的扫描都不能让旧 lookup 保留删除资格。
 
 以下语法只要 URL 能可靠映射，都标为 `referenced`：
 

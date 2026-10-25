@@ -139,6 +139,7 @@ export const en: Record<string, string> = {
     "notice.notImplemented": "Not yet implemented",
     "notice.unknownError": "Unknown error",
     "notice.imageSaveFailed": "Image save failed: {error}",
+    "notice.managedPasteSourceChanged": "The source note changed or closed. No image reference was inserted; any saved local image is kept.",
     "notice.noActiveEditor": "No active editor. Please open a note first.",
     "notice.imageInserted": "Image inserted",
     "notice.compressSuccess": "Image compressed, saved {saved}%",

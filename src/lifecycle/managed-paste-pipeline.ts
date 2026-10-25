@@ -18,6 +18,7 @@ import { chooseManagedPasteUploadSource } from './managed-paste-upload-policy';
 import { findExactManagedPasteReference } from './managed-paste-reference';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
 import { removeEmptyDirectParent } from '../utils/empty-folder-cleanup';
+import { isEditorBoundToFile } from '../utils/note-content';
 import { t } from '../i18n';
 
 export interface ManagedPastePipelineOptions {
@@ -138,6 +139,10 @@ export class ManagedPastePipeline {
         editor: Editor,
         currentFile: TFile | null
     ): Promise<void> {
+        if (!isEditorBoundToFile(this.options.app, editor, currentFile)) {
+            new Notice(t('notice.managedPasteSourceChanged'));
+            return;
+        }
         const extension = this.mimeToExtension(mimeType);
         const directory = this.resolveImagePath(
             this.settings.imagePathTemplate || 'attachments',
@@ -148,6 +153,10 @@ export class ManagedPastePipeline {
         const filePath = await this.ensureUniquePath(directory, filename);
         const prepared = await this.prepareLocalData(data, mimeType, extension);
         const savedFile = await this.createImageFile(filePath, directory, filename, extension, prepared.data);
+        if (!isEditorBoundToFile(this.options.app, editor, currentFile)) {
+            new Notice(t('notice.managedPasteSourceChanged'));
+            return;
+        }
         const localReference = this.insertLocalReference(editor, currentFile, savedFile);
 
         if (this.settings.managedAutoUploadOnPaste) {
@@ -277,7 +286,7 @@ export class ManagedPastePipeline {
                 { ...(currentFile ? { skipFile: currentFile } : {}) }
             );
 
-            if (!this.settings.managedKeepLocalCopy) {
+            if (!this.settings.managedKeepLocalCopy && isEditorBoundToFile(this.options.app, editor, currentFile)) {
                 const overrides = currentFile
                     ? new Map([[currentFile.path, editor.getValue()]])
                     : new Map<string, string>();
@@ -287,7 +296,8 @@ export class ManagedPastePipeline {
                     overrides,
                     this.options.getIndeterminateImagePaths()
                 );
-                if (localState.orphans.some((file) => file === savedFile)) {
+                if (isEditorBoundToFile(this.options.app, editor, currentFile) &&
+                    localState.orphans.some((file) => file === savedFile)) {
                     await this.options.app.fileManager.trashFile(savedFile);
                     await removeEmptyDirectParent(this.options.app.vault, attachmentFolder);
                 } else {
@@ -315,7 +325,7 @@ export class ManagedPastePipeline {
         url: string,
         preparedReference: PreparedUploadReference
     ): boolean {
-        if (!currentFile) return false;
+        if (!isEditorBoundToFile(this.options.app, editor, currentFile)) return false;
         const content = editor.getValue();
         const match = findExactManagedPasteReference(
             this.options.refConverter.parseReferences(content),
