@@ -189,6 +189,8 @@ Provider 差异：
 
 Vault Markdown create/modify/delete/rename 与 editor-change 使索引 stale，不后台自动重扫；查询状态或旧 lookup 时也同步重验 Editor 集合、路径与内容，覆盖打开、关闭及复用 Editor 的切换。lookup 绑定创建时的索引代次，失效、失败重扫或新的扫描都不能让旧 lookup 保留删除资格。
 
+失效时同步撤销 fresh 状态与旧 lookup 资格，监听通知合并到微任务执行，避免浏览器渲染期间查询状态引发重入。通知执行时只调用仍在订阅的监听器，关闭浏览器后不再刷新界面。
+
 以下语法只要 URL 能可靠映射，都标为 `referenced`：
 
 - Markdown 图片

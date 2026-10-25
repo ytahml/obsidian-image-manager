@@ -30,6 +30,7 @@ export class RemoteReferenceIndex {
     private isStale = false;
     private revision = 0;
     private invalidationListeners = new Set<() => void>();
+    private notificationPending = false;
 
     constructor(
         private app: App,
@@ -76,7 +77,13 @@ export class RemoteReferenceIndex {
     invalidate() {
         this.revision++;
         if (this.snapshot) this.isStale = true;
-        for (const listener of this.invalidationListeners) listener();
+        if (this.notificationPending) return;
+        this.notificationPending = true;
+        // getState() can invalidate during rendering; notify after the current stack completes.
+        queueMicrotask(() => {
+            this.notificationPending = false;
+            for (const listener of this.invalidationListeners) listener();
+        });
     }
 
     onInvalidate(listener: () => void): () => void {

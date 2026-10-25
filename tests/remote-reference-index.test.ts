@@ -204,6 +204,43 @@ describe('remote reference index', () => {
         expect(index.createLookup(mapping).classify(object('image.png'))).toBe('unmappable');
     });
 
+    it('revokes deletion eligibility immediately but notifies outside the state query', async () => {
+        const f = createIndex({ 'one.md': '' });
+        await f.index.scan();
+        const lookup = f.index.createLookup(mapping);
+        const listener = vi.fn(() => f.index.getState());
+        f.index.onInvalidate(listener);
+        f.open('one.md', 'unsaved');
+
+        expect(f.index.getState().status).toBe('stale');
+        expect(lookup.classify(object('unused.png'))).toBe('unmappable');
+        expect(listener).not.toHaveBeenCalled();
+        await Promise.resolve();
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('coalesces notifications and respects listeners removed before delivery', async () => {
+        const { index } = createIndex({ 'one.md': '' });
+        await index.scan();
+        const listener = vi.fn();
+        const removed = vi.fn();
+        index.onInvalidate(listener);
+        const unsubscribe = index.onInvalidate(removed);
+
+        index.invalidate();
+        index.invalidate();
+        unsubscribe();
+        expect(index.getState().status).toBe('stale');
+        expect(listener).not.toHaveBeenCalled();
+        await Promise.resolve();
+        expect(listener).toHaveBeenCalledTimes(1);
+        expect(removed).not.toHaveBeenCalled();
+
+        index.invalidate();
+        await Promise.resolve();
+        expect(listener).toHaveBeenCalledTimes(2);
+    });
+
     it('does not publish a snapshot when aborted or invalidated during the scan', async () => {
         const controller = new AbortController();
         controller.abort();
