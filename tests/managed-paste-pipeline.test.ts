@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { providerUpload, compressImage } = vi.hoisted(() => ({
     providerUpload: vi.fn(),
@@ -140,7 +140,22 @@ function harness(overrides: Partial<ImageManagerSettings> = {}, useRealUploadSer
     };
 }
 
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
 describe('ManagedPastePipeline', () => {
+    it.each([['image/png', 'image/webp', 'webp'], ['image/gif', 'image/png', 'png']])('saves %s encoded as %s with matching extension', async (inputMime, outputMime, extension) => {
+        const target = harness({ compressManagedPasteLocal: true });
+        const note = file('note.md');
+        target.bind(note);
+        vi.spyOn(target.pipeline as unknown as { blobToImage: () => Promise<HTMLImageElement> }, 'blobToImage')
+            .mockResolvedValue({ naturalWidth: 1, naturalHeight: 1, src: 'blob:test' } as HTMLImageElement);
+        vi.stubGlobal('createEl', () => ({ getContext: () => ({ drawImage: vi.fn() }),
+            toBlob: (callback: (blob: Blob) => void) => callback(new Blob([new Uint8Array([7, 8])], { type: outputMime })) }));
+        target.pipeline.processFiles([{ ...target.image, type: inputMime }], target.editor, note);
+        await vi.waitFor(() => expect(target.createBinary).toHaveBeenCalledOnce());
+        expect(target.createBinary).toHaveBeenCalledWith(`attachments/managed-image.${extension}`, new Uint8Array([7, 8]).buffer);
+        expect(target.getContent()).toBe(`![managed-image.${extension}](attachments/managed-image.${extension})`);
+    });
     it('saves a managed image and inserts an encoded note-relative Markdown reference', async () => {
         const target = harness({ imagePathBase: 'note' });
         const note = file('notes/note.md', 'notes');
@@ -341,7 +356,7 @@ describe('ManagedPastePipeline', () => {
 
     it.each(['switch', 'close', 'delete'] as const)('does not send an upload after source %s during compression', async change => {
         providerUpload.mockReset().mockResolvedValue({ success: true, url: 'https://cdn.test/image.png' });
-        let finishCompression: (value: { data: ArrayBuffer }) => void = () => {};
+        let finishCompression: (value: { data: ArrayBuffer; format: string }) => void = () => {};
         compressImage.mockReset().mockImplementation(() => new Promise(resolve => { finishCompression = resolve; }));
         const target = harness({
             managedAutoUploadOnPaste: true,
@@ -358,7 +373,7 @@ describe('ManagedPastePipeline', () => {
         if (change === 'switch') target.bind(file('second.md'));
         if (change === 'close') target.views.length = 0;
         if (change === 'delete') target.files.delete(source.path);
-        finishCompression({ data: new Uint8Array([1]).buffer });
+        finishCompression({ data: new Uint8Array([1]).buffer, format: 'webp' });
         const operation = upload.mock.results[0];
         if (operation?.type !== 'return') throw new Error('Expected an upload promise');
         const result = await operation.value;
@@ -373,7 +388,7 @@ describe('ManagedPastePipeline', () => {
 
     it('uploads compressed data through the service while the source remains bound', async () => {
         providerUpload.mockReset().mockResolvedValue({ success: true, url: 'https://cdn.test/image.png' });
-        compressImage.mockReset().mockResolvedValue({ data: new Uint8Array([1]).buffer });
+        compressImage.mockReset().mockResolvedValue({ data: new Uint8Array([1]).buffer, format: 'webp' });
         const target = harness({
             managedAutoUploadOnPaste: true,
             compressBeforeUpload: true,

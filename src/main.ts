@@ -309,6 +309,7 @@ export default class ImageManagerPlugin extends Plugin {
             const result = await this.imageOptimizer.compressImage(
                 file,
                 this.settings.compressQuality,
+                true,
             );
             if (result.optimizedSize >= result.originalSize) {
                 new Notice(t("notice.compressNoGain"));

@@ -143,7 +143,9 @@ export class ManagedPastePipeline {
             new Notice(t('notice.managedPasteSourceChanged'));
             return;
         }
-        const extension = this.mimeToExtension(mimeType);
+        const prepared = await this.prepareLocalData(data, mimeType, this.mimeToExtension(mimeType));
+        const extension = prepared.extension;
+        filename = `${filename.replace(/\.[^.]+$/, '')}.${extension}`;
         const directory = this.resolveImagePath(
             this.settings.imagePathTemplate || 'attachments',
             currentFile,
@@ -151,7 +153,6 @@ export class ManagedPastePipeline {
         );
         await this.ensureDirectory(directory);
         const filePath = await this.ensureUniquePath(directory, filename);
-        const prepared = await this.prepareLocalData(data, mimeType, extension);
         const savedFile = await this.createImageFile(filePath, directory, filename, extension, prepared.data);
         if (!isEditorBoundToFile(this.options.app, editor, currentFile)) {
             new Notice(t('notice.managedPasteSourceChanged'));
@@ -168,10 +169,10 @@ export class ManagedPastePipeline {
         data: Uint8Array,
         mimeType: string,
         extension: string
-    ): Promise<{ data: ArrayBuffer; compressed: boolean }> {
+    ): Promise<{ data: ArrayBuffer; compressed: boolean; extension: string }> {
         const original = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
         if (!this.settings.compressManagedPasteLocal || extension === 'svg') {
-            return { data: original, compressed: false };
+            return { data: original, compressed: false, extension };
         }
 
         try {
@@ -193,12 +194,12 @@ export class ManagedPastePipeline {
                         this.settings.compressQuality / 100
                     );
                 });
-                return { data: await compressedBlob.arrayBuffer(), compressed: true };
+                return { data: await compressedBlob.arrayBuffer(), compressed: true, extension: this.mimeToExtension(compressedBlob.type) };
             } finally {
                 URL.revokeObjectURL(image.src);
             }
         } catch {
-            return { data: original, compressed: false };
+            return { data: original, compressed: false, extension };
         }
     }
 

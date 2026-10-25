@@ -39,6 +39,8 @@ public-url.ts    公共 URL base 规范化与拼接
 - 只有显式使用 `{sourceDir}` 时才把 Vault 目录名发送给服务商。
 - Custom 不使用对象 key 模板，以响应 JSON path 提取 URL。
 
+`UploadService` 对文件压缩使用实际输出格式生成上传文件名，使 `{ext}`、原生对象 key 和 Content-Type 一致；源 `sourcePath` 仍指向原本地文件，不改动本地附件。
+
 `UploadService` 统一文件/数据上传、压缩载荷、重试和结构化结果；它只通过 getter 读取压缩、质量和上传路径三项默认值，不依赖完整插件设置。调用分工为：
 
 - `ExplicitUploadWorkflow`：当前图片，以及全库/递归文件夹/文章笔记范围上传。
@@ -199,6 +201,8 @@ Vault Markdown create/modify/delete/rename 与 editor-change 使索引 stale，�
 - frontmatter
 - Wiki 包裹
 - 裸 URL
+
+Markdown 图片的 URL 从原始目标位置提取，识别双/单引号标题、尖括号和配对括号，避免截断目标或把标题拼进对象 key；普通 URL 扫描继续补充其他语法。
 
 索引记录 note path 与一基显示前转换的行位置。query values 不进入索引或错误，仅可保留 query parameter 名。Provider mapping 可声明应忽略的 query 名。
 

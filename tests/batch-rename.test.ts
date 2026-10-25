@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('obsidian', () => ({
     App: class App {},
+    MarkdownView: class MarkdownView {},
     TFile: class TFile {},
     normalizePath: (path: string) => path.replace(/^\/+|\/+$/g, ''),
 }));
 
-import { TFile, type App } from 'obsidian';
+import { MarkdownView, TFile, type App, type Editor } from 'obsidian';
 import { BatchRename } from '../src/utils/batch-rename';
 import { DEFAULT_SETTINGS } from '../src/types';
 
@@ -25,17 +26,20 @@ function fixture(initial: string, filename = 'photo.png') {
         item.path = path;
         item.name = path.split('/').pop()!;
     });
+    const views: MarkdownView[] = [];
     const app = {
+        workspace: { getLeavesOfType: () => views.map(view => ({ view })), getActiveViewOfType: () => null },
         metadataCache: { getFirstLinkpathDest: () => null },
         vault: {
             getFiles: () => files, getMarkdownFiles: () => [note],
             getAbstractFileByPath: (path: string) => files.find(item => item.path === path),
             cachedRead: async () => content,
+            read: async () => content,
             process: async (_note: TFile, update: (text: string) => string) => { content = update(content); },
             rename,
         },
     } as unknown as App;
-    return { app, target, other, rename, getContent: () => content };
+    return { app, target, other, note, views, rename, getContent: () => content, setContent: (value: string) => { content = value; } };
 }
 
 describe('BatchRename explicit image rename', () => {
@@ -52,6 +56,28 @@ describe('BatchRename explicit image rename', () => {
         expect(result.notesUpdated).toBe(1);
         expect(f.other.path).toBe('b/photo.png');
         expect(f.rename).toHaveBeenCalledWith(f.target, 'a/renamed.png');
+    });
+
+    it('preserves a concurrent disk edit and stops before renaming on conflict', async () => {
+        const f = fixture('![](a/photo.png)');
+        f.app.vault.process = async (_file, update) => {
+            f.setContent(f.getContent() + '\nnew user text');
+            f.setContent(update(f.getContent()));
+            return f.getContent();
+        };
+        await expect(new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png')).rejects.toThrow();
+        expect(f.getContent()).toBe('![](a/photo.png)\nnew user text');
+        expect(f.rename).not.toHaveBeenCalled();
+    });
+
+    it('updates live editor contents including unsaved text', async () => {
+        const f = fixture('![](a/photo.png)');
+        let text = '![](a/photo.png)\nunsaved text';
+        const editor = { getValue: () => text, offsetToPos: () => ({ line: 1, ch: 12 }),
+            replaceRange: (value: string) => { text = value; } } as unknown as Editor;
+        f.views.push(Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { file: f.note, editor }));
+        await new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png');
+        expect(text).toBe('![](a/renamed.png)\nunsaved text');
     });
 
     it('honors authoritative source-note resolution of a short Wiki target', async () => {

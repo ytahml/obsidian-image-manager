@@ -18,7 +18,7 @@ export class ImageOptimizer {
      * 压缩图片，返回压缩后的二进制数据
      * 使用 Canvas API 进行浏览器端压缩
      */
-    async compressImage(file: TFile, quality: number): Promise<OptimizeResult> {
+    async compressImage(file: TFile, quality: number, preserveFormat = false): Promise<OptimizeResult> {
         const originalData = await this.app.vault.readBinary(file);
         const ext = file.extension.toLowerCase();
 
@@ -40,17 +40,22 @@ export class ImageOptimizer {
         ctx.drawImage(img, 0, 0);
 
         // PNG 不支持质量参数，转为 webp 以获得更好的压缩
-        const outputMime = ext === 'png' ? 'image/webp' : mimeType;
+        const outputMime = ext === 'png' && !preserveFormat ? 'image/webp' : mimeType;
         const compressedBlob = await canvasToBlob(canvas, outputMime, qualityNorm);
         const compressedData = await compressedBlob.arrayBuffer();
 
         URL.revokeObjectURL(img.src);
 
+        // Canvas falls back to PNG for unsupported encoders. In-place compression
+        // must not silently put those bytes into a file with another extension.
+        if (preserveFormat && compressedBlob.type !== mimeType) {
+            return { data: originalData, originalSize: originalData.byteLength, optimizedSize: originalData.byteLength, format: ext };
+        }
         return {
             data: compressedData,
             originalSize: originalData.byteLength,
             optimizedSize: compressedData.byteLength,
-            format: outputMime === 'image/webp' ? 'webp' : ext,
+            format: compressedBlob.type === mimeType ? ext : compressedBlob.type.replace('image/', '').replace('jpeg', 'jpg'),
         };
     }
 
