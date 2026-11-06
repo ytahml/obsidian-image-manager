@@ -520,7 +520,7 @@ export const zh: Record<string, string> = {
         "等待 Obsidian 或其他插件创建附件后接力上传到默认图床；此偏好只用于委托线路",
     "settings.keepLocalCopy": "保留本地副本",
     "settings.keepLocalCopyDesc":
-        "按当前受管/委托模式保存，同时用于粘贴自动上传、手动单图和范围上传。关闭时，仅上传与替换成功且复扫无引用的图片会移入回收站；手动上传不清理空目录。",
+        "按当前受管/委托模式保存，同时用于粘贴自动上传、手动单图和范围上传。关闭时，仅上传与替换成功且复扫无引用的图片会移入回收站；桌面端还会清理空附件目录。",
     "notice.autoUploading": "正在上传图片到图床…",
     "notice.autoUploadSuccess": "图片已上传，引用已更新",
     "notice.autoUploadFailed": "自动上传失败：{error}，已保留本地引用",

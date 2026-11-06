@@ -568,7 +568,7 @@ export const en: Record<string, string> = {
         "Wait for Obsidian or another plugin to create the attachment, then hand it off for upload; this preference applies only to delegated mode",
     "settings.keepLocalCopy": "Keep local copy",
     "settings.keepLocalCopyDesc":
-        "Saved per managed/delegated mode and shared by paste auto-upload, single-image upload, and scoped upload. When off, only uploaded and replaced images with no references after rescanning are trashed. Manual uploads do not remove empty folders.",
+        "Saved per managed/delegated mode and shared by paste auto-upload, single-image upload, and scoped upload. When off, only successfully uploaded and replaced images with no references after rescanning are trashed. On desktop, empty attachment folders are also removed.",
     "notice.autoUploading": "Uploading image to hosting...",
     "notice.autoUploadSuccess": "Image uploaded, reference updated",
     "notice.autoUploadFailed":

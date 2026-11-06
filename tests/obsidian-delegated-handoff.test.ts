@@ -6,10 +6,13 @@ vi.mock('obsidian', () => ({
     MarkdownView: class MarkdownView {},
     Notice: class Notice {},
     TFile: class TFile {},
+    TFolder: class TFolder { path = ''; children: unknown[] = []; isRoot() { return false; } },
 }));
 vi.mock('../src/utils/local-orphan-management', () => ({ scanLocalOrphans }));
+vi.mock('../src/utils/empty-folder-cleanup', () => ({ removeEmptyFolders: vi.fn() }));
 
-import { MarkdownView, TFile, type App, type Editor } from 'obsidian';
+import { MarkdownView, TFile, TFolder, type App, type Editor } from 'obsidian';
+import { removeEmptyFolders } from '../src/utils/empty-folder-cleanup';
 import { DEFAULT_SETTINGS, type ImageManagerSettings, type ImageReference } from '../src/types';
 import { ObsidianDelegatedHandoff } from '../src/lifecycle/obsidian-delegated-handoff';
 import type { UploadService } from '../src/uploaders/upload-service';
@@ -78,7 +81,7 @@ function harness(initialContent = '') {
     const view = new (MarkdownView as unknown as { new(): MarkdownView })();
     view.file = note;
     view.editor = editor;
-    const trashFile = vi.fn();
+    const trashFile = vi.fn((file: TFile) => { file.parent = null; });
     let protectionOwners = 0;
     let protectionEndedAt: number | null = null;
     let externalProtection = false;
@@ -128,7 +131,7 @@ function harness(initialContent = '') {
         ),
     });
     return {
-        handoff, note, editor, settings, files, uploadFile, notice, trashFile, endIndeterminate,
+        handoff, app, note, editor, settings, files, uploadFile, notice, trashFile, endIndeterminate,
         replaceRange, process, getReferenceTemplateFileVars,
         getProtectionEndedAt: () => protectionEndedAt,
         setExternalProtection: (value: boolean) => { externalProtection = value; },
@@ -335,6 +338,9 @@ describe('ObsidianDelegatedHandoff', () => {
     it('waits for the per-image protection window before automatic local recovery', async () => {
         const target = harness();
         const image = file('a.png');
+        const parent = new TFolder();
+        parent.path = 'attachments';
+        image.parent = parent;
         target.settings.delegatedKeepLocalCopy = false;
         target.uploadFile.mockResolvedValue({ success: true, url: 'https://cdn.test/a.png' });
         scanLocalOrphans.mockResolvedValue({ orphans: [image], indeterminate: [], total: 1, referenced: 0 });
@@ -354,6 +360,7 @@ describe('ObsidianDelegatedHandoff', () => {
         await vi.advanceTimersByTimeAsync(1);
         await flushPromises();
         expect(target.trashFile).toHaveBeenCalledWith(image);
+        expect(removeEmptyFolders).toHaveBeenCalledWith(target.app.vault, [parent]);
     });
 
     it('keeps the local file when another transaction still protects the candidate', async () => {

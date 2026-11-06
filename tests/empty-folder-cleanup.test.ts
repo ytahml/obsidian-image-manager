@@ -1,101 +1,112 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FileSystemAdapter, Platform, TFolder, type Vault } from 'obsidian';
+import { removeEmptyFolders } from '../src/utils/empty-folder-cleanup';
 
-vi.mock('obsidian', () => {
-    class TFolder {
-        path: string;
-        children: unknown[] = [];
-        private root: boolean;
+vi.mock('obsidian', () => ({
+    Platform: { isDesktop: true },
+    FileSystemAdapter: class { getBasePath() { return '/vault'; } },
+    TFolder: class { path = ''; children: TFolder[] = []; isRoot() { return this.path === '/'; } },
+}));
 
-        constructor(path = '', root = false) {
-            this.path = path;
-            this.root = root;
-        }
+const { rmdir, realpath } = vi.hoisted(() => ({ rmdir: vi.fn(), realpath: vi.fn() }));
+vi.mock('fs/promises', () => ({ rmdir, realpath }));
 
-        isRoot() {
-            return this.root;
-        }
-    }
-
-    return {
-        normalizePath: (path: string) => path.replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/'),
-        TFolder,
-    };
-});
-
-import { TFolder, type Vault } from 'obsidian';
-import { removeEmptyDirectParent } from '../src/utils/empty-folder-cleanup';
-
-function createFolder(path: string, root = false): TFolder {
-    const folder = new TFolder();
-    folder.path = path;
-    if (root) vi.spyOn(folder, 'isRoot').mockReturnValue(true);
-    return folder;
+function folder(path: string): TFolder {
+    const f = new TFolder();
+    f.path = path;
+    return f;
 }
 
-function createVault(current: TFolder | null, rmdir = vi.fn().mockResolvedValue(undefined)): Vault {
+function vault(folders: TFolder[], base = '/vault'): Vault {
     return {
-        getAbstractFileByPath: vi.fn().mockReturnValue(current),
-        adapter: { rmdir },
+        adapter: Object.assign(Object.create(FileSystemAdapter.prototype) as FileSystemAdapter, { getBasePath: () => base }),
+        getAbstractFileByPath: (path: string) => folders.find(f => f.path === path),
     } as unknown as Vault;
 }
 
+let paths: typeof import('path');
+beforeAll(async () => { paths = await vi.importActual<typeof import('path')>('path'); });
+const inVault = (relative: string) => paths.resolve('/vault', relative);
+
 describe('empty attachment folder cleanup', () => {
-    it('permanently removes the exact empty direct parent without recursion', async () => {
-        const folder = createFolder('notes/attachments');
-        const rmdir = vi.fn().mockResolvedValue(undefined);
+    beforeEach(() => {
+        rmdir.mockReset().mockResolvedValue(undefined);
+        realpath.mockReset().mockImplementation((path: string) => Promise.resolve(path));
+    });
+    afterEach(() => vi.restoreAllMocks());
 
-        await expect(removeEmptyDirectParent(createVault(folder, rmdir), folder)).resolves.toBe(true);
-        expect(rmdir).toHaveBeenCalledWith('notes/attachments', false);
+    it('removes the child before its new parent, even while the vault still lists the removed child', async () => {
+        const parent = folder('notes/assets');
+        const child = folder('notes/assets/images');
+        parent.children.push(child);
+        await removeEmptyFolders(vault([parent, child]), [parent, child, child]);
+        expect(rmdir.mock.calls).toEqual([[inVault('notes/assets/images')], [inVault('notes/assets')]]);
     });
 
-    it('does not remove the vault root', async () => {
-        const root = createFolder('', true);
-        const rmdir = vi.fn().mockResolvedValue(undefined);
-        const vault = createVault(root, rmdir);
-
-        await expect(removeEmptyDirectParent(vault, root)).resolves.toBe(false);
+    it('keeps root, replaced, missing, non-empty and escaping candidates', async () => {
+        const root = folder('/');
+        const original = folder('replaced');
+        const occupied = folder('occupied');
+        occupied.children.push(folder('occupied/other'));
+        const escape = folder('../outside');
+        const link = folder('linked');
+        realpath.mockImplementation((p: string) => Promise.resolve(p === inVault('linked') ? '/external' : p));
+        await removeEmptyFolders(vault([root, folder('replaced'), occupied, escape, link]),
+            [null, root, original, folder('missing'), occupied, escape, link]);
         expect(rmdir).not.toHaveBeenCalled();
     });
 
-    it('does not remove a non-empty folder', async () => {
-        const folder = createFolder('attachments');
-        folder.children.push(createFolder('attachments/nested'));
-        const rmdir = vi.fn().mockResolvedValue(undefined);
-        const vault = createVault(folder, rmdir);
-
-        await expect(removeEmptyDirectParent(vault, folder)).resolves.toBe(false);
-        expect(rmdir).not.toHaveBeenCalled();
+    it('preserves the parent when the OS finds a child missing from the vault index', async () => {
+        const parent = folder('assets');
+        const child = folder('assets/images');
+        parent.children.push(child);
+        rmdir.mockRejectedValue(Object.assign(new Error('not empty'), { code: 'ENOTEMPTY' }));
+        await removeEmptyFolders(vault([parent, child]), [parent, child]);
+        expect(rmdir.mock.calls).toEqual([[inVault('assets/images')]]);
     });
 
-    it('does not remove a folder when the path now resolves to another object', async () => {
-        const original = createFolder('attachments');
-        const replacement = createFolder('attachments');
-        const rmdir = vi.fn().mockResolvedValue(undefined);
-        const vault = createVault(replacement, rmdir);
-
-        await expect(removeEmptyDirectParent(vault, original)).resolves.toBe(false);
-        expect(rmdir).not.toHaveBeenCalled();
+    it('removes a real empty directory but preserves an unindexed file inside another one', async () => {
+        const fs = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+        const os = await vi.importActual<typeof import('os')>('os');
+        const base = await fs.mkdtemp(paths.join(os.tmpdir(), 'oim-empty-'));
+        const empty = folder('empty');
+        const occupied = folder('occupied');
+        const directory = paths.join(base, occupied.path);
+        const marker = paths.join(directory, '.keep');
+        const emptyPath = paths.join(base, empty.path);
+        await fs.mkdir(emptyPath);
+        await fs.mkdir(directory);
+        await fs.writeFile(marker, 'keep');
+        try {
+            realpath.mockImplementation(fs.realpath);
+            rmdir.mockImplementation(fs.rmdir);
+            await removeEmptyFolders(vault([empty, occupied], base), [empty, occupied]);
+            expect(await fs.readdir(base)).toEqual(['occupied']);
+            expect(await fs.readFile(marker, 'utf8')).toBe('keep');
+        } finally {
+            await fs.unlink(marker);
+            await fs.rmdir(directory);
+            if ((await fs.readdir(base)).includes('empty')) await fs.rmdir(emptyPath);
+            await fs.rmdir(base);
+        }
     });
 
-    it('does not remove a folder that has already disappeared', async () => {
-        const folder = createFolder('attachments');
-        const rmdir = vi.fn().mockResolvedValue(undefined);
-        const vault = createVault(null, rmdir);
-
-        await expect(removeEmptyDirectParent(vault, folder)).resolves.toBe(false);
-        expect(rmdir).not.toHaveBeenCalled();
-    });
-
-    it('contains cleanup failures and leaves the upload flow successful', async () => {
-        const folder = createFolder('attachments');
-        const error = new Error('Directory changed');
+    it('contains filesystem failures after the image was recycled', async () => {
+        const f = folder('assets');
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        realpath.mockRejectedValue(new Error('unavailable'));
+        await expect(removeEmptyFolders(vault([f]), [f])).resolves.toBeUndefined();
+        expect(warn).toHaveBeenCalledOnce();
+    });
 
-        await expect(removeEmptyDirectParent(createVault(folder, vi.fn().mockRejectedValue(error)), folder)).resolves.toBe(false);
-        expect(warn).toHaveBeenCalledWith(
-            '[ImageManager] Failed to remove empty attachment folder attachments:',
-            error
-        );
-        warn.mockRestore();
+    it('skips automatic directory deletion on mobile', async () => {
+        const desktop = Platform.isDesktop;
+        try {
+            Platform.isDesktop = false;
+            const f = folder('assets');
+            await removeEmptyFolders(vault([f]), [f]);
+            expect(realpath).not.toHaveBeenCalled();
+            expect(rmdir).not.toHaveBeenCalled();
+        } finally { Platform.isDesktop = desktop; }
     });
 });

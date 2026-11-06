@@ -1,4 +1,4 @@
-import { Notice, type App, type Editor, TFile } from 'obsidian';
+import { Notice, type App, type Editor, TFile, type TFolder } from 'obsidian';
 import type { ImageHostingConfig, ImageManagerSettings } from '../types';
 import type { RefConverter } from '../utils/ref-converter';
 import type { UploadService } from '../uploaders/upload-service';
@@ -17,7 +17,7 @@ import {
 import { chooseManagedPasteUploadSource } from './managed-paste-upload-policy';
 import { findExactManagedPasteReference } from './managed-paste-reference';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
-import { removeEmptyDirectParent } from '../utils/empty-folder-cleanup';
+import { removeEmptyFolders } from '../utils/empty-folder-cleanup';
 import { isEditorBoundToFile } from '../utils/note-content';
 import { t } from '../i18n';
 
@@ -38,6 +38,7 @@ export class ManagedPastePipeline {
     constructor(private readonly options: ManagedPastePipelineOptions) {}
 
     processFiles(files: File[], editor: Editor, currentFile: TFile | null): void {
+        const createdFolders = new Map<string, TFolder>();
         for (const imageFile of files) {
             const extension = this.mimeToExtension(imageFile.type);
             const defaultName = this.generateFileName(extension, currentFile);
@@ -45,10 +46,10 @@ export class ManagedPastePipeline {
             if (this.settings.promptImageName) {
                 new ImageNamePromptModal(this.options.app, defaultName, (userNamed) => {
                     const safeName = sanitizeImageFileName(userNamed, extension);
-                    this.readAndSave(imageFile, safeName, editor, currentFile);
+                    this.readAndSave(imageFile, safeName, editor, currentFile, createdFolders);
                 }).open();
             } else {
-                this.readAndSave(imageFile, defaultName, editor, currentFile);
+                this.readAndSave(imageFile, defaultName, editor, currentFile, createdFolders);
             }
         }
     }
@@ -82,9 +83,9 @@ export class ManagedPastePipeline {
         return this.options.getSettings();
     }
 
-    private readAndSave(imageFile: File, filename: string, editor: Editor, currentFile: TFile | null): void {
+    private readAndSave(imageFile: File, filename: string, editor: Editor, currentFile: TFile | null, createdFolders: Map<string, TFolder>): void {
         void imageFile.arrayBuffer().then((buffer) => {
-            return this.saveImage(new Uint8Array(buffer), imageFile.type, filename, editor, currentFile);
+            return this.saveImage(new Uint8Array(buffer), imageFile.type, filename, editor, currentFile, createdFolders);
         }).catch((error: unknown) => {
             new Notice(t('notice.imageSaveFailed', {
                 error: error instanceof Error ? error.message : t('notice.unknownError'),
@@ -120,14 +121,18 @@ export class ManagedPastePipeline {
         return filePath;
     }
 
-    private async ensureDirectory(directory: string): Promise<void> {
+    private async ensureDirectory(directory: string, createdFolders: Map<string, TFolder>): Promise<void> {
         if (!directory) return;
         const parts = directory.split('/');
         let current = '';
         for (const part of parts) {
             current = current ? `${current}/${part}` : part;
             if (!this.options.app.vault.getAbstractFileByPath(current)) {
-                await this.options.app.vault.createFolder(current).catch(() => {});
+                try {
+                    createdFolders.set(current, await this.options.app.vault.createFolder(current));
+                } catch {
+                    // Directory creation can race with another writer; keep the existing behavior.
+                }
             }
         }
     }
@@ -137,7 +142,8 @@ export class ManagedPastePipeline {
         mimeType: string,
         filename: string,
         editor: Editor,
-        currentFile: TFile | null
+        currentFile: TFile | null,
+        createdFolders: Map<string, TFolder>
     ): Promise<void> {
         if (!isEditorBoundToFile(this.options.app, editor, currentFile)) {
             new Notice(t('notice.managedPasteSourceChanged'));
@@ -151,7 +157,7 @@ export class ManagedPastePipeline {
             currentFile,
             filename
         );
-        await this.ensureDirectory(directory);
+        await this.ensureDirectory(directory, createdFolders);
         const filePath = await this.ensureUniquePath(directory, filename);
         const savedFile = await this.createImageFile(filePath, directory, filename, extension, prepared.data);
         if (!isEditorBoundToFile(this.options.app, editor, currentFile)) {
@@ -161,7 +167,7 @@ export class ManagedPastePipeline {
         const localReference = this.insertLocalReference(editor, currentFile, savedFile);
 
         if (this.settings.managedAutoUploadOnPaste) {
-            void this.autoUpload(savedFile, localReference, prepared.data, prepared.compressed, editor, currentFile);
+            void this.autoUpload(savedFile, localReference, prepared.data, prepared.compressed, editor, currentFile, createdFolders);
         }
     }
 
@@ -243,11 +249,11 @@ export class ManagedPastePipeline {
         data: ArrayBuffer,
         localDataCompressed: boolean,
         editor: Editor,
-        currentFile: TFile | null
+        currentFile: TFile | null,
+        createdFolders: ReadonlyMap<string, TFolder>
     ): Promise<void> {
         const hostingConfig = this.options.getDefaultHostingConfig();
         if (!hostingConfig) return;
-        const attachmentFolder = savedFile.parent;
         const notice = new Notice(t('notice.autoUploading'), 0);
 
         try {
@@ -302,8 +308,13 @@ export class ManagedPastePipeline {
                 );
                 if (isEditorBoundToFile(this.options.app, editor, currentFile) &&
                     localState.orphans.some((file) => file === savedFile)) {
+                    const parent = savedFile.parent;
+                    const candidates = [parent];
+                    for (const [path, folder] of createdFolders) {
+                        if (folder.path === path && parent?.path.startsWith(path + '/')) candidates.push(folder);
+                    }
                     await this.options.app.fileManager.trashFile(savedFile);
-                    await removeEmptyDirectParent(this.options.app.vault, attachmentFolder);
+                    await removeEmptyFolders(this.options.app.vault, candidates);
                 } else {
                     notice.hide();
                     new Notice(t('notice.autoUploadSuccess'), 3000);

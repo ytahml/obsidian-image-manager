@@ -1,6 +1,7 @@
 import { MarkdownView, type App, type Editor, type TFile } from 'obsidian';
 import type { ImageManagerSettings } from '../types';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
+import { removeEmptyFolders } from '../utils/empty-folder-cleanup';
 import { isUploadSourceCurrent, type UploadSource } from './upload-scope';
 
 export interface LocalCopyPolicy {
@@ -15,7 +16,7 @@ export function getLocalCopyPolicy(settings: ImageManagerSettings): LocalCopyPol
 
 interface EditorState { file: TFile; content: string }
 
-/** Only explicit-upload sources may be recycled; no directories or remote objects are deleted. */
+/** Recycle only eligible explicit-upload sources, then clean their empty parent folders. */
 export class UploadLocalCleanup {
     constructor(
         private readonly app: App,
@@ -35,9 +36,11 @@ export class UploadLocalCleanup {
                 const fresh = await this.scan();
                 // No async gap between final guards and the host's recoverable trash operation.
                 if (!fresh.current() || !fresh.orphans.includes(source.file) || !this.mayRemove(source, policy)) continue;
+                const parent = source.file.parent;
                 await this.app.fileManager.trashFile(source.file);
                 result.trashed++;
                 result.retained--;
+                await removeEmptyFolders(this.app.vault, [parent]);
             } catch {
                 // A scan/read/trash failure cannot turn an upload success into an upload failure.
                 result.failed++;
