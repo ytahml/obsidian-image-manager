@@ -46,6 +46,7 @@ vi.mock('obsidian', () => {
 
     return {
         App: class App {},
+        Platform: { isMobile: false },
         DropdownComponent,
         Modal,
         PluginSettingTab,

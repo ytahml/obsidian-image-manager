@@ -1,4 +1,4 @@
-import { Notice, type App, type Editor, TFile, type TFolder } from 'obsidian';
+import { Notice, Platform, type App, type Editor, TFile, type TFolder } from 'obsidian';
 import type { ImageHostingConfig, ImageManagerSettings } from '../types';
 import type { RefConverter } from '../utils/ref-converter';
 import type { UploadService } from '../uploaders/upload-service';
@@ -152,12 +152,26 @@ export class ManagedPastePipeline {
         const prepared = await this.prepareLocalData(data, mimeType, this.mimeToExtension(mimeType));
         const extension = prepared.extension;
         filename = `${filename.replace(/\.[^.]+$/, '')}.${extension}`;
-        const directory = this.resolveImagePath(
+        let directory = this.resolveImagePath(
             this.settings.imagePathTemplate || 'attachments',
             currentFile,
             filename
         );
-        await this.ensureDirectory(directory, createdFolders);
+        const stageBesideNote = Platform.isMobile &&
+            this.settings.managedAutoUploadOnPaste && !this.settings.managedKeepLocalCopy &&
+            this.options.getDefaultHostingConfig() !== null &&
+            !await this.options.app.vault.adapter.exists(directory);
+        if (!isEditorBoundToFile(this.options.app, editor, currentFile)) {
+            new Notice(t('notice.managedPasteSourceChanged'));
+            return;
+        }
+        if (stageBesideNote) {
+            // Keep a recoverable file without creating a directory mobile cannot safely clean up.
+            const noteDirectory = currentFile.parent?.path;
+            directory = noteDirectory && noteDirectory !== '/' ? noteDirectory : '.';
+        } else {
+            await this.ensureDirectory(directory, createdFolders);
+        }
         const filePath = await this.ensureUniquePath(directory, filename);
         const savedFile = await this.createImageFile(filePath, directory, filename, extension, prepared.data);
         if (!isEditorBoundToFile(this.options.app, editor, currentFile)) {
