@@ -1,5 +1,9 @@
 # 本地图片与引用工作流
 
+按任务阅读：[粘贴与路径](#粘贴与拖放) · [引用解析](#引用解析与转换) · [压缩](#canvas-压缩与格式) · [浏览器](#本地图片浏览器) · [孤立回收](#孤立图片与安全清理) · [粘贴事务](#粘贴事务与委托接力) · [空目录](#空附件目录清理) · [重命名与整理](#重命名与资源整理)。
+
+源码入口在 [utils/](../../../../src/utils)、[lifecycle/](../../../../src/lifecycle) 与 [modals/](../../../../src/modals)：引用解析从 `local-image-resolution.ts` / `ref-converter.ts` 开始，删除资格从 `local-reference-index.ts` / `local-orphan-management.ts` 开始，粘贴从 `ManagedPastePipeline` / `ObsidianDelegatedHandoff` 开始。对应测试见 [测试导航](development.md#测试导航)。
+
 ## 粘贴与拖放
 
 事件注册必须先检查 `evt.defaultPrevented`。业务处理器只判断是否接管并返回 boolean，由注册处调用 `preventDefault()`，以满足 Obsidian editor paste/drop 规则。
@@ -110,14 +114,14 @@ ClipboardEvent/DragEvent
 - green/amber/gray 分别表达已引用、孤立、无法判断。
 - 切换页签或关闭后通过 generation 隔离迟到扫描结果。
 
-选择只允许当前明确孤立的卡片，并跨搜索、排序、筛选与重绘保留。“选择当前结果”只加入当前搜索与引用筛选结果中的可选项；“清空选择”清除包括当前隐藏项在内的全部选择。普通复选框点击建立 Shift 锚点，Shift 点击另一复选框按当前完整筛选/排序顺序选择或取消两者间的可选项，区间外选择不变；搜索、筛选、排序或扫描结果变化会清除锚点。普通卡片单击切换当前项选中/取消，不清除其他可见或隐藏选择；Ctrl/Cmd + 单击同样切换当前项选中/取消。搜索结果应用时再次清除锚点，防止防抖期间点击建立的旧锚点跨结果复用；已有选择不清空。有效卡片单击通过同一选择入口建立锚点，Shift + 单击卡片与复选框采用相同区间规则：目标原本未选则选中区间，原本已选则取消区间；Ctrl/Cmd + Shift 只追加区间。每张卡片使用共享 `createCardSelectionHandler()`：首个 click 即时响应，原生第二次 click 撤销首击实际改变的各项选择（含 Shift 区间）并恢复锚点，再由 dblclick 打开预览；不使用猜测双击间隔的定时器，也不恢复整个选择集合。恢复选择仍走实时资格校验。不可选但可预览的图片仍可打开预览。复选框/标签与预览按钮的 click/dblclick 不冒泡触发卡片操作。区间计算不依赖 DOM。少量结果按内容高度贴顶，不拉伸卡片。
+选择只允许当前明确孤立的卡片，扫描未完成或状态无法判断时不可选。单击、Shift 区间、双击撤销首击、隐藏选择保留与键盘行为统一见 [共享卡片交互](settings-and-ui.md#共享卡片交互)；本地实现为 `ImageBrowserModal`，每次恢复选择仍检查实时孤立资格。少量结果按内容高度贴顶。
 
 ### 本地预览
 
 预览显示文件名、大小、尺寸和完整引用列表：
 
 - 引用列表默认展开，仍可收起。
-- 按笔记分组并列出全部行号。
+- 按笔记分组并列出全部行号，展示引用总次数与笔记数；不能按 note 去重后当作引用次数。
 - 点击行号关闭浏览器并定位笔记。
 - 操作包括复制引用、插入当前笔记、上传、重命名和关闭。
 - 本地预览只依赖窄的查询/上传/重命名 actions，不持有完整 Plugin 类型；Notice 和图床选择仍属于 Modal adapter。
@@ -143,6 +147,10 @@ ClipboardEvent/DragEvent
 4. 仅把仍存在且仍在 `orphans` 中的 TFile 交给 `fileManager.trashFile()`。
 5. 文件消失或新增引用报告 skipped；单项回收失败报告 failed，后续继续。
 
+专用 `OrphanImagesModal` 与图片浏览器共享上述 fresh 边界；[粘贴事务](#粘贴事务与委托接力) 中的活跃/状态未定图片同时受到保护。
+
+## 粘贴事务与委托接力
+
 委托自动接力在刚替换活动编辑器的事务引用后，复扫来源笔记必须使用 Editor 当前文本覆盖可能尚未刷新的 Vault 缓存；否则旧本地引用会导致错误保留本应回收的附件。
 
 managed 自动上传保存刚插入的完整本地引用，上传后在来源 Editor 全文中按“完整引用 + Obsidian 解析到该 `TFile`”唯一重定位；Markdown linkpath 在交给 Obsidian 解析前逐段容错解码，事务身份仍保留原始编码引用。光标移动、重复引用或映射变化时失败关闭。只有精确替换成功且 fresh 全库扫描仍判定为孤立时才回收本地附件。
@@ -165,9 +173,7 @@ delegated 接力只依据 Obsidian 公开事件、当前 Editor/Vault 内容和�
 
 上传服务在每次 delegated 网络尝试前调用事务重验；失效或验证异常后停止后续重试。网络成功后、串行写入前和本地回收前再次验证设置、附件身份及事务状态；在途成功但未采用的结果不替换引用或回收本地文件。来源笔记或附件删除会取消相应事务或图片项。多图结果按 paste/drop 事务最多汇总一次通知。
 
-Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘贴引用格式和本地粘贴压缩；本地路径规则因显式整理仍可用而保持显示。图床接力设置绑定 delegated 独立偏好，切回 managed 后恢复 managed 独立偏好。
-
-专用 `OrphanImagesModal` 与图片浏览器共享这套 fresh 边界。
+managed/delegated 设置的可见性与独立偏好见 [本地管理与图床接力](settings-and-ui.md#本地管理与图床接力)。
 
 活跃 delegated 候选及最后一次相关 create、rename、move 或引用变化后的两秒内属于状态未定。保护按 `TFile` 独立计时并随路径更新；浏览、确认前复扫和执行前复扫都排除这些文件的孤立删除资格。
 
@@ -175,40 +181,36 @@ Obsidian 1.13 声明式设置页在 delegated 模式隐藏命名、managed 粘�
 
 ## 笔记图片上传与引用替换
 
-`collectLocalNoteImages`：
+`collectLocalNoteImages` 读取来源笔记的实时内容，通过共享解析器解析每处图片引用并过滤 remote；缺失和歧义保留在 resolution 中供调用方处理，多 Editor 分歧失败关闭。显式上传的扩展名筛选与源文件去重由 `createUploadPlan()` 负责，每处引用仍保留自己的 alt。
 
-- 读取所有打开的 Markdown leaf（包括非活动笔记）的 Editor 文本；同一笔记多个 Editor 不一致时失败关闭。
-- 未打开的笔记使用 Vault `read`。
-- Markdown 本地路径先完整容错解码并去除尖括号，再用 Obsidian linkpath 语义解析。
-- 聚合缺失引用、同名歧义、上传失败与异常，最终 Notice 显示成功/失败数及首个安全摘要；歧义引用不发起上传，也不替换当前或其他笔记。
-- 排除所有 URL scheme、protocol-relative、data 与 blob 引用；同一 `TFile.path` 在显式笔记上传中只上传一次，每处引用仍独立保留 alt。
+显式单图/范围上传的源快照、全库引用写回与双重复扫回收统一由 `ExplicitUploadWorkflow`、`UploadReferenceManager`、`UploadLocalCleanup` 负责，完整规则见 [上传路径与结果](hosting-and-remote.md#上传路径与结果)。范围决定选哪些笔记的图片，开启替换后可写回范围外的关联笔记。
 
-上传后替换：
-
-- 遍历其他笔记时复用共享来源感知解析器；只有引用唯一解析到本次上传的同一 `TFile.path` 才替换，remote、缺失、歧义和解析到其他同名文件的引用保持原文。
-- 当前 Editor 已更新时，遍历其他笔记必须跳过当前文件。
-- 上传 URL 中 Unicode 可读化只发生在生成 Markdown 引用的边界。
-- 显式范围上传由 `createUploadPlan()` 选择全库/递归文件夹/文章笔记，按源文件路径去重；确认后可选更新全库中同一成功图片的引用，范围外笔记也参与。
-- `replaceBatchReferences()` 每篇笔记聚合所有成功图片，重新解析最新内容；Editor 绑定/内容及源文件身份/版本必须仍有效，Vault 写回比较快照，冲突保留原文。单篇失败不阻断其他笔记；结构化结果区分上传与改写结果，Notice 属于 `main.ts`。
-- 手动单图与范围上传按当前模式的保留本地副本偏好执行。关闭保留且本次引用写回无失败时，只有实际替换过引用的成功源才可进入回收；`UploadLocalCleanup` 两次复扫广义 Markdown/Canvas 引用及实时 Editor，同时检查文件集/版本、Editor 绑定/内容、源身份和生命周期保护。设置或快照漂移、歧义、剩余引用、扫描失败均保留；仅使用回收站。桌面端在回收前记录直接父目录，图片回收后尝试非递归清理，目录身份变化、目录非空或清理失败均安全跳过；独立报告图片回收结果。
-- `replaceVaultReferences()` 为 managed 自动上传调用同一 `replaceBatchReferences()` 快照写回实现，并跳过刚由事务替换的来源笔记。打开 Editor 的未保存文本优先；并发修改、绑定或源身份变化时保留原文，只计入实际成功写回的引用数。
+managed 自动上传调用 `replaceVaultReferences()` 时跳过已由粘贴事务改写的来源笔记，其余笔记沿用同一批量快照写回；delegated 的精确事务引用替换继续由接力管线负责。不能用普通全库替换代替事务身份检查。
 
 ## 自动上传与本地清理
 
-当前模式自己的自动上传偏好独立于 managed 引用格式：
+两种模式的自动上传均不受 managed 引用格式门控。以下为 managed 流程；delegated 只替换本次事务新增引用，重验规则见上方“粘贴事务与委托接力”：
 
 1. 保存本地文件并插入引用。
 2. 使用默认图床上传，传入 `savedFile.path` 支持 `{sourceDir}`。
 3. 替换当前 Editor 中刚插入的引用。
-4. 按设置替换其他笔记中的匹配本地引用。
-5. 当前模式自己的本地副本偏好为 false 时，用 `fileManager.trashFile()` 回收本地文件。
+4. 重验并更新其他笔记中同一图片的引用，跳过来源笔记；该路径不受显式上传的 `autoReplaceAfterUpload` 开关控制。
+5. `managedKeepLocalCopy=false` 且来源绑定与 fresh 孤立检查通过时，用 `fileManager.trashFile()` 回收本地文件。
 6. 桌面文件系统在回收前记录父目录（宿主回收后会清空 TFile.parent），回收后只删除确认为空、身份仍匹配的目录：所有上传线路仅检查附件的直接父目录；managed 粘贴另外检查本次保存时新建的祖先目录，按由深到浅顺序非递归清理。既有上层目录、Vault 根目录和非空目录均保留。
 
 移动端暂存图片使用正常命名去重、本地压缩与 Markdown/Wiki 引用流程。只有远端引用已成功写回且 fresh 孤立扫描通过后才回收该文件。上传失败、来源关闭/切换、引用冲突或保留偏好变为开启时保留已落盘文件；不自动移动失败文件或在重启后自动删除。上传 `{sourceDir}` 始终取实际本地父目录，因此暂存图片使用笔记目录，显式重试也使用该实际路径。
 
-桌面端使用系统非递归 rmdir，隐藏文件和并发新增文件也会阻止删除。Obsidian Desktop 1.14.4 的 adapter.rmdir(path, false) 对空目录返回 ERR_FS_EISDIR。移动端及其他适配器保留目录，不使用递归删除替代。空目录清理失败不能改变上传成功结果。
-
 managed 自动上传在本地未压缩而 `compressBeforeUpload=true` 时重新读取保存文件并只压缩上传载荷；本地已经按相同质量压缩时直接上传准备好的数据，避免二次有损压缩。
+
+### 空附件目录清理
+
+实现：[empty-folder-cleanup.ts](../../../../src/utils/empty-folder-cleanup.ts)，回归：[empty-folder-cleanup.test.ts](../../../../tests/empty-folder-cleanup.test.ts)。上传后自动清理空附件目录是现有功能，不能仅为消除 scanner 提示而移除。
+
+- 只在桌面 `FileSystemAdapter` 上执行。候选来自刚回收图片的直接父目录；managed 额外传入本次创建的祖先目录，按深度逆序处理。
+- Node `fs/promises` 仅用于 `realpath` 与非递归 `rmdir`；检查库内路径、根目录、符号链接、TFolder 身份与已索引子项。最终 `rmdir` 由系统拒绝隐藏文件或并发新增文件导致的非空目录。
+- **宿主兼容限制（2026-11-07 实测）**：Obsidian 1.14.4（installer 1.13.4）在测试库新建空目录后，`adapter.rmdir(path, false)` 与 `vault.delete(folder, false)` 均报 `ERR_FS_EISDIR` 并保留目录。该证据只针对这些版本，不推断其他版本已修复或同样失败。
+- 替换此实现前，必须在目标宿主证明空目录可清理、隐藏/并发新增文件保留，以及库内路径限制仍有效。先 list 再递归删除不具备同等保护；隐藏 Node 导入也没有消除直接文件系统能力。
+- 移动端及其他适配器保留目录。清理失败不改变上传成功结果；自动上传中的目录策略见上一节。
 
 ## 重命名与资源整理
 
@@ -220,7 +222,7 @@ managed 自动上传在本地未压缩而 `compressBeforeUpload=true` 时重新�
 
 显式重命名与外部引用修复读取实时 Editor/Vault 快照，写回前重验内容、路径、身份和 Editor 绑定。显式重命名记录每次引用写入；后续笔记冲突、读写失败或文件 rename 失败时，若原图片身份及路径未变，则逆序恢复仍与本次写入一致的笔记。回滚再次比较实时快照，不覆盖用户后续编辑；恢复不完整时报告受影响笔记。外部重命名修复发生在文件已经移动之后，保留已完成的有效修复。不承诺跨笔记原子性。
 
-外部普通 rename 由协调器收敛并批量调用 `fixBrokenImageRefsBatch`：
+外部普通 rename 由 [ExternalRenameRepairCoordinator](../../../../src/lifecycle/external-rename-repair-coordinator.ts) 收敛并批量调用 `fixBrokenImageRefsBatch`；延迟与保护门禁以 `main.ts` 接线为准，不以历史逐事件等待值为依据：
 
 - 重命名时恢复旧目录。
 - 移动时使用新目录。

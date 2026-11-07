@@ -1,197 +1,88 @@
-# 开发、测试、发布与回归
+# 开发、验证与发布
 
-## 本地命令
+按任务阅读：[验证选择](#验证选择) · [工具链约束](#工具链约束) · [发布](#发布) · [故障定位](#故障定位) · [文档维护](#文档维护)。
 
-```bash
-npm install
-npm run dev
-npm test
-npm run test:watch
-npm run lint
-npm run build
-git diff --check
-```
+## 验证选择
 
-`npm run build` 依次执行 ESLint、TypeScript `noEmit -skipLibCheck` 和 production esbuild。`main.js` 是生成物，不手工编辑或提交。
+命令以 [package.json](../../../../package.json) 为准。`npm run build` 包含 ESLint、TypeScript 检查和生产 esbuild；`main.js` 是生成物，不手工修改或提交。
 
-Volta 固定 Node 22.x/npm 10.x；普通 CI 使用 Node 22.x。修改依赖、脚本或 CI 前同时检查 `package.json`、lockfile、`.github/workflows/` 和 release workflow。
-
-`tsconfig.json` 显式设置 `types: ["node"]`，使受平台保护的 Node 内置模块导入在独立审查环境中也能解析类型。官方 scanner 独立安装 ESLint 工具链，可能使用不同于本项目的 TypeScript；TypeScript 6 不再默认加载所有 `@types` 包，缺少该设置会让 `fs/promises`、`path` 导入及后续调用产生 `no-unsafe-*` 警告。本地 lint 通过不能替代对应 scanner 配置的核验。
-
-`moment` 的 npm override 仅用于开发依赖树：Obsidian 类型包和 ESLint 插件固定了旧版本，统一到 2.31.0 以修复 GHSA-4p3w-j4w9-5jqw。它不改变 Obsidian 宿主提供的运行时，也不打包进插件；上游解除旧版本固定后可移除此 override。依赖审计使用 `npm audit --registry=https://registry.npmjs.org`，部分镜像不提供 audit endpoint。
-
-## 测试策略
-
-Vitest 测试应覆盖可观察行为与高风险协议，而不是源码字符串或文档措辞：
-
-- 路径编码、命名、模板、引用正则状态与反向替换。
-- 活动 Editor/非活动 Vault 内容读取。
-- 本地 orphan fresh 校验、skip/fail 和回收站边界。
-- UploadService 窄默认值 getter、原生 objectKey/Custom URL-only、重试、失败摘要。
-- UploadReferenceManager 的尺寸按需读取、模板回退和按笔记安全批量写回；ExplicitUploadWorkflow 的三种笔记范围、去重、跨范围引用更新、Editor/Vault 冲突保护、源身份/版本验证与分阶段失败汇总。
-- 显式上传本地副本：受管/委托模式的独立偏好、设置冻结/漂移、关闭替换/零替换不回收、部分上传失败与引用冲突、广义剩余引用、双重复扫的文件/Editor 漂移、生命周期保护及回收失败独立汇报。保留设置在粘贴自动上传关闭时仍可编辑。
-- 命令定义仅包含已实现的命令 ID；上传和 Wiki 图片转换各只有一个范围入口且默认全库，被移除的三个重复 ID 不再注册，迁移/恢复本地引用占位不注册。文件菜单测试必须验证使用被点击文章/文件夹，而不是活动笔记。
-- OSS/Qiniu/S3 canonical signing、特殊字符、公开 URL 与连接测试。
-- Provider cursor、文件夹 scope、错误脱敏。
-- browse/preview/thumbnail session 的聚合、缓存、并发和 late response。
-- 广义远程 URL 索引、alias/query/encoded slash、fresh/stale/abort。
-- 删除确认、无选择数量上限、2 并发、stop、部分失败和 audit 串行写入。
-
-保持测试文件按业务域组织；小纯函数可并入相邻业务测试，但不要为了减少用例数合并不同协议的安全矩阵。
-
-## 关键 ESLint/TypeScript 约束
-
-| 规则 | 正确做法 |
+| 改动 | 必要检查与完成边界 |
 | --- | --- |
-| no-floating-promises | await、return、catch/then 或显式 `void` |
-| no-misused-promises | 非 async callback 内 `void` 启动 Promise |
-| no-unsafe-* | 为 JSON/request payload 定义窄类型并校验 |
-| no-tfile-tfolder-cast | `instanceof TFile/TFolder` |
-| prefer-file-manager-trash-file | `fileManager.trashFile()` |
-| prefer-window-timers | `window.setTimeout/clearTimeout` |
-| prefer-active-doc | `activeDocument` |
-| prefer-create-el | `createEl`、`createDiv`、`createSpan` |
-| editor-drop-paste | defaultPrevented guard + handled boolean |
-| no-unsupported-api | 不直接调用高于 minAppVersion API |
-| sentence-case | 英文 UI sentence case |
+| 仅 Markdown / 项目 skill | 核对描述对应的源码；检查 frontmatter、相对链接与引用目标；`git diff --check`。不为纯文档变动安装项目依赖或运行产品测试。复杂流程调整可用只读场景演练检查路由与行动边界。 |
+| 运行时代码、设置、样式 | 开发时运行受影响的测试；提交前完成 `npm test`、`npm run build`、`git diff --check`。构建已含 lint，不必再重复单跑。 |
+| 依赖、构建、发布配置 | 阅读 package/lock、[esbuild 配置](../../../../esbuild.config.mjs)、[workflows](../../../../.github/workflows) 中受影响项；完成完整测试与构建，区分本地检查和实际 CI 结果。 |
+| Obsidian / 服务商行为 | 自动测试之外，按本次改动验证真实宿主或专用 bucket/prefix；未执行的环境与路径明确标记，不以 mock 通过代替真实验收。 |
 
-其他注意：
+默认 Obsidian 测试库为 `/Users/imulan/workspace/test/obsidian-test`。操作前确认实际连接的库；使用独立测试文件，保留已有用户内容。服务商验收使用明确的测试配置和范围，不从日常配置推断删除授权。
 
-- TypeScript lib 是 ES2017，不用 `flatMap`、`matchAll`。
-- `JSON.parse`/request response 不能任由 any 扩散。
-- `Array(count).fill()` 可能造成类型不安全，使用 `Array.from`。
-- 不能用 `eslint-disable` 绕过 `obsidianmd/*`。
-- CSS 不用 `!important`、重复属性或无作用域全局 selector。
+已有通过结果在代码和环境相关条件未变化时可复用。没有依赖或宿主访问时报告具体缺口，继续独立的源码/文档检查。
 
-## 新功能实施清单
+### 测试导航
 
-1. 确认需求属于本地文件、上传、远程管理、设置/UI 中哪个边界。
-2. 涉及删除、网络、持久化、数据模型或跨模块流程时先更新/新增 `docs/design/` 契约。
-3. 在公共逻辑模块实现并补行为测试，`main.ts` 只接线。
-4. 更新 settings types/defaults 与 Obsidian 1.13 声明式 UI。
-5. 更新中英文 copy、README 用户能力、skill/reference。
-6. 验证桌面和移动布局、IME、异步 loading、session cleanup。
-7. 跑完整测试、build、diff check。
+测试集中在 [tests/](../../../../tests)。按业务行为选用现有用例，新增测试验证可观察结果、冲突保护或协议边界，不匹配源码字符串或文档措辞。
 
-## 新增图床 Provider
+| 范围 | 优先查找的测试文件（tests/ 下） |
+| --- | --- |
+| 命令 / 笔记范围 / URL 前缀迁移 | `commands.test.ts`、`file-menu.test.ts`、`note-scope.test.ts`、`scoped-reference-conversion.test.ts`、`url-prefix-migration.test.ts` |
+| 粘贴 / 接力 / 空目录 | `managed-paste-pipeline.test.ts`、`obsidian-delegated-handoff.test.ts`、`paste-lifecycle.test.ts`、`empty-folder-cleanup.test.ts` |
+| 本地解析 / 回收 / 重命名 / 整理 | `local-image-resolution.test.ts`、`local-reference-index.test.ts`、`local-orphan-management.test.ts`、`batch-rename.test.ts`、`batch-rename-repair.test.ts`、`external-rename-repair-coordinator.test.ts`、`image-reorganizer.test.ts` |
+| 压缩 / 上传 / 模板 | `image-optimizer.test.ts`、`upload-compression-format.test.ts`、`upload-service.test.ts`、`explicit-upload-workflow.test.ts`、`upload-reference-manager.test.ts`、`native-upload-path.test.ts`、`reference-template.test.ts` |
+| 服务商 / 远程安全 | `aliyun-oss*.test.ts`、`qiniu*.test.ts`、`s3*.test.ts`、`remote-*.test.ts`；重点选择签名、cursor、fresh/stale、删除与错误脱敏场景 |
+| 设置 / UI | `settings-migration.test.ts`、`declarative-settings.test.ts`、`image-browser-selection.test.ts`、`remote-image-grid.test.ts`、`selection-range.test.ts`、各 `*-dialog.test.ts`、`i18n.test.ts` |
 
-上传：
+保持测试按业务域组织；不能为减少用例数合并不同协议的安全矩阵。具体保护条件见 [本地工作流](local-image-workflows.md)、[上传与远程管理](hosting-and-remote.md)、[设置与 UI](settings-and-ui.md)。
 
-1. 定义 provider-specific config 与 `HostingType`。
-2. 实现 `UploaderBase.upload/testConnection`，使用 `requestUrl` 与 Web Crypto。
-3. 注册 uploader factory，接入共享 upload-path 与 `UploadService`。
-4. 原生成功返回 objectKey；为 URL/path/canonical signing 补 fixture 测试。
+## 工具链约束
 
-远程管理：
+- 使用 npm；Node/npm 版本从 `package.json.volta` 读取。CI 与 Release 各自的 Node 版本以对应 workflow 为准，不能用本地配置推断远端环境。
+- TypeScript 配置以 [tsconfig.json](../../../../tsconfig.json) 为准：类型库包含 DOM 和 ES2017，不直接使用 `flatMap`、`matchAll`、`Promise.finally` 等更高版本 API。
+- `types: ["node"]` 为受桌面平台保护的 Node 导入显式加载类型。官方 scanner 的独立 TypeScript/ESLint 版本可能不同；本地 lint 通过不等于官方 scanner 通过。
+- [eslint.config.mts](../../../../eslint.config.mts) 只对 `empty-folder-cleanup.ts` 放行 `fs/promises` 与 `path`。此范围不能扩大为一般文件访问；用途与宿主兼容证据见 [空附件目录清理](local-image-workflows.md#空附件目录清理)。
+- `moment` override 只修复开发依赖树的 GHSA-4p3w-j4w9-5jqw，不改变宿主 runtime，也不打包进插件。上游解除旧版本固定后才评估移除；审计使用 `npm audit --registry=https://registry.npmjs.org`，部分镜像没有 audit endpoint。
 
-1. 单独实现 `RemoteObjectProvider`，只声明真实 capability。
-2. `RemoteRequestClient` 可注入，cursor 保持 opaque，错误映射并脱敏。
-3. 定义 source/public/alias URL mapping。
-4. 分别实现 list/folders/preview/delete，不从上传 URL 猜管理协议。
-5. 复用公共 browse/preview/thumbnail/reference/delete session，不复制安全门禁。
-6. 在 HostingConfigModal capability gate、i18n、README、设计档中同步。
-7. 用专用 bucket/prefix 做真实环境验收；自动化通过不能替代服务商验收记录。
+### Obsidian / ESLint
 
-## 新增 Modal 或设置
+- Promise 必须 await、return 或处理拒绝；事件 callback 的异步工作也要有失败处理。外部 JSON/request 数据在边界验证，避免 any 扩散。
+- 用 `instanceof TFile/TFolder`、Obsidian DOM helpers、`activeDocument` 和 `window.*` timers；本地文件回收用 `fileManager.trashFile()`。
+- paste/drop 注册处检查 `defaultPrevented`，只在业务处理器确认接管后调用 `preventDefault()`。
+- 使用高于 manifest 最低版本的 API 前处理兼容边界；不能用 `eslint-disable` 压掉 `obsidianmd/*`。
+- CSS、设置标题、IME 与 Modal 收尾规则统一见 [settings-and-ui.md](settings-and-ui.md#modal-通用约束)。
 
-Modal：
+## 扩展与改动边界
 
-- 参考相邻 Modal 和 `settings-and-ui.md`。
-- Enter 先检查 IME，Escape 取消。
-- Promise callback 不浮动，pending 时禁重复。
-- close 时清 DOM、listener、observer、URL/session。
-- 避免直接 document、全局 timer、static style 与手写 heading。
-
-设置：
-
-- types/defaults、声明式 definitions、i18n、保存副作用同步。
-- 旧 data 缺字段时有安全默认。
-- 影响其他设置可见性时刷新，并测试门控。
+- 按实际影响更新业务模块、调用方、测试和对应 reference。`main.ts` 保留接线；仅当跨模块产品契约变化时更新 [当前设计](../../../../docs/design/README.md)，不为每个小修复新建设计档。
+- 新服务商的上传与远程对象能力独立实现；只有真实支持时才注册 list/folders/preview/delete。接入流程与协议约束见 [hosting-and-remote.md](hosting-and-remote.md)。
+- 新设置同步类型、默认值、规范化、声明式 UI 和中英文文案；Modal/UI 改动只验证受影响布局与交互。详见 [settings-and-ui.md](settings-and-ui.md)。
 
 ## 发布
 
-标准版本命令：
+发布前阅读 [package scripts](../../../../package.json)、[版本同步脚本](../../../../version-bump.mjs)、[npm 配置](../../../../.npmrc) 与 [release workflow](../../../../.github/workflows/release.yml)。
 
-```bash
-npm version patch
-npm version minor
-npm version major
-```
+**`npm version patch/minor/major` 是有远端副作用的发布流程，不是单纯修改版本号的本地命令。** 当前生命周期依次执行 build、同步并暂存版本文件、创建 commit/tag，最后由 `postversion` 执行 `git push origin master --follow-tags`。
 
-生命周期：
+1. 先确定本次授权是否包含推送与发布；已有授权直接沿用。仅本地准备或审查任务不要运行上述带推送的生命周期。
+2. 核对工作树、当前分支、待发布提交和本地/远端 master。`postversion` 明确推送本地 master，不能假定它推送的是当前功能分支。
+3. 完成代码对应的测试与构建；版本须在 package、manifest、versions 映射中一致。`.npmrc` 去掉 tag 的 `v` 前缀；workflow 要求 `x.y.z` 且等于 manifest version。
+4. 发布后核对实际 workflow 结果和 Release 附件：`main.js`、`manifest.json`、`styles.css`、zip。tag 已推送不能单独证明构建或发布成功。
 
-1. `preversion` 运行 build。
-2. `version-bump.mjs` 同步 manifest version 与 versions map。
-3. 暂存 manifest、versions、package files。
-4. npm 创建版本 commit/tag。
-5. `postversion` 推送 master 与 tag。
+发布相关提交不添加 `Co-authored-by: Codex <codex@openai.com>`；此约定不改变普通代码提交的署名方式。
 
-规则：
-
-- tag 与 `manifest.json.version` 完全一致，无 `v`。
-- release workflow 会拒绝非 `x.y.z` 格式或与 `manifest.json.version` 不一致的 tag，避免误打 tag 创建 Release。
-- `versions.json` 映射版本到最低 Obsidian 版本。
-- Release 上传 `main.js`、`manifest.json`、`styles.css` 和 zip。
-- 若使用了更高 Obsidian API，同步 `minAppVersion` 与 versions。
-
-## 必须保留的回归知识
-
-### IME
-
-命名、重命名、确认等 Enter handler 必须检查 `isComposing`，否则中文选词会误提交。
-
-### 重命名路径
-
-Obsidian 内置更新可能剥离 Markdown 目录。普通 rename 事件等待约 100ms 后修复；整理期间用 `isReorganizing` 跳过，避免覆盖正确的新路径。
-
-### 引用计数
-
-预览显示全部引用次数与笔记数，不能只按 note 去重后当引用数。
-
-### 相对路径
-
-整理和重命名依据 `imagePathBase` 与 note directory 计算；不能把 Vault 绝对路径写进 note-relative 引用。
-
-### URL 替换
-
-上传后只替换本地引用；同名 remote URL、protocol-relative、data、blob 必须跳过。
-
-### 签名
-
-特殊字符下实际请求 URL 与 canonical path/query 必须同源。OSS 空字段换行、Qiniu management 尾部双换行、S3 query `%20`/排序都有回归测试，不可凭“看起来合理”改写。
-
-### 远程事实
-
-上传成功、删除请求成功、audit 记录都不能证明对象当前存在/永久删除；远端事实只来自用户重新扫描。
-
-### 删除
-
-不要把“当前 Vault 未检测到引用”文案或内部状态改成“安全删除”。外部网站、其他 Vault 和应用仍可能引用对象。
+升级 Obsidian 最低版本时同步 manifest 与 versions 映射。Release workflow 有自己的构建与运行环境；它没有替代完整单测的步骤。
 
 ## 故障定位
 
-- 插件不加载：检查插件目录中的 `main.js`、manifest id `md-image-manager` 和 build 结果。
-- 命令不出现：范围上传和 Wiki 图片转换不依赖活动文件；其他入口检查 active file 条件、Markdown/image gate、browser enable 和 reload。旧 `upload-note-images`、`convert-reference-format-vault`、`convert-to-md` 快捷键需重新绑定。
-- 设置不生效：检查 default、声明式 definition、await save 与 `update()` 刷新。
-- 上传失败：先测试连接，再核对 endpoint/region/bucket/public base；只输出安全摘要。
-- 远程扫描失败：按结构化 code 区分 config/auth/permission/not-found/rate-limit/network/parsing/server。
-- 预览不可用：核对图片扩展名、storage class、preview access、public base 与私有 get 权限。
-- 删除不可选：依次检查 management enabled、capability、fresh index、hosting、prefix、scan snapshot、reference state。
+| 现象 | 首个有效检查 |
+| --- | --- |
+| 插件不加载 / 命令不出现 | 实际安装目录的产物与 manifest，`src/commands.ts` 注册及 gate、`src/main.ts` 接线、插件 reload；旧命令边界见 [architecture.md](architecture.md#命令与兼容边界)。 |
+| 设置不生效 | `normalizeImageManagerSettings()`、声明式 definition、保存副作用与 `update()`，不要只看默认值。 |
+| 上传 / 远程操作失败 | 明确生产调用链与具体 provider；按 config/auth/permission/not-found/rate-limit/network/parsing/server 定位，输出脱敏摘要。 |
+| 预览 / 删除不可用 | capability、hosting/prefix、previewAccess、fresh index、scan snapshot 与逐对象引用状态；见 [远程安全](hosting-and-remote.md#删除安全)。 |
+| 官方行为扫描提示 | 对照被扫描版本的实际 `main.js` 与源码：区分能力提示、具体缺陷和审核结论；保留已确认的功能与安全边界，导入改名不能替代能力变化的验证。空目录限制见 [本地文档](local-image-workflows.md#空附件目录清理)。 |
 
 ## 文档维护
 
-- `SKILL.md` 只保存入口、全局硬边界和按任务触发的指针。
-- references 保存当前实现知识、开发约束和难以从代码直接推导的陷阱。
-- `docs/design/` 只保存按产品能力命名的现行长期决策；不使用 Issue/PR/阶段编号，不保存实施流水。
-- 完成功能把持久决策合入现行契约并移除临时计划；历史证据从 Git 和 `docs/archive/README.md` 追溯。
-- README 描述用户可见能力；CHANGELOG 保存发布历史。行为变化时同步受影响层，但不复制同一事实。
-
-## Issue 与 PR 分类
-
-- Issue 与 PR 用于协作和跟踪，不是产品事实来源；功能文档按能力命名，不按票号命名。
-- 标题和正文默认使用中文，除非用户、仓库约定或协作者需要其他语言。
-- Issue 提供中英双语的 bug、功能建议、使用问题和文档改进表单；`Other / 其他` 保留普通自由编辑入口。
-- 模板文件使用两位数字前缀固定展示顺序：Bug、Documentation、Feature、Question、Other；新增或重命名模板时保持该顺序。
-- 表单会自动添加对应的 `bug`、`enhancement`、`question` 或 `documentation` 标签。
-- PR labeler 只添加标签：`fix/` 分支为 `bug`、`feat/` 分支为 `enhancement`、`docs/` 分支或文档路径为 `documentation`、`.github/` 改动为 `ci`。它不自动评论、指派、关闭或调整优先级。
-- `high`、`medium`、`low`、`in progress` 与 `needs design` 依赖实际判断，始终手动维护。
+- `AGENTS.md` 保存工作约定，`CLAUDE.md` 只指向它和 canonical skill；`SKILL.md` 保存路由与全局硬边界。仅更新项目内指南，不顺带修改用户级 skills。
+- references 保存当前行为、非显然约束和源码/测试入口。默认值、工具版本、CSS 尺寸等易变常量由其源码维护；规则与“已验证实现”明确区分。
+- 同一交互或协议规则只在一个 reference 详述，其他位置链接它。修改链接目标、标题或拆分文件时同时检查所有入口。
+- `docs/design/` 保存跨模块长期决策；历史材料从 [归档索引](../../../../docs/archive/README.md) 或 Git 追溯。README 描述用户能力，CHANGELOG 记录发布变化。
+- Issue/PR 约定见 AGENTS.md；编辑表单/标签规则时直接读 [.github/ISSUE_TEMPLATE](../../../../.github/ISSUE_TEMPLATE)、[labeler 配置](../../../../.github/labeler.yml) 与 [workflow](../../../../.github/workflows/labeler.yml)。保留现有双语表单与两位数字排序前缀；优先级和进度标签按实际判断手工维护。标签自动化不代表审查结论或任务完成。

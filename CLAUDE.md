@@ -2,6 +2,8 @@
 
 Canonical project instructions:
 
+@AGENTS.md
+
 @.agents/skills/obsidian-image-manager/SKILL.md
 
-Read that skill completely, follow its Reference Index, and use current code plus the linked design contracts as product truth. This file intentionally contains no separate project facts.
+Follow AGENTS.md for working agreements. Read the skill completely and use its Reference Index for task-specific guidance. This file contains no separate project facts.

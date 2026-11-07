@@ -1,142 +1,97 @@
 # 项目架构与业务边界
 
-## 产品范围
+## 实现导航
 
-插件围绕 Obsidian Markdown 图片完成五类业务：
-
-1. 保存、命名与压缩粘贴/拖放图片。
-2. 解析、转换、追踪并修复本地图片引用。
-3. 浏览、筛选、预览、重命名、整理和清理本地图片。
-4. 将图片上传到四类图床，并按设置复制或替换引用。
-5. 对三类原生图床显式扫描远程对象、预览、定位引用并受保护地删除孤立对象。
-
-Custom HTTP 只有上传协议。图床迁移和恢复本地引用不属于当前可用功能。
-
-## 目录职责
-
-```text
-src/main.ts                 Plugin 生命周期、命令、事件、跨模块编排
-src/commands.ts             已实现命令定义与上下文门控（不注册占位功能）
-src/settings.ts             Obsidian 1.13 声明式设置定义、图床自定义渲染
-src/types.ts                持久化设置与公共本地域类型
-src/modals/                 本地/远程浏览、预览、配置、命名与确认 UI
-src/utils/                  路径、引用、扫描、压缩、整理、重命名与本地清理
-src/lifecycle/              managed paste 管线、delegated 事务匹配、串行效果、rename 批处理与近期变化保护
-src/uploaders/              上传器、上传路径、引用生成、显式上传流程、UploadService/Queue
-src/remote/                 Provider、请求/错误、扫描/预览/删除会话、引用索引
-src/oss/ src/qiniu/ src/s3/ 服务商签名与共享请求目标
-src/i18n/                   中英文词条与插值
-```
+| 业务边界 | 源码入口 | 详细契约 |
+| --- | --- | --- |
+| 生命周期 / 命令 / 文件菜单 | [main.ts](../../../../src/main.ts)、[commands.ts](../../../../src/commands.ts)、[file-menu.ts](../../../../src/file-menu.ts) | [命令范围](../../../../docs/design/command-scopes.md) |
+| 受管粘贴 / 委托接力 / 重命名协调 | [lifecycle/](../../../../src/lifecycle) | [本地工作流](local-image-workflows.md) |
+| 本地引用 / 压缩 / 回收 / 整理 | [utils/](../../../../src/utils)；`note-content.ts`、`local-image-resolution.ts`、`local-reference-index.ts`、`image-reorganizer.ts` | [本地工作流](local-image-workflows.md) |
+| 上传与本地副本策略 | [uploaders/](../../../../src/uploaders)；`UploadService`、`ExplicitUploadWorkflow`、`UploadReferenceManager`、`UploadLocalCleanup` | [上传](hosting-and-remote.md#上传路径与结果)、[范围上传契约](../../../../docs/design/scoped-image-upload.md) |
+| 远程对象 / URL 前缀迁移 | [remote/](../../../../src/remote)；provider、session、reference index、delete policy/audit、`UrlPrefixMigration` | [远程管理](hosting-and-remote.md)、[URL 前缀迁移契约](../../../../docs/design/url-prefix-migration.md) |
+| 签名协议 | [oss/](../../../../src/oss)、[qiniu/](../../../../src/qiniu)、[s3/](../../../../src/s3) | [服务商协议](hosting-and-remote.md#provider-特有上传协议) |
+| 设置 / Modal / UI | [types.ts](../../../../src/types.ts)、[settings.ts](../../../../src/settings.ts)、[modals/](../../../../src/modals)、[i18n/](../../../../src/i18n) | [设置与 UI](settings-and-ui.md) |
 
 边界原则：
 
-- `main.ts` 只保留 Obsidian 入口与业务编排；可测试的匹配、转换、安全策略和协议逻辑必须下沉。
-- `UploaderBase` 只负责上传；list/preview/delete 权限由独立 `RemoteObjectProvider` 表达。
-- Provider factory 通过 capability 决定 UI 是否开放能力，不能在 UI 中复制图床名称判断。
-- 签名层必须从同一组规范化值生成实际 URL 与 canonical URI/query/headers，不能分别拼接。
+- `main.ts` 负责宿主入口和编排；可复用业务及协议逻辑下沉到各自模块。
+- `UploaderBase` 负责 upload/testConnection；对象 list/folders/preview/delete 属于独立 `RemoteObjectProvider`。Custom HTTP 没有通用对象管理协议，保持 upload-only。
+- UI 通过 provider capability 判断能力，不复制按图床名称判断的分支。
+- 请求 URL 与 canonical path/query 使用同一编码来源；签名规则不在 UI 或多个 uploader 中重复实现。
 
-## 稳定命令入口
+## 命令与兼容边界
 
-命令 ID 发布后通常视为兼容接口，不随文案调整而改名。范围入口收束是经产品确认的例外：`convert-reference-format-vault`、`convert-to-md`、`upload-note-images` 不再注册，已有快捷键需重新绑定到保留入口。
+注册事实由 `createImageCommands()` 和 [commands.test.ts](../../../../tests/commands.test.ts) 共同核对；宿主接线在 `main.ts`。已发布命令 ID 不随展示文案更名。
 
 | ID | 行为与显示条件 |
-|---|---|
-| `browse-images` | 打开本地/图床图片浏览器；受 `enableImageBrowser` 门控 |
-| `compress-current-image` | 仅活动文件为受支持图片时可用 |
-| `convert-reference-format` | 打开全库/递归文件夹/文章范围选择，默认全库；Wiki 图片转 Markdown |
-| `upload-to-hosting` | 仅活动受支持图片；运行时检查图床配置，不受粘贴格式影响 |
-| `batch-upload` | 打开全库/递归文件夹/文章范围配置，默认全库；只上传笔记引用的本地图片 |
-| `find-orphan-images` | 打开专用孤立图片窗口 |
-| `rename-image` | 仅活动文件为图片时可用 |
-| `reorganize-images` | 整理活动 Markdown 笔记 |
+| --- | --- |
+| `browse-images` | 本地/远程图片浏览器；受 `enableImageBrowser` 门控 |
+| `compress-current-image` | 当前受支持图片的原地压缩 |
+| `convert-reference-format` | Wiki 图片 → Markdown 范围选择；默认全库，不要求活动笔记 |
+| `upload-to-hosting` | 当前受支持图片上传；运行时检查图床配置 |
+| `batch-upload` | 全库/文件夹/文章图片上传；默认全库，不要求活动笔记 |
+| `find-orphan-images` | 本地孤立图片扫描与确认 |
+| `rename-image` | 当前受支持图片重命名并修复引用 |
+| `reorganize-images` | 当前 Markdown 笔记的图片整理 |
+| `migrate-url-prefix` | 已有远程引用的 URL 基础路径迁移；不移动或上传对象，不要求活动笔记 |
 
-`migrate-images` 已停止注册；未实现的迁移/恢复本地引用不展示。当前注册 8 个命令。文件菜单为 Markdown 和文件夹提供目标绑定的上传、整理与 Wiki 图片转换；上传打开预选范围弹窗，转换直接执行被点击的文章或递归文件夹范围。
+兼容边界：
 
-## 生命周期与事件
+- `migrate-images` 对应的旧图床迁移引擎与历史 UI 没有实现，仅留兼容类型；它与已实现的 `migrate-url-prefix` 是不同能力。
+- 恢复本地引用没有命令或实现，不注册占位入口。
+- `convert-reference-format-vault`、`convert-to-md`、`upload-note-images` 已去重移除；旧快捷键需重新绑定统一入口。
+- 文件菜单对 Markdown/文件夹使用被点击目标：上传预填范围弹窗，转换直接执行，整理调用相应 note/folder 工作流。[file-menu.test.ts](../../../../tests/file-menu.test.ts) 防止误用活动笔记。
 
-`onload()` 顺序：
+## 生命周期与数据流
 
-1. 加载并合并 `DEFAULT_SETTINGS`，规范化删除历史。
-2. 设置 locale。
-3. 创建 RefConverter、ScopedReferenceConversion、ImageOptimizer、UploadService、UploadReferenceManager、ExplicitUploadWorkflow、managed paste 管线、delegated 生命周期协调器、BatchRename、RemoteReferenceIndex 和审计 writer。
-4. 按设置注册 ribbon、命令与设置页。
-5. 注册 paste/drop、Vault create/modify/delete/rename 和 file-menu 事件。
-
-Vault 中 Markdown 文件及 Editor 内容变化会使远程引用索引 stale；查询时同步重验打开 Editor 的绑定与内容。delegated paste/drop 先冻结来源笔记引用基线，再通过事务差异把新 `TFile` 与唯一新增引用配对，同来源笔记效果串行；图片 rename 链按最终路径合并为一个串行修复批次，并受 delegated 活跃/近期保护门禁约束。整理期间由 `isReorganizing` 阻止修复器与内部移动冲突。
-
-`ManagedPastePipeline` 封装 managed 模式从命名、路径、压缩、落盘、引用插入到可选上传及安全回收的完整事务。`note-scope.ts` 为转换与上传提供同一笔记范围语义，附件收集仍只属于 `upload-scope.ts`。`ScopedReferenceConversion` 复用安全笔记快照读写；`UploadReferenceManager` 统一上传引用渲染及按笔记安全批量写回；`ExplicitUploadWorkflow` 返回不含 Notice/剪贴板副作用的单图与范围上传结构化结果；`UploadLocalCleanup` 按当前模式本地副本偏好、实际引用替换结果及 fresh 孤立资格，通过回收站清理成功源并独立汇总。`main.ts` 只过滤事件输入、在 managed/delegated 之间分流并把结果投影到 Obsidian UI；资源整理继续通过插件公开的 `resolveImagePath()` 复用同一条路径规则。
-
-## 核心类型
-
-### 图床
-
-```text
-HostingType = aliyun-oss | qiniu | s3 | custom
-ImageHostingConfig
-  id/name/type/enabled
-  provider-specific config
-  uploadPath
-  urlPrefix
-  remoteManagement?
-```
-
-`urlPrefix` 是公开访问 URL 基础路径，可包含 bucket 或目录，不是上传 endpoint。`remoteManagement` 缺失时旧配置默认关闭。
-
-### 上传结果
-
-`UploadResult` 包含 success、url、objectKey、error、originalPath。Aliyun OSS、Qiniu、S3 成功必须有稳定 `objectKey`；Custom 只要求 URL，不能从 URL 猜 key。
-
-统一操作层还补充 hostingId、attempts、原始/上传大小，供当前操作汇总和远程会话失效使用；不持久化上传清单。
-
-### 远程对象
-
-- capability：`list | folders | preview | delete`
-- 引用状态：`referenced | possibly-referenced | not-referenced-in-current-vault | unmappable`
-- 对象元数据：hostingId、完整 key、size，可选 modified/etag/mime/storageClass/availability
-- cursor 属于 Provider，不透明透传
-- delete result 只能保守表达 `permanent | delete-marker | unknown`
-- reference index 只有 `empty | fresh | stale`
-
-`possibly-referenced` 是兼容状态，当前可靠 URL 扫描统一归入 `referenced`。
-
-## 关键业务数据流
+`onload()` 加载并规范化设置、初始化业务服务、注册 ribbon/命令/设置页与事件。构造服务不代表开始远程扫描。
 
 ```text
 paste/drop
-  → 命名/路径/冲突处理
-  → 可选 Canvas 压缩
-  → Vault 保存与引用插入
-  → 可选 UploadService
-  → 替换当前与其他笔记的本地引用
-  → 可选回收本地文件并清理空的直接附件目录
+  → main.ts 检查 defaultPrevented 并按 localManagementMode 分流
+  → managed: ManagedPastePipeline 保存本地图片和引用
+  → delegated: ObsidianDelegatedHandoff 观察宿主/外部创建与引用
+  → 可选 UploadService 上传
+  → 各自事务重验并替换引用
+  → fresh 本地引用检查后回收图片，再尝试非递归清理空目录
 ```
 
 ```text
-单图 / 文章 / 递归文件夹 / 全库笔记引用的图片
-  → ExplicitUploadWorkflow
-  → UploadService
-  → createUploader
-  → 结构化操作结果
-  → 默认或自定义引用
-  → 仅失效匹配 hostingId 的已打开远程会话
+单图 / 笔记范围显式上传
+  → ExplicitUploadWorkflow / createUploadPlan
+  → UploadService → createUploader
+  → UploadReferenceManager 批量快照写回
+  → UploadLocalCleanup 按当前模式偏好检查并回收
+  → 返回上传、引用更新和回收的独立结果，由 UI 显示
 ```
-
-粘贴自动上传不经过 `ExplicitUploadWorkflow`：managed/delegated 管线必须保留各自的事务重验、精确引用替换和本地回收门禁，但共享 `UploadService` 与 `UploadReferenceManager`。
 
 ```text
-显式远程扫描
-  → Provider.listObjects
-  → RemoteBrowseSession 聚合
-  → RemoteReferenceIndex 分类
-  → 本地搜索/排序/筛选与渐进卡片
-  → viewport 缩略图/大图预览
-  → fresh 门禁下的 RemoteDeleteSession
-  → 脱敏诊断记录
+用户扫描远程对象
+  → RemoteBrowseSession → RemoteObjectProvider
+  → RemoteReferenceIndex / object-reference-matcher
+  → 内存搜索/排序、viewport 缩略图和预览
+  → fresh + scope + snapshot + 确认门禁
+  → RemoteDeleteSession → 脱敏 audit → 用户重新扫描核实远端
 ```
 
-## 持久化与隐私
+`UrlPrefixMigration` 是独立的本地笔记改写流程：按笔记范围规划 URL 替换，复用 `note-content.ts` 写回；不发服务商请求。保存图床 URL 配置不会隐式执行迁移。
 
-- 所有插件设置保存在 Obsidian 插件 data 中，不访问 Vault 外文件。
-- 图床凭据随配置持久化；任何新增网络能力都必须有明确用户用途和帮助文案。
-- 不收集 telemetry，不上传 Vault 内容供分析，不获取或执行远程代码。
-- `remoteDeleteHistory` 最多 200 条，只保存完成时间、hostingId、key、成功状态和稳定结果码；没有历史 UI，也不是远程事实来源。
+Vault Markdown create/modify/delete/rename 与 editor-change 使远程引用索引 stale。图片 rename 同时通知 delegated、更新生命周期保护并交给 `ExternalRenameRepairCoordinator` 合并处理；整理期间通过 `isReorganizing` 门禁避免重复修复。
+
+## 共享一致性边界
+
+- `note-scope.ts` 统一转换、上传、整理、URL 迁移的笔记范围；范围决定目标笔记，不等于附件目录或全库写回边界。
+- `note-content.ts` 提供实时 Editor/Vault 快照和受保护写回；多个 Editor 分歧、内容或绑定变化、文件身份/路径变化时保留用户内容。不得在打开的 Editor 背后直接改已保存文本。
+- `local-image-resolution.ts` 统一可写本地引用解析；`LocalReferenceIndex` 是更广义的只读保留/删除判断，不作为格式转换的可写引用列表。
+- `UploadReferenceManager` 统一远程引用渲染与普通批量写回；粘贴事务仍保留各自的精确新增引用身份与重验，不强行并入显式上传路径。
+- `IndeterminateImageRegistry` 与 delegated 跟踪共同保护尚未稳定的图片；浏览、回收与外部重命名修复必须沿用对应门禁。
+
+## 类型、兼容字段与隐私
+
+类型结构从 [types.ts](../../../../src/types.ts) 和 [remote/types.ts](../../../../src/remote/types.ts) 读取。需要保留的语义：
+
+- 图床 `urlPrefix` 是可包含 bucket/目录的公开 URL base；`uploadPath` 是完整对象 key 模板。Custom 成功结果只有 URL，不由 URL 猜 objectKey。
+- 上传成功通知只用于失效相关远程会话；上传记录与删除 audit 都不是远端对象存在性证据。
+- `RemoteManagementConfig.pageSize` / `previewMode` 仍为旧 data 兼容字段，当前 UI 采用完整已扫描集合与 viewport 预览；`possibly-referenced` 也是兼容状态，不能据此放宽删除资格。
+- 设置由插件 data 持久化；图床凭据随配置保存，不打印完整配置。`remoteDeleteHistory` 只保留有界、脱敏的诊断记录，不参与删除资格或存在性判断。
+- 网络能力必须有明确产品用途；不收集 telemetry、不上传 Vault 内容作分析、不获取或执行远程代码。外部文件访问不是插件能力。

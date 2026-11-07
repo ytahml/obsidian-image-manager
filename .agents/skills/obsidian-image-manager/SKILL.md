@@ -5,24 +5,16 @@ description: Use when developing, debugging, testing, reviewing, refactoring, or
 
 # Obsidian Image Manager
 
-Canonical development guide for `md-image-manager`, a TypeScript Obsidian community plugin with no bundled runtime dependencies.
+Canonical development guide for `md-image-manager`, the Markdown Image Manager Obsidian plugin. Working agreements live in [AGENTS.md](../../../AGENTS.md); this skill owns implementation guidance.
 
 ## Required Workflow
 
-1. Inspect `git status`, the current branch, and the task-relevant source before deciding what to change.
-2. Read the task-relevant reference from the index below. For cross-cutting work, read every affected reference.
-3. Treat current code, these references, and the linked current design contracts as product truth; tickets, archived plans, and Git history are evidence only.
+1. Inspect `git status`, the current branch, and the task-relevant source before deciding what to change. Follow AGENTS.md for branch and publication boundaries.
+2. Route through the Reference Index. Read the relevant sections and their callers/tests; load additional sections only when the affected behavior crosses their boundary. The business rules below apply to every task.
+3. Verify implementation facts against current source and configuration. These references and current design contracts preserve intended behavior; resolve discrepancies instead of silently weakening a contract. Tickets, archived plans, and Git history are supporting evidence.
 4. Keep `src/main.ts` focused on lifecycle, commands, events, and orchestration. Put reusable behavior and protocol logic in focused modules.
-5. After changing behavior, architecture, settings, UI workflows, provider support, tests, or release workflows, update the relevant reference.
-6. Before committing, run `npm test`, `npm run build`, and `git diff --check`.
-
-## Product at a Glance
-
-- **Local files**: paste/drop saving, naming/path templates, Canvas compression, reference-aware gallery, preview, safe orphan cleanup, rename, and template-based reorganization.
-- **References**: Markdown and Wiki image parsing; one scoped command converts Wiki images to Markdown (default whole vault), while note/folder context menus run directly on the clicked scope. Generated Markdown paths keep Unicode readable and encode syntax-sensitive ASCII.
-- **Uploads**: Aliyun OSS, Qiniu, S3-compatible storage, and Custom HTTP. `UploadService` owns attempts; `ExplicitUploadWorkflow` owns single-image and scoped note/folder/vault uploads. Scope selects referenced images, optional replacement updates all Markdown notes (including outside scope), and explicit uploads honor the current mode's keep-local-copy preference with guarded orphan recycling after successful replacement. Paste coordinators retain their transaction semantics.
-- **Remote objects**: Aliyun OSS, Qiniu Kodo, and S3-compatible providers support explicit scan, virtual folders, card browsing, viewport thumbnails, preview, reference locations, and guarded deletion. Custom HTTP remains upload-only.
-- **Settings and UI**: Chinese/English, Obsidian 1.13.0 minimum, declarative settings, mobile-compatible where the host APIs permit.
+5. Update the owning reference when its behavior or guidance changes. Link to source for defaults, command lists, and tool versions rather than copying them into more documents.
+6. Complete the [validation appropriate to the change](references/development.md#验证选择), including documentation checks for skill-only edits. Report automated checks, real Obsidian/provider acceptance, and publication separately.
 
 ## Non-Negotiable Business Rules
 
@@ -32,34 +24,24 @@ Canonical development guide for `md-image-manager`, a TypeScript Obsidian commun
 - Any reliably mapped remote URL in supported Markdown content counts as `referenced`, regardless of whether it appears as an image, link, HTML, frontmatter, Wiki wrapper, or raw URL.
 - Only a completed fresh Markdown index may return `not-referenced-in-current-vault`. Empty, stale, aborted, ambiguous, or unmappable states must never enable deletion.
 - Remote deletion requires matching hosting, prefix, scan snapshot, exact-count confirmation and acknowledgement; selection count is uncapped, requests remain limited to two concurrent operations, and there is no automatic retry.
-- Local orphan cleanup rescans before confirmation and again at execution, then uses `fileManager.trashFile()` only for files that remain orphaned.
+- Local orphan cleanup rescans before confirmation and again at execution, then uses `fileManager.trashFile()` only for files that remain orphaned. Upload-time empty-folder cleanup is a separate [nonrecursive operation](references/local-image-workflows.md#空附件目录清理).
 - Upload success may invalidate an open matching remote session, but neither upload results nor delete history prove current remote existence.
 - Custom reference templates require `{fileUrl}`. Unknown variables or unavailable requested dimensions safely fall back to Markdown.
 - Do not expose provider response bodies, signed query values, credentials, or presigned URLs in errors, audit records, or UI.
 
-## Known Code Boundaries
-
-- `migrate-images` is no longer registered: migration types remain for compatibility, but there is no migration engine or history UI. Never register placeholder commands.
-- Scope-specific duplicate IDs `convert-reference-format-vault`, `convert-to-md`, and `upload-note-images` are intentionally no longer registered; the unified `convert-reference-format` and `batch-upload` entries default to the whole vault.
-- Restore-local-reference has no command or implementation; unused placeholder translations have been removed.
-- Custom HTTP hosting has no common object protocol and must not be given generic list/preview/delete behavior by guessing from its returned URL.
-- `RemoteManagementConfig.pageSize` and `previewMode` remain only for old `data.json` compatibility; current UI has no result pagination and normalizes previews to viewport loading.
-
 ## Tooling Constraints
 
-- Use npm, TypeScript 5.8 strict checking, esbuild, Vitest, and `eslint-plugin-obsidianmd`.
-- TypeScript libraries include DOM and ES2017. Avoid later APIs such as `flatMap` or `matchAll` unless the target is intentionally upgraded.
-- Use Obsidian `requestUrl`, Web Crypto, DOM helpers, active-document APIs, window timers, and `instanceof TFile/TFolder`.
-- Do not add runtime dependencies, telemetry, hidden network calls, remote code execution, or out-of-vault file access.
-- Never suppress `obsidianmd/*` rules with `eslint-disable`.
+- Use npm and the repository's scripts, compiler settings, and Obsidian ESLint rules; see [development.md](references/development.md). The plugin has no bundled runtime dependencies.
+- Use Obsidian `requestUrl`, Web Crypto, and public host APIs. Production file operations stay within the Vault; the existing desktop Node helper is limited to the documented empty-folder cleanup, not a general filesystem escape hatch.
+- Do not add runtime dependencies, telemetry, hidden network calls, remote code execution, or out-of-vault operations. Never suppress `obsidianmd/*` rules with `eslint-disable`.
 
 ## Reference Index
 
 | Topic | Read when |
 | --- | --- |
 | [architecture.md](references/architecture.md) | Orienting in the repository, changing commands, types, lifecycle, module boundaries, or feature scope |
-| [local-image-workflows.md](references/local-image-workflows.md) | Changing paste/drop, paths, references, compression, local browser, orphan cleanup, rename, or reorganization |
-| [hosting-and-remote.md](references/hosting-and-remote.md) | Changing upload orchestration, provider signing, remote scan/preview/reference/delete behavior, or provider capabilities |
-| [settings-and-ui.md](references/settings-and-ui.md) | Changing defaults, settings, hosting configuration, modals, CSS, i18n, or mobile behavior |
-| [development.md](references/development.md) | Adding features/providers, fixing lint/test/build issues, releasing, troubleshooting, or updating documentation |
+| [local-image-workflows.md](references/local-image-workflows.md) | Paste/drop, paths, local references/compression, orphan cleanup, rename/reorganization, or desktop filesystem warnings |
+| [hosting-and-remote.md](references/hosting-and-remote.md) | Upload orchestration, provider signing, URL prefix migration, remote scan/preview/reference/delete, or provider capabilities |
+| [settings-and-ui.md](references/settings-and-ui.md) | Settings/default migration, hosting configuration, modals, shared card gestures, CSS, i18n, or mobile layouts |
+| [development.md](references/development.md) | Selecting checks, lint/build/scanner failures, release preparation, or maintaining project guidance |
 | [docs/design/README.md](../../../docs/design/README.md) | Creating or retiring a durable product decision; completed designs are archived and not part of the default task route |

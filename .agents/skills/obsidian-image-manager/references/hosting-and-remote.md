@@ -1,5 +1,17 @@
 # 图床上传与远程对象管理
 
+按任务阅读：[上传](#上传路径与结果) · [公共 URL / 迁移](#公共-url-与引用) · [引用模板](#自定义引用模板) · [签名协议](#provider-特有上传协议) · [扫描](#扫描会话与结果) · [预览](#预览与流量) · [引用索引](#远程引用索引) · [删除](#删除安全)。
+
+| 实现问题 | 源码入口 |
+| --- | --- |
+| 上传范围、重试、引用写回、本地副本 | [uploaders/](../../../../src/uploaders)：`upload-scope.ts`、`UploadService`、`UploadQueue`、`ExplicitUploadWorkflow`、`UploadReferenceManager`、`UploadLocalCleanup` |
+| 原生 key / 公共 URL / 模板 | [upload-path.ts](../../../../src/uploaders/upload-path.ts)、[public-url.ts](../../../../src/uploaders/public-url.ts)、[reference-template.ts](../../../../src/utils/reference-template.ts) |
+| Provider / 请求 / 错误 | [provider-factory.ts](../../../../src/remote/provider-factory.ts)、[providers/](../../../../src/remote/providers)、[request.ts](../../../../src/remote/request.ts)、[errors.ts](../../../../src/remote/errors.ts) |
+| 远程会话、索引、删除 | [remote/](../../../../src/remote)：`browse-session.ts`、`preview-session.ts`、`thumbnail-session.ts`、`reference-index.ts`、`object-reference-matcher.ts`、`delete-policy.ts`、`delete-session.ts`、`delete-audit.ts` |
+| URL 前缀迁移 | [url-prefix-migration.ts](../../../../src/remote/url-prefix-migration.ts)、[设计契约](../../../../docs/design/url-prefix-migration.md) |
+
+对应自动测试见 [测试导航](development.md#测试导航)；上传和远程管理分别核对生产入口，不能从一个协议的测试推断另一个协议已验证。
+
 ## 上传器架构
 
 ```text
@@ -10,7 +22,7 @@ UploaderBase
 └── CustomUploader
 
 UploadService    文件/数据上传、重试与结构化结果
-UploadQueue      范围上传的 3 worker、逐项身份/结果与完成进度
+UploadQueue      范围上传队列、逐项身份/结果与完成进度
 upload-scope.ts   全库/递归文件夹/文章笔记范围、图片去重与源版本快照
 ExplicitUploadWorkflow  单图、范围显式上传及分阶段结构化汇总
 UploadReferenceManager  上传引用准备、渲染与普通 Vault 替换
@@ -52,7 +64,7 @@ public-url.ts    公共 URL base 规范化与拼接
 
 汇总分别报告上传成功/失败、成功但未采用的源结果、更新笔记/引用/范围外笔记数，以及扫描跳过、笔记冲突/读写失败。显式上传共用当前模式的 `managedKeepLocalCopy` / `delegatedKeepLocalCopy`，不受粘贴自动上传开关门控，禁止重叠显式上传；managed/delegated 自动上传保留原有事务路径。
 
-`UploadLocalCleanup` 在操作开始捕获模式与保留偏好。关闭保留时，只有成功且至少一处引用实际写回的源图片才可回收；本次引用写回存在任何冲突/失败时保守保留全部候选。未开启替换、零替换、未采用的源结果均保留。回收前重验模式/偏好、源身份/版本与生命周期保护，并做两次全库孤立扫描；扫描期间文件集/版本、打开 Editor 集合/绑定/内容发生变化或多个 Editor 分歧则保留。回收前保存父目录，调用 `fileManager.trashFile()` 回收图片。桌面文件系统随后尝试非递归清理空的直接父目录，不删除上层目录。`localCopies` 独立报告回收、保留/跳过及检查/操作失败数量，不能把回收失败当作上传失败。
+`UploadLocalCleanup` 在操作开始捕获模式与保留偏好。关闭保留时，只有成功且至少一处引用实际写回的源图片才可回收；本次引用写回存在任何冲突/失败时保守保留全部候选。未开启替换、零替换、未采用的源结果均保留。回收前重验模式/偏好、源身份/版本与生命周期保护，并做两次全库孤立扫描；扫描期间文件集/版本、打开 Editor 集合/绑定/内容发生变化或多个 Editor 分歧则保留。回收前保存父目录，调用 `fileManager.trashFile()` 回收图片。桌面端随后按 [空附件目录规则](local-image-workflows.md#空附件目录清理) 清理直接父目录，不删除上层目录。`localCopies` 独立报告回收、保留/跳过及检查/操作失败数量，不能把回收失败当作上传失败。
 
 重试只在统一编排层发生。`UploadQueue` 启动 3 个 worker，并为每文件向 Service 配置最多 3 次重试。队列保存失败项，完成进度包含成功和失败。成功 listener 只在上传成功后发布；失败不发布远程会话失效。
 
@@ -141,14 +153,18 @@ public-url.ts    公共 URL base 规范化与拼接
 
 `RemoteRequestClient` 是 `requestUrl` 的可注入边界。`RemoteProviderError` 只发布分类、HTTP status、retryable 与去除账号/query/fragment 的 endpoint，不保留原始响应正文或 headers。
 
+### 错误脱敏的实现边界
+
+全局要求是错误、日志和 UI 不暴露原始 provider 响应或凭据；该要求不代表所有旧路径已合规。远程管理有上述结构化错误边界，但现有 [Aliyun 上传器](../../../../src/uploaders/aliyun-oss.ts)、[Qiniu 上传器](../../../../src/uploaders/qiniu.ts)、[S3 上传器](../../../../src/uploaders/s3-compatible.ts) 的 HTTP 失败路径仍将 `resp.text` 拼入 `UploadResult.error`，`UploadService` 会传递该字符串，部分路径还记录原始响应。修改上传错误处理时，需沿 uploader → Service → 调用方/Notice 验证脱敏；不能以 remote provider 测试通过宣称所有上传错误已脱敏。
+
 ## 扫描会话与结果
 
-初始打开、切换图床和打开文件夹选择器以外的浏览器初始化不能自动扫描对象。
+打开浏览器或切换图床只初始化视图，不自动扫描对象。用户打开文件夹选择器时可以查询该层目录；这与显式递归扫描对象是两条入口。
 
 用户显式扫描后：
 
 - Provider 单次 `limit` 最多 1000。
-- `RemoteBrowseSession` 每批最多连续发出 10 次 list 请求，然后暂停等待继续。
+- `RemoteImageBrowserView` 将每批 list 请求限制为 10 次，然后等待用户继续；`RemoteBrowseSession.loadNextBatch()` 本身使用调用方传入的 `maxRequests`，不自带固定 10 次上限。
 - cursor 原样透传；truncated=true 但没有 usable cursor 是协议错误。
 - stop、scope 变化、refresh、关闭会话通过 generation 隔离迟到结果；当前接口不承诺取消已发出的 HTTP。
 - refresh 从当前 prefix 第一页重扫。
@@ -204,7 +220,7 @@ Vault Markdown create/modify/delete/rename 与 editor-change 使索引 stale，�
 
 Markdown 图片的 URL 从原始目标位置提取，识别双/单引号标题、尖括号和配对括号，避免截断目标或把标题拼进对象 key；普通 URL 扫描继续补充其他语法。
 
-索引记录 note path 与一基显示前转换的行位置。query values 不进入索引或错误，仅可保留 query parameter 名。Provider mapping 可声明应忽略的 query 名。
+索引记录 note path 与一基显示前转换的行位置，不保留 query values 或 fragment。`queryParameterNames` 与 mapping 的 `ignoredQueryParameters` 字段仍存在，但当前 `object-reference-matcher.ts` 按 origin/path 映射，未使用该忽略列表；不能把修改该字段描述为已经生效的匹配策略。
 
 映射原则：
 
@@ -215,6 +231,8 @@ Markdown 图片的 URL 从原始目标位置提取，识别双/单引号标题�
 - 索引完成前、stale、abort 或 mapping 歧义不能声明未引用。
 
 ## 删除安全
+
+`not-referenced-in-current-vault` 只表示当前 Vault 未检测到引用，不表示可以安全删除；其他 Vault、网站和应用仍可能使用对象。
 
 可选择条件必须全部满足：
 
@@ -229,7 +247,7 @@ Markdown 图片的 URL 从原始目标位置提取，识别双/单引号标题�
 执行边界：
 
 - “选择当前结果”只加入当前搜索与引用筛选结果中的可删除对象；“清空选择”清除包括当前隐藏项在内的全部选择。
-- 普通复选框点击建立 Shift 锚点；Shift 点击另一复选框按完整内存结果的当前筛选/排序顺序选择或取消区间中的可删除对象，不能依赖渐进渲染的 DOM 卡片。搜索、筛选、排序或扫描结果变化会清除锚点；搜索结果应用时也会清除防抖期间重新建立的锚点，而不清空已有选择。普通卡片单击切换当前项选中/取消，Ctrl/Cmd + 单击同样切换当前项选中/取消，不清除其他可见或隐藏选择；卡片手势复用同一资格重验和锚点入口，Shift + 单击卡片与复选框采用相同的区间选中/取消规则；Ctrl/Cmd + Shift 只追加区间。双击卡片或独立预览按钮只打开预览；共享卡片手势处理器在原生第二次 click 时撤销首击实际改变的各项选择（含 Shift 区间）并恢复锚点。`applyRemoteSelectionGesture()` 返回撤销回调，仅记录变化 ID；恢复时重新取得删除上下文并调用 `replaceSelection()` 重验，不绕过 fresh/scope/snapshot 等资格校验，不覆盖区间外的变化或整个集合。不可删除但支持预览的对象仍可预览，不支持预览的对象不因手势变化绕过能力限制。复选框/标签、预览与重试按钮的 click/dblclick 隔离，重试子控件的键盘事件不触发缩略图预览。
+- 单击、Shift 区间、双击与键盘行为见 [共享卡片交互](settings-and-ui.md#共享卡片交互)。远程 `applyRemoteSelectionGesture()` 的撤销只记录变化 ID；恢复时重新取得上下文并经 `replaceSelection()` 校验 fresh/scope/snapshot 等资格，不覆盖整个旧集合。不可删除但支持预览的对象仍可预览；不支持预览的对象不能由手势绕过 capability。
 - 选择数量不设上限；无论选择多少对象，都不能放宽逐对象资格验证、精确数量确认、两请求并发和无自动重试边界。
 - 创建 batch 后记录配置、prefix、scan/index 时间；执行前验证漂移。
 - 确认 Modal 要求输入精确数量并勾选不可撤销确认。

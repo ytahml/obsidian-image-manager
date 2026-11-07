@@ -1,44 +1,24 @@
 # 设置、Modal 与国际化
 
+按任务阅读：[设置与迁移](#设置模型与默认值) · [声明式设置](#obsidian-113-声明式设置) · [图床配置](#hostingconfigmodal) · [共享卡片交互](#共享卡片交互) · [范围操作](#笔记范围操作) · [Modal](#modal-通用约束) · [i18n](#i18n)。
+
 ## 设置模型与默认值
 
-`ImageManagerSettings` 的持久化字段：
+默认值直接查源码，文档不维护第二份字段清单：
 
-| 字段 | 默认值 | 业务作用 |
-| --- | --- | --- |
-| `locale` | `en` | `en` / `zh` |
-| `imagePathTemplate` | `attachments` | 粘贴图片目标路径 |
-| `imagePathBase` | `note` | `vault` / `note` 路径基准 |
-| `supportedExtensions` | png/jpg/jpeg/gif/bmp/svg/webp/ico/tiff/avif | 本地扫描与命令识别 |
-| `localManagementMode` | `managed` | 新附件本地管理权：`managed` / `delegated` |
-| `managedPasteReferenceFormat` | `markdown` | managed 粘贴引用格式 |
-| `compressManagedPasteLocal` | false | managed 粘贴时修改本地附件 |
-| `compressBeforeUpload` | false | 只压缩上传载荷 |
-| `compressQuality` | 80 | 1–100 |
-| `thumbnailSize` | 200 | 本地卡片 80–400 |
-| `localImageBrowserSort` | 名称/升序 | 本地浏览器的字段与方向偏好 |
-| `remoteImageBrowserSort` | 名称（key）/升序 | 所有图床共享的远程浏览器字段与方向偏好 |
-| `imageNamingTemplate` | `image-{timestamp}` | 粘贴命名 |
-| `promptImageName` | false | 粘贴/拖放命名 Modal |
-| `hostingConfigs` | `[]` | 图床列表 |
-| `defaultHostingId` | `''` | 多个启用图床时的默认项 |
-| `uploadPathTemplate` | `images/{year}/{month}/{hash}.{ext}` | 原生图床全局 fallback |
-| `autoReplaceAfterUpload` | false | 单图上传后替换本地引用；范围上传对话框替换选项的初始值，本次选择不反写设置 |
-| `customReferenceTemplate` | `''` | 上传后自定义文本引用 |
-| `reorganizeConvertFormat` | true | 显式整理时是否转换为 Markdown |
-| `skipWikiRefsOnReorganize` | true | 整理时是否跳过 Wiki |
-| `enableImageBrowser` | true | ribbon 与 browser command |
-| `managedAutoUploadOnPaste` | false | managed 粘贴后自动上传 |
-| `delegatedAutoUploadOnPaste` | false | delegated 粘贴后接力上传 |
-| `managedKeepLocalCopy` | false | managed 模式的粘贴自动上传与显式上传是否保留本地文件 |
-| `delegatedKeepLocalCopy` | false | delegated 模式的粘贴自动上传与显式上传是否保留本地文件 |
-| `remoteDeleteHistory` | `[]` | 最近 200 条脱敏诊断 |
+| 需要修改的事实 | 权威入口 |
+| --- | --- |
+| 持久化类型、默认值、旧字段迁移与排序规范化 | [types.ts](../../../../src/types.ts)：`ImageManagerSettings`、`DEFAULT_SETTINGS`、`normalizeImageManagerSettings()` |
+| 设置加载、审计历史规范化与保存副作用 | [main.ts](../../../../src/main.ts)：`loadSettings()` / `saveSettings()` |
+| 声明式控件、可见性与图床列表 | [settings.ts](../../../../src/settings.ts)：`getSettingDefinitions()` |
+| 远程配置默认值、prefix 与 alias 校验 | [management-settings.ts](../../../../src/remote/management-settings.ts) |
+| 迁移 / 设置回归 | [settings-migration.test.ts](../../../../tests/settings-migration.test.ts)、[declarative-settings.test.ts](../../../../tests/declarative-settings.test.ts) |
 
-加载设置使用 `Object.assign({}, DEFAULT_SETTINGS, loaded)` 兼容旧 data，不能修改默认值对象；新增字段必须提供默认值和必要规范化。浏览器排序偏好只接受支持的字段与 `asc`/`desc`，缺失或无效值回退为名称/升序。
+加载通过 `normalizeImageManagerSettings()` 合并并规范化旧 data，不是直接读取 `DEFAULT_SETTINGS`。新增字段提供默认值与必要规范化，不修改共享默认对象。浏览器排序只接受支持的字段与 `asc`/`desc`，无效输入回退；模板 placeholder 复用实际默认常量。
 
 ## 本地管理与图床接力
 
-`localManagementMode` 决定自动 paste/drop 的本地管理权，并选择包括显式上传在内的本地副本偏好。managed/delegated 分别保存自动上传和本地副本偏好，切换线路只改变当前读取哪组偏好，不重置任一组值。旧 `autoUploadOnPaste` / `keepLocalCopy` 加载时分别复制到两条线路，然后不再持久化旧字段。
+`localManagementMode` 决定自动 paste/drop 的本地管理权，并选择包括显式上传在内的本地副本偏好。managed/delegated 分别保存自动上传和本地副本偏好，切换线路只改变当前读取哪组偏好，不重置任一组值。缺少新模式字段时，旧 `autoUploadOnPaste` 的迁移还依赖旧引用格式与启用图床；已有模式时保留该模式下的旧开关语义。两条线路各自显式的新值优先于旧值。`autoUploadOnPaste` / `keepLocalCopy` 迁移后移除；其他旧字段的处理以 normalizer 和迁移测试为准。
 
 移动端 managed 的“保留本地副本”说明追加暂存规则：自动上传且关闭保留时，若附件目录不存在则先保存于笔记目录，失败时保留图片与本地引用。该行为使用现有偏好，不新增设置。
 
@@ -98,12 +78,16 @@ Modal 分为固定基础区和 capability 门控正文：
 | S3 | endpoint、region、accessKeyId、secretAccessKey、bucket、forcePathStyle |
 | Custom | uploadUrl、method、headers、fileFieldName、jsonPath、extraBody |
 
+### URL 前缀迁移入口
+
+编辑已有非 Custom 图床时，公共访问 URL 字段旁提供显式“迁移历史引用”按钮，打开预填弹窗；保存配置本身不执行迁移。`previousUrlPrefix` 保留清空前的旧 base。匹配、预览失效与写回保护见 [公共 URL 与引用](hosting-and-remote.md#公共-url-与引用)，UI 回归见 [migrate-url-prefix-dialog.test.ts](../../../../tests/migrate-url-prefix-dialog.test.ts)。
+
 ### 远程管理字段
 
 - enabled：旧配置默认 false。
 - prefix：空值表示当前 bucket 根；保存时仅清理首尾 `/`。
 - previewAccess：`presigned | public`；旧配置默认 presigned。
-- publicUrlAliases：多行、一行一个，只接受无账号/query/fragment 的 HTTP(S) base。
+- publicUrlAliases：多行、一行一个 HTTP(S) base，可省略协议并按 HTTPS 校验/使用；不接受账号、query 或 fragment。
 - pageSize/previewMode：保留旧 data 兼容，当前 UI 不再暴露分页或手动缩略图模式。
 
 远程管理关闭时折叠后续字段。帮助文案必须说明显式扫描后 viewport 图片会产生对象读取与原图流量，不提供独立 delete toggle。
@@ -113,21 +97,24 @@ Modal 分为固定基础区和 capability 门控正文：
 共同外壳：
 
 - 标题与“本地图片 / 图床图片”页签在响应式 header。
-- 桌面 Modal 最大约 1100px × 84vh；移动端保留 8–12px 安全边距。
-- 本地与远程网格采用相同列宽规则：常规最小列宽 170px、间距 12px，在标准宽屏 Modal 中每排 5 张；视口不超过 600px 时最小列宽 140px、间距 8px，随可用宽度自动减少列数，不强制窄屏挤入 5 列。
+- Modal 尺寸、移动断点与列宽以 [styles.css](../../../../styles.css) 为准。本地/远程网格共享响应式列宽规则，列数由可用宽度决定，不承诺固定每排数量；窄屏保留安全边距。
 - 切页与关闭要释放 observer/URL/session，并隔离迟到任务。
+
+### 共享卡片交互
+
+本节是本地与远程卡片交互的共同约束。实现入口：[selection-range.ts](../../../../src/utils/selection-range.ts) 的 `createCardSelectionHandler()` / 区间与撤销工具，[image-browser.ts](../../../../src/modals/image-browser.ts) 与 [remote-image-grid.ts](../../../../src/modals/remote-image-grid.ts) 接线；远程选择资格由 `RemoteImageBrowserView` / `RemoteDeleteSession` 重验。
 
 状态与选择语义保持一致：
 
 - 本地与远程浏览器分别记忆最后的排序字段与方向；远程偏好不按图床隔离。
 - 方向按钮显示当前升序或降序，并提供同样本地化的 `aria-label`；排序只重排当前内存结果，不触发扫描或远程 list 请求。
 - 两页都提供“选择当前结果”和“清空选择”；前者只作用于当前搜索/筛选结果中的可删除项，后者清空全部选择。
-- 普通卡片单击切换当前项选中/取消；Ctrl/Cmd + 单击同样切换当前项选中/取消，不清除其他可见或隐藏选择。选择资格不变，不可选项不会进入待删除集合。macOS 使用 Cmd；原生 Ctrl + 点击可能被宿主转为 `contextmenu`，不强制劫持系统右键语义。
-- 双击卡片只预览：原生第二次 click 撤销首击实际改变的各项选择（含 Shift 区间）并恢复锚点，随后 dblclick 打开预览。无需延迟普通单击，也不会留下跨搜索重绘/切页的待执行定时器；复选框/标签、预览按钮和远程重试按钮隔离 click/dblclick 冒泡。
-- 搜索结果更新时清除 Shift 选择锚点（包括防抖期间重新建立的锚点），但保留已选项；下一次 Shift 卡片或复选框操作在没有锚点时只作用于当前项。
-- Shift + 单击卡片或复选框，按当前完整结果顺序选中/取消锚点到目标间的可选项：目标未选时选中区间，已选时取消区间，区间外选择保留；Ctrl/Cmd + Shift 只追加区间。移动端可单击选中/取消，也可用复选框操作或独立预览按钮打开预览，不依赖修饰键或双击。
+- 普通卡片单击切换当前项选中/取消；Ctrl/Cmd + 单击同样切换当前项选中/取消，不清除其他可见或隐藏选择。选择资格不变，不可选项不会进入待删除集合；不可选但具备预览能力的项仍可预览。macOS 使用 Cmd；原生 Ctrl + 点击可能被宿主转为 `contextmenu`，不强制劫持系统右键语义。
+- 双击卡片只预览：原生第二次 click 撤销首击实际改变的各项选择（含 Shift 区间）并恢复锚点，随后 dblclick 打开预览。撤销只记录变更项，不恢复整个旧集合；恢复时重验当前删除资格。无需延迟普通单击，也不留下跨搜索重绘/切页的待执行定时器；复选框/标签、预览按钮和远程重试按钮隔离 click/dblclick 冒泡。
+- 搜索、筛选、排序或扫描结果变化时清除 Shift 选择锚点；搜索结果应用时再次清除防抖期间新建的锚点，但保留已选项；下一次 Shift 卡片或复选框操作在没有锚点时只作用于当前项。
+- Shift + 单击卡片或复选框，按当前完整筛选/排序结果而非已渲染 DOM 计算区间，选中/取消锚点到目标间的可选项：目标未选时选中区间，已选时取消区间，区间外选择保留；Ctrl/Cmd + Shift 只追加区间。移动端可单击选中/取消，也可用复选框操作或独立预览按钮打开预览，不依赖修饰键或双击。
 - 原生预览按钮支持键盘；远程缩略图区保留 Enter/空格预览并忽略 IME 和子控件冒泡的 keydown。焦点样式覆盖预览按钮、远程缩略图区和复选框。
-- 本地与远程预览按钮共用 `.image-browser-card-preview`：按内容宽度布局、最大宽度不超过卡片、水平 margin 为 0，与卡片内容左边缘对齐，上间距统一为 8px；通过 `align-self: flex-start` 覆盖本地父卡片的居中对齐，不依赖父卡片是 flex 还是普通块布局。
+- 本地与远程预览按钮共用 `.image-browser-card-preview`，按内容宽度且不超过卡片、与内容左边缘对齐；不得因父卡片的布局差异造成两页按钮错位。具体样式在 styles.css 单处维护。
 - 选择工具栏在窄屏允许摘要独占一行、按钮换行，并保持原生键盘焦点与禁用状态。
 - 绿色：已引用
 - 橙色：孤立图片
@@ -157,7 +144,7 @@ Modal 分为固定基础区和 capability 门控正文：
 - `ConfirmDialog` 的取消按钮、Escape 和关闭叉号都属于未确认关闭，必须恰好调用一次 `onCancel`；确认已经开始后关闭不得再投影为取消。
 - onClose 清理 content、listener、observer、临时 URL 和会话。
 - 使用 Obsidian ButtonComponent/Setting/DOM helpers，避免手写不兼容结构。
-- 标题使用 `new Setting().setName(...).setHeading()`，不要创建手写 h3。
+- 设置项分组标题使用 `new Setting().setName(...).setHeading()`；这不要求把 Modal 自身的 h2 标题改成 Setting。
 - 事件与查询使用 `activeDocument`；timer 使用 `window.*`。
 
 ## CSS 与主题
