@@ -13,6 +13,13 @@ export interface RenameResult {
     notesUpdated: number;
 }
 
+interface RenameNoteWrite {
+    file: TFile;
+    path: string;
+    original: string;
+    updated: string;
+}
+
 export class BatchRename {
     private app: App;
     private refConverter: RefConverter;
@@ -29,34 +36,61 @@ export class BatchRename {
      */
     async renameImage(file: TFile, newName: string): Promise<RenameResult> {
         const oldName = file.name;
+        const oldPath = file.path;
         const parentDir = file.parent?.path ?? '';
         const newPath = parentDir ? `${parentDir}/${newName}` : newName;
+        const writes: RenameNoteWrite[] = [];
 
-        // Update references BEFORE vault.rename() — Obsidian auto-updates links
-        // after rename, which conflicts with our own updates
-        const notesUpdated = await this.updateReferencesBeforeRename(file, oldName, newName);
+        try {
+            // Update references before the host's own link updater runs.
+            const notesUpdated = await this.updateReferencesBeforeRename(file, oldName, newName, writes);
+            if (file.path !== oldPath || this.app.vault.getAbstractFileByPath(oldPath) !== file) {
+                throw new Error('Image changed during rename');
+            }
 
-        // Rename the file
-        await this.app.vault.rename(file, newPath);
+            await this.app.vault.rename(file, newPath);
 
-        const renamedFile = this.app.vault.getAbstractFileByPath(newPath);
-        if (!(renamedFile instanceof TFile)) {
-            throw new Error(`Failed to rename file: ${newPath}`);
+            const renamedFile = this.app.vault.getAbstractFileByPath(newPath);
+            if (!(renamedFile instanceof TFile)) {
+                throw new Error(`Failed to rename file: ${newPath}`);
+            }
+
+            return { file: renamedFile, oldName, newName, notesUpdated };
+        } catch (error) {
+            // Do not restore old links if the file has already moved or been replaced.
+            if (file.path === oldPath && this.app.vault.getAbstractFileByPath(oldPath) === file) {
+                const unrestored = await this.rollbackReferences(writes);
+                if (unrestored.length) throw new Error(`Image rename failed; rollback incomplete: ${unrestored.join(', ')}`);
+            }
+            throw error;
         }
+    }
 
-        return {
-            file: renamedFile,
-            oldName,
-            newName,
-            notesUpdated,
-        };
+    private async rollbackReferences(writes: readonly RenameNoteWrite[]): Promise<string[]> {
+        const unrestored: string[] = [];
+        for (const write of [...writes].reverse()) {
+            try {
+                if (write.file.path !== write.path || this.app.vault.getAbstractFileByPath(write.path) !== write.file) {
+                    throw new Error('Note moved or replaced');
+                }
+                const snapshot = await readNoteSnapshot(this.app, write.file);
+                if (snapshot.content === write.original) continue;
+                if (snapshot.content !== write.updated ||
+                    await writeNoteSnapshot(this.app, write.file, snapshot, write.original) === 'conflict') {
+                    throw new Error('Note changed after reference update');
+                }
+            } catch {
+                unrestored.push(write.path);
+            }
+        }
+        return unrestored;
     }
 
     /**
      * 在 vault.rename() 之前更新引用，避免与 Obsidian 内置链接更新器冲突
      * vault.rename() 会触发 Obsidian 自动更新 wiki 链接，导致我们的更新被覆盖
      */
-    private async updateReferencesBeforeRename(file: TFile, oldName: string, newName: string): Promise<number> {
+    private async updateReferencesBeforeRename(file: TFile, oldName: string, newName: string, writes: RenameNoteWrite[]): Promise<number> {
         const oldPath = file.path;
         const mdFiles = this.app.vault.getMarkdownFiles();
         const lookup = createLocalFileLookup(this.app.vault.getFiles());
@@ -90,8 +124,14 @@ export class BatchRename {
             }
 
             if (changed) {
-                const result = await writeNoteSnapshot(this.app, mdFile, snapshot, newContent);
-                if (result === 'conflict') throw new Error('Note changed during image rename');
+                // Journal before writing: a host write can change content and still reject.
+                writes.push({ file: mdFile, path: snapshot.path, original: content, updated: newContent });
+                const result = await writeNoteSnapshot(this.app, mdFile, snapshot, newContent,
+                    () => file.path === oldPath && this.app.vault.getAbstractFileByPath(oldPath) === file);
+                if (result === 'conflict') {
+                    writes.pop();
+                    throw new Error('Note changed during image rename');
+                }
                 updatedCount++;
             }
         }

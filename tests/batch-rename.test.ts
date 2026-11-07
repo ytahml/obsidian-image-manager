@@ -42,6 +42,23 @@ function fixture(initial: string, filename = 'photo.png') {
     return { app, target, other, note, views, rename, getContent: () => content, setContent: (value: string) => { content = value; } };
 }
 
+function multiNoteFixture() {
+    const f = fixture('![](a/photo.png)');
+    const second = file('second.md');
+    const files = [...f.app.vault.getFiles(), second];
+    const contents = new Map([[f.note, '![](a/photo.png)'], [second, '![](a/photo.png)']]);
+    f.app.vault.getFiles = () => files;
+    f.app.vault.getMarkdownFiles = () => [f.note, second];
+    f.app.vault.getAbstractFileByPath = path => files.find(item => item.path === path) ?? null;
+    f.app.vault.read = async note => contents.get(note)!;
+    f.app.vault.process = async (note, update) => {
+        const next = update(contents.get(note)!);
+        contents.set(note, next);
+        return next;
+    };
+    return { ...f, second, contents };
+}
+
 describe('BatchRename explicit image rename', () => {
     it('updates only references to the target identity and preserves remote and ambiguous targets', async () => {
         const untouched = [
@@ -70,6 +87,54 @@ describe('BatchRename explicit image rename', () => {
         expect(f.rename).not.toHaveBeenCalled();
     });
 
+    it('restores earlier references when a later note conflicts', async () => {
+        const f = multiNoteFixture();
+        const process = f.app.vault.process.bind(f.app.vault);
+        f.app.vault.process = async (note, update) => {
+            if (note === f.second) f.contents.set(note, '![](a/photo.png)\nnew user text');
+            return process(note, update);
+        };
+        await expect(new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png')).rejects.toThrow();
+        expect(f.contents.get(f.note)).toBe('![](a/photo.png)');
+        expect(f.contents.get(f.second)).toBe('![](a/photo.png)\nnew user text');
+        expect(f.rename).not.toHaveBeenCalled();
+    });
+
+    it('restores earlier references when a later note cannot be read', async () => {
+        const f = multiNoteFixture();
+        f.app.vault.read = async note => {
+            if (note === f.second) throw new Error('read failed');
+            return f.contents.get(note)!;
+        };
+        await expect(new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png')).rejects.toThrow('read failed');
+        expect(f.contents.get(f.note)).toBe('![](a/photo.png)');
+        expect(f.rename).not.toHaveBeenCalled();
+    });
+
+    it('restores references if the file rename fails', async () => {
+        const f = multiNoteFixture();
+        f.rename.mockRejectedValue(new Error('rename failed'));
+        await expect(new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png')).rejects.toThrow('rename failed');
+        expect([...f.contents.values()]).toEqual(['![](a/photo.png)', '![](a/photo.png)']);
+        expect(f.target.path).toBe('a/photo.png');
+    });
+
+    it('preserves edits to previously changed notes and reports incomplete rollback', async () => {
+        const f = multiNoteFixture();
+        const process = f.app.vault.process.bind(f.app.vault);
+        f.app.vault.process = async (note, update) => {
+            if (note === f.second) {
+                f.contents.set(f.note, '![](a/renamed.png)\nnew user text');
+                f.contents.set(note, '![](a/photo.png)\nother edit');
+            }
+            return process(note, update);
+        };
+        await expect(new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png')).rejects.toThrow(/rollback incomplete/);
+        expect(f.contents.get(f.note)).toBe('![](a/renamed.png)\nnew user text');
+        expect(f.contents.get(f.second)).toBe('![](a/photo.png)\nother edit');
+        expect(f.rename).not.toHaveBeenCalled();
+    });
+
     it('updates live editor contents including unsaved text', async () => {
         const f = fixture('![](a/photo.png)');
         let text = '![](a/photo.png)\nunsaved text';
@@ -85,6 +150,35 @@ describe('BatchRename explicit image rename', () => {
         f.app.metadataCache.getFirstLinkpathDest = () => f.target;
         await new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png');
         expect(f.getContent()).toBe('![[a/renamed.png|keep alt]]');
+    });
+
+    it('restores live editor references while preserving their original unsaved text', async () => {
+        const f = multiNoteFixture();
+        let text = '![](a/photo.png)\nunsaved text';
+        const editor = { getValue: () => text, offsetToPos: () => ({ line: 1, ch: 12 }),
+            replaceRange: (value: string) => { text = value; } } as unknown as Editor;
+        f.views.push(Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { file: f.note, editor }));
+        f.rename.mockRejectedValue(new Error('rename failed'));
+        await expect(new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png')).rejects.toThrow('rename failed');
+        expect(text).toBe('![](a/photo.png)\nunsaved text');
+        expect(f.contents.get(f.second)).toBe('![](a/photo.png)');
+    });
+
+    it('restores a reference even when the host rejects after writing it', async () => {
+        const f = multiNoteFixture();
+        const process = f.app.vault.process.bind(f.app.vault);
+        let firstWrite = true;
+        f.app.vault.process = async (note, update) => {
+            const result = await process(note, update);
+            if (firstWrite) {
+                firstWrite = false;
+                throw new Error('write failed after mutation');
+            }
+            return result;
+        };
+        await expect(new BatchRename(f.app, DEFAULT_SETTINGS).renameImage(f.target, 'renamed.png')).rejects.toThrow('write failed after mutation');
+        expect([...f.contents.values()]).toEqual(['![](a/photo.png)', '![](a/photo.png)']);
+        expect(f.rename).not.toHaveBeenCalled();
     });
 
     it('preserves Markdown encoding and Wiki literal filename semantics', async () => {
