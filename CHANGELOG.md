@@ -1,5 +1,41 @@
 # Changelog
 
+## 2.0.9
+
+### 🇺🇸 English
+
+#### Fixes
+
+- Preserve literal dollar signs and template-like text in image names, note paths, and upload paths; inserted values are no longer expanded again ([PR #63](https://github.com/ytahml/obsidian-image-manager/pull/63)).
+- Improve remote reference protection for Qiniu public domains without a URL scheme, Markdown image titles and parentheses, and unsaved editor content. Changes during or after scanning invalidate deletion eligibility; failed rescans cannot reuse an older result ([PR #64](https://github.com/ytahml/obsidian-image-manager/pull/64), [PR #67](https://github.com/ytahml/obsidian-image-manager/pull/67), [PR #69](https://github.com/ytahml/obsidian-image-manager/pull/69)).
+- Protect upload replacement and rename write-back from concurrent note edits. Rename only references resolving to the exact image; restore earlier reference writes if a later note or the file rename fails, without overwriting subsequent user edits. Stop pending paste effects when the source editor closes or switches notes ([PR #67](https://github.com/ytahml/obsidian-image-manager/pull/67), [PR #69](https://github.com/ytahml/obsidian-image-manager/pull/69)).
+- Keep compressed image bytes, filename extensions, and upload content types consistent. In-place compression preserves the original format and retains the original bytes when the encoder cannot produce it ([PR #69](https://github.com/ytahml/obsidian-image-manager/pull/69)).
+- Clean up empty attachment directories after successful upload, reference replacement, and local-file recycling on desktop, including managed paste, delegated handoff, and manual uploads. Hidden files and concurrent writes prevent deletion; only managed paste also cleans ancestor directories created by that paste operation ([PR #71](https://github.com/ytahml/obsidian-image-manager/pull/71), [Issue #70](https://github.com/ytahml/obsidian-image-manager/issues/70)).
+
+#### Compatibility and maintenance
+
+- On mobile, managed auto-upload with **Keep local copy** off stages images beside the note if the configured attachment directory does not exist. Failed uploads retain the local image and reference. Upload templates using `{sourceDir}` use this actual local directory, including on manual retry.
+- Updated development dependency security patches and made Node type loading explicit for the official review toolchain. No runtime dependencies were added ([PR #65](https://github.com/ytahml/obsidian-image-manager/pull/65)).
+- Requires Obsidian 1.13.0 or later (unchanged).
+
+### 🇨🇳 中文
+
+#### 修复
+
+- 保留图片名、笔记路径和上传路径中的美元符号及类似模板变量的字面文本，不再对已插入的变量值二次展开（[PR #63](https://github.com/ytahml/obsidian-image-manager/pull/63)）。
+- 完善远程引用保护，覆盖未填写协议的七牛公共域名、带标题或括号的 Markdown 图片 URL，以及编辑器中尚未保存的内容。扫描期间或之后的变化会撤销删除资格，重扫失败也不会沿用旧结果（[PR #64](https://github.com/ytahml/obsidian-image-manager/pull/64)、[PR #67](https://github.com/ytahml/obsidian-image-manager/pull/67)、[PR #69](https://github.com/ytahml/obsidian-image-manager/pull/69)）。
+- 上传替换和重命名写回会重验笔记内容，避免覆盖并发编辑；重命名只修改确实指向目标图片的引用。后续笔记处理或文件重命名失败时，会受保护地恢复已改写的引用，不覆盖用户后续编辑。来源编辑器关闭或切换笔记后，停止尚未完成的粘贴操作（[PR #67](https://github.com/ytahml/obsidian-image-manager/pull/67)、[PR #69](https://github.com/ytahml/obsidian-image-manager/pull/69)）。
+- 修复压缩后图片字节、文件扩展名与上传 Content-Type 不一致的问题；原地压缩保持原格式，编码器不支持时保留原始字节（[PR #69](https://github.com/ytahml/obsidian-image-manager/pull/69)）。
+- 桌面端在上传、引用替换及本地图片回收成功后清理空附件目录，覆盖受管粘贴、委托接力和手动上传。隐藏文件及并发新增文件会阻止删除；只有受管粘贴会继续清理本次粘贴新建的祖先目录（[PR #71](https://github.com/ytahml/obsidian-image-manager/pull/71)、[Issue #70](https://github.com/ytahml/obsidian-image-manager/issues/70)）。
+
+#### 兼容说明与维护
+
+- 移动端受管自动上传且关闭**保留本地副本**时，若配置的附件目录不存在，图片先保存到笔记目录；上传失败时保留本地图片及引用。上传模板中的 `{sourceDir}` 使用实际保存目录，手动重试也遵循此规则。
+- 更新开发依赖安全补丁，并显式加载 Node 类型以兼容官方审查工具链；未新增运行时依赖（[PR #65](https://github.com/ytahml/obsidian-image-manager/pull/65)）。
+- 最低 Obsidian 版本仍为 1.13.0。
+
+---
+
 ## 2.0.8
 
 ### 🇺🇸 English
