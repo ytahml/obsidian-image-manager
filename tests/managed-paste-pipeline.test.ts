@@ -9,6 +9,7 @@ vi.mock('obsidian', () => ({
     Notice: class Notice {
         hide(): void {}
     },
+    Platform: { isMobile: false },
     TFile: class TFile {},
     MarkdownView: class MarkdownView {},
 }));
@@ -19,7 +20,7 @@ vi.mock('../src/utils/local-orphan-management', () => ({
     scanLocalOrphans: vi.fn(),
 }));
 vi.mock('../src/utils/empty-folder-cleanup', () => ({
-    removeEmptyDirectParent: vi.fn(),
+    removeEmptyFolders: vi.fn(),
 }));
 vi.mock('../src/uploaders/uploader-factory', () => ({
     createUploader: () => ({ upload: providerUpload }),
@@ -28,10 +29,12 @@ vi.mock('../src/utils/image-optimizer', () => ({
     ImageOptimizer: class { compressImage = compressImage; },
 }));
 
-import { MarkdownView, TFile, type App, type Editor } from 'obsidian';
+import { MarkdownView, Platform, TFile, type App, type Editor } from 'obsidian';
 import { ManagedPastePipeline } from '../src/lifecycle/managed-paste-pipeline';
-import { DEFAULT_SETTINGS, type ImageManagerSettings, type ImageReference } from '../src/types';
-import type { RefConverter } from '../src/utils/ref-converter';
+import { scanLocalOrphans } from '../src/utils/local-orphan-management';
+import { removeEmptyFolders } from '../src/utils/empty-folder-cleanup';
+import { DEFAULT_SETTINGS, type ImageManagerSettings } from '../src/types';
+import { RefConverter } from '../src/utils/ref-converter';
 import { UploadService } from '../src/uploaders/upload-service';
 
 function file(path: string, parentPath = ''): TFile {
@@ -43,18 +46,6 @@ function file(path: string, parentPath = ''): TFile {
     return target;
 }
 
-function parseReferences(content: string): ImageReference[] {
-    const match = /!\[([^\]]*)\]\(([^)]+)\)/.exec(content);
-    if (!match) return [];
-    return [{
-        fullMatch: match[0],
-        altText: match[1]!,
-        path: match[2]!,
-        format: 'markdown',
-        line: 0,
-        col: match.index,
-    }];
-}
 
 function harness(overrides: Partial<ImageManagerSettings> = {}, useRealUploadService = false) {
     const settings: ImageManagerSettings = {
@@ -71,17 +62,19 @@ function harness(overrides: Partial<ImageManagerSettings> = {}, useRealUploadSer
         const folderEntry = new TFile();
         folderEntry.path = path;
         files.set(path, folderEntry);
+        return folderEntry;
     });
     const createBinary = vi.fn(async (path: string) => {
+        if (files.has(path)) throw new Error('File exists');
         const created = file(path, path.split('/').slice(0, -1).join('/'));
         files.set(path, created);
         return created;
     });
-    const trashFile = vi.fn();
+    const trashFile = vi.fn(async (image: TFile) => { files.delete(image.path); image.parent = null; });
     const app = {
         workspace: { getLeavesOfType: () => views.map(view => ({ view })), getActiveViewOfType: () => null },
         vault: {
-            adapter: { exists: async () => false },
+            adapter: { exists: vi.fn(async (path: string) => files.has(path)) },
             getAbstractFileByPath: (path: string) => files.get(path) ?? null,
             createFolder,
             createBinary,
@@ -116,12 +109,12 @@ function harness(overrides: Partial<ImageManagerSettings> = {}, useRealUploadSer
         app,
         getSettings: () => settings,
         uploadService,
-        refConverter: { parseReferences } as unknown as RefConverter,
+        refConverter: new RefConverter(app),
         uploadReferences: {
             prepare: prepareReference,
             replaceVaultReferences: replaceReferenceInNotes,
         },
-        getDefaultHostingConfig: () => settings.hostingConfigs[0] ?? null,
+        getDefaultHostingConfig: () => settings.hostingConfigs.find(config => config.enabled) ?? null,
         getIndeterminateImagePaths: () => new Set(),
     });
     const image = {
@@ -133,14 +126,20 @@ function harness(overrides: Partial<ImageManagerSettings> = {}, useRealUploadSer
         views.splice(0, views.length, Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { file: note, editor }));
     };
     return {
-        pipeline, settings, createFolder, createBinary, editor, image,
+        app, pipeline, settings, createFolder, createBinary, editor, image,
         files, views, bind, trashFile,
         uploadFile, uploadData, uploadService, replaceReferenceInNotes,
         getContent: () => content,
     };
 }
 
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => {
+    Platform.isMobile = false;
+    vi.mocked(scanLocalOrphans).mockReset();
+    vi.mocked(removeEmptyFolders).mockReset();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+});
 
 describe('ManagedPastePipeline', () => {
     it.each([['image/png', 'image/webp', 'webp'], ['image/gif', 'image/png', 'png']])('saves %s encoded as %s with matching extension', async (inputMime, outputMime, extension) => {
@@ -187,6 +186,31 @@ describe('ManagedPastePipeline', () => {
         await vi.waitFor(() => expect(target.createBinary).toHaveBeenCalledOnce());
         expect(target.uploadFile).not.toHaveBeenCalled();
         expect(target.uploadData).not.toHaveBeenCalled();
+    });
+
+    it('cleans newly created attachment ancestors after managed auto-upload recycles the image', async () => {
+        const target = harness({
+            imagePathTemplate: 'assets/nested',
+            managedAutoUploadOnPaste: true,
+            managedKeepLocalCopy: false,
+            compressBeforeUpload: false,
+            hostingConfigs: [{ id: 'host', type: 'custom', enabled: true }] as never,
+        });
+        target.uploadData.mockResolvedValue({ success: true, url: 'https://cdn.test/image.png' });
+        vi.mocked(scanLocalOrphans).mockImplementation(async () => ({
+            orphans: [target.files.get('assets/nested/managed-image.png')!],
+            indeterminate: [],
+            total: 1,
+            referenced: 0,
+        }));
+        const note = file('note.md');
+        target.bind(note);
+
+        target.pipeline.processFiles([target.image], target.editor, note);
+
+        await vi.waitFor(() => expect(removeEmptyFolders).toHaveBeenCalledOnce());
+        const folders = vi.mocked(removeEmptyFolders).mock.calls[0]![1];
+        expect(folders.map((folder) => folder?.path)).toEqual(['assets/nested', 'assets']);
     });
 
     it('replaces only the inserted managed reference after auto upload', async () => {
@@ -402,5 +426,117 @@ describe('ManagedPastePipeline', () => {
         expect(providerUpload).toHaveBeenCalledOnce();
         expect(target.replaceReferenceInNotes).toHaveBeenCalledOnce();
         expect(target.trashFile).not.toHaveBeenCalled();
+    });
+});
+
+
+describe('mobile managed uploads without new attachment directories', () => {
+    function mobile(overrides: Partial<ImageManagerSettings> = {}, realService = false) {
+        Platform.isMobile = true;
+        return harness({
+            managedAutoUploadOnPaste: true,
+            managedKeepLocalCopy: false,
+            compressBeforeUpload: false,
+            hostingConfigs: [{ id: 'host', type: 'custom', enabled: true }] as never,
+            ...overrides,
+        }, realService);
+    }
+
+    it.each(['', '/', 'notes/中文'])( 'keeps a recoverable local reference in existing directory "%s" while upload is pending or fails', async directory => {
+        const target = mobile();
+        const root = !directory || directory === '/';
+        const note = file(root ? 'note.md' : directory + '/note.md', directory);
+        target.bind(note);
+        let finish: (value: { success: boolean }) => void = () => {};
+        target.uploadData.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+        target.pipeline.processFiles([target.image], target.editor, note);
+        await vi.waitFor(() => expect(target.uploadData).toHaveBeenCalledOnce());
+        const path = root ? 'managed-image.png' : directory + '/managed-image.png';
+        expect(target.files.has(path)).toBe(true);
+        expect(target.getContent()).toBe('![managed-image.png](managed-image.png)');
+        expect(target.createFolder).not.toHaveBeenCalled();
+        finish({ success: false });
+        await vi.waitFor(() => expect(target.uploadData.mock.settledResults[0]?.type).toBe('fulfilled'));
+        expect(target.files.has(path)).toBe(true);
+        expect(target.getContent()).toBe('![managed-image.png](managed-image.png)');
+        expect(target.trashFile).not.toHaveBeenCalled();
+    });
+
+    it.each(['markdown', 'wiki'] as const)('replaces the %s reference before recycling the staged image', async format => {
+        const target = mobile({ managedPasteReferenceFormat: format });
+        const note = file('notes/note.md', 'notes');
+        target.bind(note);
+        target.uploadData.mockResolvedValue({ success: true, url: 'https://cdn.test/image.png' });
+        vi.mocked(scanLocalOrphans).mockImplementation(async () => ({
+            orphans: [target.files.get('notes/managed-image.png')!], indeterminate: [], total: 1, referenced: 0,
+        }));
+        target.pipeline.processFiles([target.image], target.editor, note);
+        await vi.waitFor(() => expect(target.trashFile).toHaveBeenCalledOnce());
+        expect(target.getContent()).toContain('](https://cdn.test/image.png)');
+        expect(target.files.has('notes/managed-image.png')).toBe(false);
+        expect(target.createFolder).not.toHaveBeenCalled();
+    });
+
+    it.each(['existing', 'keep', 'disabled', 'no-host', 'disabled-host', 'desktop'] as const)('uses configured storage for %s', async condition => {
+        const target = mobile();
+        const note = file('notes/note.md', 'notes');
+        target.bind(note);
+        if (condition === 'existing') await target.createFolder('notes/attachments');
+        if (condition === 'keep') target.settings.managedKeepLocalCopy = true;
+        if (condition === 'disabled') target.settings.managedAutoUploadOnPaste = false;
+        if (condition === 'no-host') target.settings.hostingConfigs = [];
+        if (condition === 'disabled-host') target.settings.hostingConfigs[0]!.enabled = false;
+        if (condition === 'desktop') Platform.isMobile = false;
+        target.uploadData.mockResolvedValue({ success: false });
+        target.pipeline.processFiles([target.image], target.editor, note);
+        await vi.waitFor(() => expect(target.createBinary).toHaveBeenCalledOnce());
+        expect(target.files.has('notes/attachments/managed-image.png')).toBe(true);
+        expect(target.getContent()).toBe('![managed-image.png](attachments/managed-image.png)');
+    });
+
+    it('keeps both images and their distinct references when concurrent same-name saves collide', async () => {
+        const target = mobile();
+        const note = file('notes/note.md', 'notes');
+        target.bind(note);
+        const existing = file('notes/managed-image.png', 'notes');
+        target.files.set(existing.path, existing);
+        target.uploadData.mockResolvedValue({ success: false });
+        target.pipeline.processFiles([target.image, target.image], target.editor, note);
+        await vi.waitFor(() => expect(target.uploadData).toHaveBeenCalledTimes(2));
+        const images = Array.from(target.files.values()).filter(f => f.extension === 'png');
+        expect(images).toHaveLength(3);
+        expect(target.files.get(existing.path)).toBe(existing);
+        for (const image of images.filter(f => f !== existing)) expect(target.getContent()).toContain('](' + image.name + ')');
+        expect(target.createFolder).not.toHaveBeenCalled();
+    });
+
+    it('uploads compressed bytes with the actual staged source directory', async () => {
+        providerUpload.mockReset().mockResolvedValue({ success: false });
+        compressImage.mockReset().mockResolvedValue({ data: new Uint8Array([9]).buffer, format: 'webp' });
+        const target = mobile({ compressBeforeUpload: true, uploadPathTemplate: '{sourceDir}/{filename}.{ext}' }, true);
+        const note = file('notes/note.md', 'notes');
+        target.bind(note);
+        target.pipeline.processFiles([target.image], target.editor, note);
+        await vi.waitFor(() => expect(providerUpload).toHaveBeenCalledOnce());
+        expect(providerUpload).toHaveBeenCalledWith(new Uint8Array([9]).buffer, 'managed-image.webp', { sourcePath: 'notes/managed-image.png' });
+        expect(target.files.has('notes/managed-image.png')).toBe(true);
+        expect(target.createFolder).not.toHaveBeenCalled();
+    });
+
+    it('keeps the staged image when the source editor switches during upload', async () => {
+        const target = mobile();
+        const note = file('notes/first.md', 'notes');
+        target.bind(note);
+        let finish: (value: { success: boolean; url: string }) => void = () => {};
+        target.uploadData.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+        target.pipeline.processFiles([target.image], target.editor, note);
+        await vi.waitFor(() => expect(target.uploadData).toHaveBeenCalledOnce());
+        target.bind(file('second.md'));
+        finish({ success: true, url: 'https://cdn.test/image.png' });
+        await vi.waitFor(() => expect(target.uploadData.mock.settledResults[0]?.type).toBe('fulfilled'));
+        expect(target.files.has('notes/managed-image.png')).toBe(true);
+        expect(target.getContent()).toBe('![managed-image.png](managed-image.png)');
+        expect(target.trashFile).not.toHaveBeenCalled();
+        expect(target.replaceReferenceInNotes).not.toHaveBeenCalled();
     });
 });

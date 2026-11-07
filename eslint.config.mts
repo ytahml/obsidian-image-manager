@@ -22,6 +22,13 @@ export default tseslint.config(
 		},
 	},
 	{
+		files: ["src/utils/empty-folder-cleanup.ts"],
+		rules: {
+			// Guarded desktop imports for the OS operation that refuses nonempty directories.
+			"import/no-nodejs-modules": ["error", { allow: ["fs/promises", "path"] }],
+		},
+	},
+	{
 		files: ["package.json"],
 		rules: {
 			"obsidianmd/no-plugin-as-component": "off",

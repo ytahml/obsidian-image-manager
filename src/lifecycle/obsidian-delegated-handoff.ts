@@ -3,6 +3,7 @@ import type { ImageHostingConfig, ImageManagerSettings, ImageReference } from '.
 import type { UploadReferenceManager } from '../uploaders/upload-reference-manager';
 import { RefConverter } from '../utils/ref-converter';
 import { scanLocalOrphans } from '../utils/local-orphan-management';
+import { removeEmptyFolders } from '../utils/empty-folder-cleanup';
 import {
     PasteLifecycleCoordinator,
     type HandoffReadyItem,
@@ -413,7 +414,9 @@ export class ObsidianDelegatedHandoff {
         if (!fresh.orphans.some((orphan) => orphan.path === file.path)) return;
         if (this.deps.isIndeterminate(file)) return;
         if (!await this.validatePostReplacement(ready, transaction, transaction.items[ready.itemIndex]!)) return;
+        const parent = file.parent;
         await this.deps.app.fileManager.trashFile(file);
+        await removeEmptyFolders(this.deps.app.vault, [parent]);
     }
 
     private waitForProtection(

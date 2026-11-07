@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('obsidian', () => ({ MarkdownView: class MarkdownView {}, TFile: class TFile {}, normalizePath: (path: string) => path.replace(/^\/+|\/+$/g, '') }));
-import { MarkdownView, TFile, type App, type WorkspaceLeaf } from 'obsidian';
+vi.mock('obsidian', () => ({ MarkdownView: class MarkdownView {}, TFile: class TFile {}, TFolder: class TFolder { path = ''; children: unknown[] = []; isRoot() { return false; } }, normalizePath: (path: string) => path.replace(/^\/+|\/+$/g, '') }));
+vi.mock('../src/utils/empty-folder-cleanup', () => ({ removeEmptyFolders: vi.fn() }));
+import { MarkdownView, TFile, TFolder, type App, type WorkspaceLeaf } from 'obsidian';
+import { removeEmptyFolders } from '../src/utils/empty-folder-cleanup';
 import { DEFAULT_SETTINGS, type ImageHostingConfig } from '../src/types';
 import { UploadLocalCleanup } from '../src/uploaders/upload-local-cleanup';
 import { RefConverter } from '../src/utils/ref-converter';
@@ -21,7 +23,7 @@ function fixture() {
     const leaves: WorkspaceLeaf[] = [];
     const settings = { ...DEFAULT_SETTINGS, managedKeepLocalCopy: true, delegatedKeepLocalCopy: true };
     const indeterminate = new Set<string>();
-    const trashFile = vi.fn(async (f: TFile) => { files.splice(files.indexOf(f), 1); });
+    const trashFile = vi.fn(async (f: TFile) => { files.splice(files.indexOf(f), 1); f.parent = null; });
     const cachedRead = vi.fn(async (f: TFile) => contents.get(f.path)!);
     const process = vi.fn(async (f: TFile, update: (value: string) => string) => { contents.set(f.path, update(contents.get(f.path)!)); });
     const app = {
@@ -57,6 +59,19 @@ describe('explicit upload local-copy policy', () => {
             }
         }
     });
+    it('cleans the image parent after a single-image upload recycles the local copy', async () => {
+        const f = fixture();
+        const parent = new TFolder();
+        parent.path = 'assets';
+        f.image.parent = parent;
+        f.settings.managedKeepLocalCopy = false;
+
+        await f.workflow.uploadImage(f.image, hosting, true);
+
+        expect(f.trashFile).toHaveBeenCalledExactlyOnceWith(f.image);
+        expect(removeEmptyFolders).toHaveBeenCalledWith(f.app.vault, [parent]);
+    });
+
     it('does not recycle when replacement is off or no reference was replaced', async () => {
         const f = fixture();
         f.settings.managedKeepLocalCopy = false;

@@ -40,6 +40,8 @@
 
 `localManagementMode` 决定自动 paste/drop 的本地管理权，并选择包括显式上传在内的本地副本偏好。managed/delegated 分别保存自动上传和本地副本偏好，切换线路只改变当前读取哪组偏好，不重置任一组值。旧 `autoUploadOnPaste` / `keepLocalCopy` 加载时分别复制到两条线路，然后不再持久化旧字段。
 
+移动端 managed 的“保留本地副本”说明追加暂存规则：自动上传且关闭保留时，若附件目录不存在则先保存于笔记目录，失败时保留图片与本地引用。该行为使用现有偏好，不新增设置。
+
 `managedPasteReferenceFormat` 只影响 managed 初始引用，`reorganizeConvertFormat` 只影响显式整理。手动上传与自动上传均不受这两个格式设置门控。
 
 Obsidian 1.13 声明式设置页在 delegated 下隐藏命名、命名提示、managed 引用格式和本地粘贴压缩，同时保留其值。路径模板与路径基准始终显示，因为显式整理和外部重命名修复在两种模式下都会读取。图床接力设置继续可编辑，并绑定当前模式自己的自动上传与本地副本偏好。

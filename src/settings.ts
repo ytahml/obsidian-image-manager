@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, type SettingDefinitionItem, type SettingGroupItem } from 'obsidian';
+import { App, Platform, PluginSettingTab, Setting, type SettingDefinitionItem, type SettingGroupItem } from 'obsidian';
 import type ImageManagerPlugin from './main';
 import { DEFAULT_SETTINGS, ImageHostingConfig } from './types';
 import { t, setLocale } from './i18n';
@@ -367,7 +367,8 @@ export class ImageManagerSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName(t('settings.keepLocalCopy'))
-            .setDesc(t('settings.keepLocalCopyDesc'))
+            .setDesc(t('settings.keepLocalCopyDesc') + (Platform.isMobile && !this.isDelegated()
+                ? ' ' + t('settings.keepLocalCopyDesc.mobile') : ''))
             .addToggle((toggle) =>
                 toggle.setValue(this.keepLocalCopy()).onChange(async (value) => {
                     this.setKeepLocalCopy(value);

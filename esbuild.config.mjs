@@ -34,6 +34,8 @@ const context = await esbuild.context({
 		...builtinModules],
 	format: "cjs",
 	target: "es2018",
+	// Obsidian loads plugins as CommonJS; resolve desktop-only Node imports lazily.
+	supported: { "dynamic-import": false },
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
